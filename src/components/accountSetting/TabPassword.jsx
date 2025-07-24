@@ -1,6 +1,6 @@
 import { FiEye, FiKey } from 'react-icons/fi'
 import { useState, useEffect } from 'react'
-import { BASE_URL } from '/src/paths.js';
+import { BASE_URL } from '/src/constants.js';
 
 const TabPassword = () => {
     // Get token from localStorage

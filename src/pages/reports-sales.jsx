@@ -36,7 +36,7 @@ import {
   SyncOutlined,
   CreditCardOutlined,
 } from '@ant-design/icons';
-import { BASE_URL } from '/src/paths.js';
+import { BASE_URL } from '/src/constants.js';
 
 const { RangePicker } = DatePicker;
 const { Title, Text } = Typography;
@@ -325,7 +325,7 @@ const ReportsSales = () => {
               boxShadow: '0 1px 3px rgba(16, 148, 185, 0.3)',
             }}
           >
-            {loading ? 'Refreshing...' : 'Refresh Data'}
+            {loading ? 'Refreshing...' : 'Refresh'}
           </Button>
         </Space>
       </div>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { FiShoppingCart, FiUser, FiEdit, FiPlus, FiMinus, FiCamera, FiX } from 'react-icons/fi';
-import { BASE_URL } from '/src/paths.js';
+import { BASE_URL } from '/src/constants.js';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import Quagga from 'quagga';

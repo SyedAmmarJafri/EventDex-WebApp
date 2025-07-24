@@ -2,7 +2,7 @@ import { Fragment, useState } from 'react'
 import { FiBell, FiDollarSign, FiLogOut, FiSettings, FiUser, FiX } from "react-icons/fi"
 import { useNavigate } from 'react-router-dom'
 import Button from '@mui/material/Button'
-import { BASE_URL } from '/src/paths.js';
+import { BASE_URL } from '/src/constants.js';
 import Modal from 'react-bootstrap/Modal';
 
 const ProfileModal = () => {

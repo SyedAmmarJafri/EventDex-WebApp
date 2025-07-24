@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import Table from '@/components/shared/table/Table';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { BASE_URL } from '/src/paths.js';
+import { BASE_URL } from '/src/constants.js';
 import Skeleton from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
 import Button from 'react-bootstrap/Button';

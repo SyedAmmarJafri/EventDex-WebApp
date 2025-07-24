@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { BASE_URL } from '/src/paths.js';
+import { BASE_URL } from '/src/constants.js';
 
 const ResetForm = ({ path }) => {
     const [email, setEmail] = useState('');

@@ -39,7 +39,7 @@ import {
   SyncOutlined,
   DollarOutlined
 } from '@ant-design/icons';
-import { BASE_URL } from '/src/paths.js';
+import { BASE_URL } from '/src/constants.js';
 
 const { RangePicker } = DatePicker;
 const { Title, Text } = Typography;

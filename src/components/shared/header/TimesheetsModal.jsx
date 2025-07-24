@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { FiClock, FiRefreshCw, FiVolume2, FiVolumeX, FiEye } from 'react-icons/fi';
 import { Link } from 'react-router-dom';
 import Modal from 'react-bootstrap/Modal';
-import { BASE_URL } from '/src/paths.js';
+import { BASE_URL } from '/src/constants.js';
 
 const TimesheetsModal = () => {
     const [pendingOrders, setPendingOrders] = useState([]);

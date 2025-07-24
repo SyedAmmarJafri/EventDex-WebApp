@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import Table from '@/components/shared/table/Table';
-import { BASE_URL } from '/src/paths.js';
+import { BASE_URL } from '/src/constants.js';
 import Skeleton from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
 import { toast, ToastContainer } from 'react-toastify';
@@ -491,8 +491,9 @@ const TransactionsTable = () => {
         try {
             setIsSubmitting(true);
             const authData = JSON.parse(localStorage.getItem("authData"));
+
             if (!authData?.token) {
-                toast.error("Authentication token not found");
+                toast.error("Authentication token not found", { className: 'toast-error' });
                 return;
             }
 
@@ -505,29 +506,26 @@ const TransactionsTable = () => {
                 body: JSON.stringify(newPaymentMethod)
             });
 
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || 'Failed to add payment method');
-            }
-
             const data = await response.json();
-            if (data.status === 200) {
-                toast.success("Payment method added successfully");
-                setShowAddPaymentMethod(false);
-                setNewPaymentMethod({
-                    name: '',
-                    type: 'CASH',
-                    description: '',
-                    active: true,
-                    default: false
-                });
-                fetchPaymentMethods();
-                fetchSummary();
-            } else {
+
+            if (!response.ok) {
                 throw new Error(data.message || 'Failed to add payment method');
             }
+
+            toast.success("Payment method added successfully", { className: 'toast-success' });
+            setShowAddPaymentMethod(false);
+            setNewPaymentMethod({
+                name: '',
+                type: 'CASH',
+                description: '',
+                active: true,
+                default: false
+            });
+            fetchPaymentMethods();
+            fetchSummary();
+
         } catch (err) {
-            toast.error(err.message);
+            toast.error(err.message, { className: 'toast-error' });
         } finally {
             setIsSubmitting(false);
         }
@@ -537,17 +535,25 @@ const TransactionsTable = () => {
         try {
             setIsSubmitting(true);
             const authData = JSON.parse(localStorage.getItem("authData"));
+
+            // Validate authentication
             if (!authData?.token) {
-                toast.error("Authentication token not found");
+                toast.error("Authentication token not found", { className: 'toast-error' });
                 return;
             }
 
+            // Prepare transaction data with proper types
             const transactionData = {
                 ...newTransaction,
-                type: type,
+                type: type.toUpperCase(), // Ensure consistent casing
                 amount: parseFloat(newTransaction.amount),
                 transactionDate: new Date(newTransaction.transactionDate).toISOString()
             };
+
+            // Validate amount
+            if (isNaN(transactionData.amount)) {  // Now properly closed
+                throw new Error("Invalid amount value");
+            }
 
             const response = await fetch(`${BASE_URL}/api/client-admin/finance/transactions`, {
                 method: 'POST',
@@ -558,35 +564,39 @@ const TransactionsTable = () => {
                 body: JSON.stringify(transactionData)
             });
 
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || `Failed to add ${type.toLowerCase()} transaction`);
-            }
-
             const data = await response.json();
-            if (data.status === 200) {
-                toast.success(`${type} transaction added successfully`);
-                if (type === 'INCOME') setShowAddIncome(false);
-                if (type === 'EXPENSE') setShowAddExpense(false);
-                if (type === 'WITHDRAWAL') setShowAddWithdrawal(false);
 
-                setNewTransaction({
-                    type: '',
-                    amount: '',
-                    paymentMethodId: '',
-                    description: '',
-                    category: '',
-                    reference: '',
-                    transactionDate: new Date().toISOString().slice(0, 16)
-                });
-
-                fetchTransactions();
-                fetchSummary();
-            } else {
+            if (!response.ok) {
                 throw new Error(data.message || `Failed to add ${type.toLowerCase()} transaction`);
             }
+
+            // Success handling
+            toast.success(`${type} transaction added successfully`, { className: 'toast-success' });
+
+            // Close the appropriate modal based on transaction type
+            const modalSetters = {
+                INCOME: setShowAddIncome,
+                EXPENSE: setShowAddExpense,
+                WITHDRAWAL: setShowAddWithdrawal
+            };
+            modalSetters[type]?.(false);
+
+            // Reset form
+            setNewTransaction({
+                type: '',
+                amount: '',
+                paymentMethodId: '',
+                description: '',
+                category: '',
+                reference: '',
+                transactionDate: new Date().toISOString().slice(0, 16) // Default to current datetime
+            });
+
+            // Refresh data
+            await Promise.all([fetchTransactions(), fetchSummary()]);
+
         } catch (err) {
-            toast.error(err.message);
+            toast.error(err.message, { className: 'toast-error' });
         } finally {
             setIsSubmitting(false);
         }
@@ -725,20 +735,26 @@ const TransactionsTable = () => {
                             />
                         </Form.Group>
 
-                        <Form.Check
-                            type="checkbox"
-                            label="Active"
-                            checked={newPaymentMethod.active}
-                            onChange={(e) => setNewPaymentMethod({ ...newPaymentMethod, active: e.target.checked })}
-                            className="mb-3"
-                        />
-
-                        <Form.Check
-                            type="checkbox"
-                            label="Set as default payment method"
-                            checked={newPaymentMethod.default}
-                            onChange={(e) => setNewPaymentMethod({ ...newPaymentMethod, default: e.target.checked })}
-                        />
+                        <Form.Group className="mb-3 d-flex align-items-center gap-3">
+                            <div className="d-flex align-items-center">
+                                <Form.Check
+                                    type="checkbox"
+                                    checked={newPaymentMethod.active}
+                                    onChange={(e) => setNewPaymentMethod({ ...newPaymentMethod, active: e.target.checked })}
+                                    className="me-2"
+                                />
+                                <h8 className="m-0">Active</h8>
+                            </div>
+                            <div className="d-flex align-items-center">
+                                <Form.Check
+                                    type="checkbox"
+                                    checked={newPaymentMethod.default}
+                                    onChange={(e) => setNewPaymentMethod({ ...newPaymentMethod, default: e.target.checked })}
+                                    className="me-2"
+                                />
+                                <h8 className="m-0">Set as default payment method</h8>
+                            </div>
+                        </Form.Group>
                     </Form>
                 </Modal.Body>
                 <Modal.Footer>
@@ -749,36 +765,41 @@ const TransactionsTable = () => {
             </Modal>
 
             {/* Add Income Modal */}
-            <Modal show={showAddIncome} onHide={() => setShowAddIncome(false)}>
+            <Modal show={showAddIncome} onHide={() => setShowAddIncome(false)} size="lg">
                 <Modal.Header closeButton>
                     <Modal.Title>Add Income Transaction</Modal.Title>
                 </Modal.Header>
                 <Modal.Body>
                     <Form>
-                        <Form.Group className="mb-3">
-                            <Form.Label>Amount</Form.Label>
-                            <Form.Control
-                                type="number"
-                                placeholder="Enter amount"
-                                value={newTransaction.amount}
-                                onChange={(e) => setNewTransaction({ ...newTransaction, amount: e.target.value })}
-                                required
-                            />
-                        </Form.Group>
-
-                        <Form.Group className="mb-3">
-                            <Form.Label>Payment Method</Form.Label>
-                            <Form.Select
-                                value={newTransaction.paymentMethodId}
-                                onChange={(e) => setNewTransaction({ ...newTransaction, paymentMethodId: e.target.value })}
-                                required
-                            >
-                                <option value="">Select payment method</option>
-                                {paymentMethods.map((method) => (
-                                    <option key={method.id} value={method.id}>{method.name}</option>
-                                ))}
-                            </Form.Select>
-                        </Form.Group>
+                        <div className="row">
+                            <div className="col-md-6">
+                                <Form.Group className="mb-3">
+                                    <Form.Label>Amount</Form.Label>
+                                    <Form.Control
+                                        type="number"
+                                        placeholder="Enter amount"
+                                        value={newTransaction.amount}
+                                        onChange={(e) => setNewTransaction({ ...newTransaction, amount: e.target.value })}
+                                        required
+                                    />
+                                </Form.Group>
+                            </div>
+                            <div className="col-md-6">
+                                <Form.Group className="mb-3">
+                                    <Form.Label>Payment Method</Form.Label>
+                                    <Form.Select
+                                        value={newTransaction.paymentMethodId}
+                                        onChange={(e) => setNewTransaction({ ...newTransaction, paymentMethodId: e.target.value })}
+                                        required
+                                    >
+                                        <option value="">Select payment method</option>
+                                        {paymentMethods.map((method) => (
+                                            <option key={method.id} value={method.id}>{method.name}</option>
+                                        ))}
+                                    </Form.Select>
+                                </Form.Group>
+                            </div>
+                        </div>
 
                         <Form.Group className="mb-3">
                             <Form.Label>Description</Form.Label>
@@ -792,19 +813,34 @@ const TransactionsTable = () => {
                             />
                         </Form.Group>
 
-                        <Form.Group className="mb-3">
-                            <Form.Label>Category</Form.Label>
-                            <Form.Select
-                                value={newTransaction.category}
-                                onChange={(e) => setNewTransaction({ ...newTransaction, category: e.target.value })}
-                                required
-                            >
-                                <option value="">Select category</option>
-                                {transactionCategories.map((category) => (
-                                    <option key={category.value} value={category.value}>{category.label}</option>
-                                ))}
-                            </Form.Select>
-                        </Form.Group>
+                        <div className="row">
+                            <div className="col-md-6">
+                                <Form.Group className="mb-3">
+                                    <Form.Label>Category</Form.Label>
+                                    <Form.Select
+                                        value={newTransaction.category}
+                                        onChange={(e) => setNewTransaction({ ...newTransaction, category: e.target.value })}
+                                        required
+                                    >
+                                        <option value="">Select category</option>
+                                        {transactionCategories.map((category) => (
+                                            <option key={category.value} value={category.value}>{category.label}</option>
+                                        ))}
+                                    </Form.Select>
+                                </Form.Group>
+                            </div>
+                            <div className="col-md-6">
+                                <Form.Group className="mb-3">
+                                    <Form.Label>Date & Time</Form.Label>
+                                    <Form.Control
+                                        type="datetime-local"
+                                        value={newTransaction.transactionDate}
+                                        onChange={(e) => setNewTransaction({ ...newTransaction, transactionDate: e.target.value })}
+                                        required
+                                    />
+                                </Form.Group>
+                            </div>
+                        </div>
 
                         <Form.Group className="mb-3">
                             <Form.Label>Reference</Form.Label>
@@ -815,20 +851,10 @@ const TransactionsTable = () => {
                                 onChange={(e) => setNewTransaction({ ...newTransaction, reference: e.target.value })}
                             />
                         </Form.Group>
-
-                        <Form.Group className="mb-3">
-                            <Form.Label>Date & Time</Form.Label>
-                            <Form.Control
-                                type="datetime-local"
-                                value={newTransaction.transactionDate}
-                                onChange={(e) => setNewTransaction({ ...newTransaction, transactionDate: e.target.value })}
-                                required
-                            />
-                        </Form.Group>
                     </Form>
                 </Modal.Body>
                 <Modal.Footer>
-                    <Button variant="success" onClick={() => handleAddTransaction('INCOME')}
+                    <Button variant="primary" onClick={() => handleAddTransaction('INCOME')}
                         disabled={isSubmitting || !newTransaction.amount || !newTransaction.paymentMethodId || !newTransaction.description || !newTransaction.category}>
                         {isSubmitting ? 'Adding...' : 'Add Income'}
                     </Button>
@@ -836,36 +862,41 @@ const TransactionsTable = () => {
             </Modal>
 
             {/* Add Expense Modal */}
-            <Modal show={showAddExpense} onHide={() => setShowAddExpense(false)}>
+            <Modal show={showAddExpense} onHide={() => setShowAddExpense(false)} size="lg">
                 <Modal.Header closeButton>
                     <Modal.Title>Add Expense Transaction</Modal.Title>
                 </Modal.Header>
                 <Modal.Body>
                     <Form>
-                        <Form.Group className="mb-3">
-                            <Form.Label>Amount</Form.Label>
-                            <Form.Control
-                                type="number"
-                                placeholder="Enter amount"
-                                value={newTransaction.amount}
-                                onChange={(e) => setNewTransaction({ ...newTransaction, amount: e.target.value })}
-                                required
-                            />
-                        </Form.Group>
-
-                        <Form.Group className="mb-3">
-                            <Form.Label>Payment Method</Form.Label>
-                            <Form.Select
-                                value={newTransaction.paymentMethodId}
-                                onChange={(e) => setNewTransaction({ ...newTransaction, paymentMethodId: e.target.value })}
-                                required
-                            >
-                                <option value="">Select payment method</option>
-                                {paymentMethods.map((method) => (
-                                    <option key={method.id} value={method.id}>{method.name}</option>
-                                ))}
-                            </Form.Select>
-                        </Form.Group>
+                        <div className="row">
+                            <div className="col-md-6">
+                                <Form.Group className="mb-3">
+                                    <Form.Label>Amount</Form.Label>
+                                    <Form.Control
+                                        type="number"
+                                        placeholder="Enter amount"
+                                        value={newTransaction.amount}
+                                        onChange={(e) => setNewTransaction({ ...newTransaction, amount: e.target.value })}
+                                        required
+                                    />
+                                </Form.Group>
+                            </div>
+                            <div className="col-md-6">
+                                <Form.Group className="mb-3">
+                                    <Form.Label>Payment Method</Form.Label>
+                                    <Form.Select
+                                        value={newTransaction.paymentMethodId}
+                                        onChange={(e) => setNewTransaction({ ...newTransaction, paymentMethodId: e.target.value })}
+                                        required
+                                    >
+                                        <option value="">Select payment method</option>
+                                        {paymentMethods.map((method) => (
+                                            <option key={method.id} value={method.id}>{method.name}</option>
+                                        ))}
+                                    </Form.Select>
+                                </Form.Group>
+                            </div>
+                        </div>
 
                         <Form.Group className="mb-3">
                             <Form.Label>Description</Form.Label>
@@ -879,19 +910,34 @@ const TransactionsTable = () => {
                             />
                         </Form.Group>
 
-                        <Form.Group className="mb-3">
-                            <Form.Label>Category</Form.Label>
-                            <Form.Select
-                                value={newTransaction.category}
-                                onChange={(e) => setNewTransaction({ ...newTransaction, category: e.target.value })}
-                                required
-                            >
-                                <option value="">Select category</option>
-                                {transactionCategories.map((category) => (
-                                    <option key={category.value} value={category.value}>{category.label}</option>
-                                ))}
-                            </Form.Select>
-                        </Form.Group>
+                        <div className="row">
+                            <div className="col-md-6">
+                                <Form.Group className="mb-3">
+                                    <Form.Label>Category</Form.Label>
+                                    <Form.Select
+                                        value={newTransaction.category}
+                                        onChange={(e) => setNewTransaction({ ...newTransaction, category: e.target.value })}
+                                        required
+                                    >
+                                        <option value="">Select category</option>
+                                        {transactionCategories.map((category) => (
+                                            <option key={category.value} value={category.value}>{category.label}</option>
+                                        ))}
+                                    </Form.Select>
+                                </Form.Group>
+                            </div>
+                            <div className="col-md-6">
+                                <Form.Group className="mb-3">
+                                    <Form.Label>Date & Time</Form.Label>
+                                    <Form.Control
+                                        type="datetime-local"
+                                        value={newTransaction.transactionDate}
+                                        onChange={(e) => setNewTransaction({ ...newTransaction, transactionDate: e.target.value })}
+                                        required
+                                    />
+                                </Form.Group>
+                            </div>
+                        </div>
 
                         <Form.Group className="mb-3">
                             <Form.Label>Reference</Form.Label>
@@ -902,20 +948,10 @@ const TransactionsTable = () => {
                                 onChange={(e) => setNewTransaction({ ...newTransaction, reference: e.target.value })}
                             />
                         </Form.Group>
-
-                        <Form.Group className="mb-3">
-                            <Form.Label>Date & Time</Form.Label>
-                            <Form.Control
-                                type="datetime-local"
-                                value={newTransaction.transactionDate}
-                                onChange={(e) => setNewTransaction({ ...newTransaction, transactionDate: e.target.value })}
-                                required
-                            />
-                        </Form.Group>
                     </Form>
                 </Modal.Body>
                 <Modal.Footer>
-                    <Button variant="danger" onClick={() => handleAddTransaction('EXPENSE')}
+                    <Button variant="primary" onClick={() => handleAddTransaction('EXPENSE')}
                         disabled={isSubmitting || !newTransaction.amount || !newTransaction.paymentMethodId || !newTransaction.description || !newTransaction.category}>
                         {isSubmitting ? 'Adding...' : 'Add Expense'}
                     </Button>
@@ -923,36 +959,41 @@ const TransactionsTable = () => {
             </Modal>
 
             {/* Add Withdrawal Modal */}
-            <Modal show={showAddWithdrawal} onHide={() => setShowAddWithdrawal(false)}>
+            <Modal show={showAddWithdrawal} onHide={() => setShowAddWithdrawal(false)} size="lg">
                 <Modal.Header closeButton>
                     <Modal.Title>Add Withdrawal Transaction</Modal.Title>
                 </Modal.Header>
                 <Modal.Body>
                     <Form>
-                        <Form.Group className="mb-3">
-                            <Form.Label>Amount</Form.Label>
-                            <Form.Control
-                                type="number"
-                                placeholder="Enter amount"
-                                value={newTransaction.amount}
-                                onChange={(e) => setNewTransaction({ ...newTransaction, amount: e.target.value })}
-                                required
-                            />
-                        </Form.Group>
-
-                        <Form.Group className="mb-3">
-                            <Form.Label>Payment Method</Form.Label>
-                            <Form.Select
-                                value={newTransaction.paymentMethodId}
-                                onChange={(e) => setNewTransaction({ ...newTransaction, paymentMethodId: e.target.value })}
-                                required
-                            >
-                                <option value="">Select payment method</option>
-                                {paymentMethods.map((method) => (
-                                    <option key={method.id} value={method.id}>{method.name}</option>
-                                ))}
-                            </Form.Select>
-                        </Form.Group>
+                        <div className="row">
+                            <div className="col-md-6">
+                                <Form.Group className="mb-3">
+                                    <Form.Label>Amount</Form.Label>
+                                    <Form.Control
+                                        type="number"
+                                        placeholder="Enter amount"
+                                        value={newTransaction.amount}
+                                        onChange={(e) => setNewTransaction({ ...newTransaction, amount: e.target.value })}
+                                        required
+                                    />
+                                </Form.Group>
+                            </div>
+                            <div className="col-md-6">
+                                <Form.Group className="mb-3">
+                                    <Form.Label>Payment Method</Form.Label>
+                                    <Form.Select
+                                        value={newTransaction.paymentMethodId}
+                                        onChange={(e) => setNewTransaction({ ...newTransaction, paymentMethodId: e.target.value })}
+                                        required
+                                    >
+                                        <option value="">Select payment method</option>
+                                        {paymentMethods.map((method) => (
+                                            <option key={method.id} value={method.id}>{method.name}</option>
+                                        ))}
+                                    </Form.Select>
+                                </Form.Group>
+                            </div>
+                        </div>
 
                         <Form.Group className="mb-3">
                             <Form.Label>Description</Form.Label>
@@ -966,18 +1007,33 @@ const TransactionsTable = () => {
                             />
                         </Form.Group>
 
-                        <Form.Group className="mb-3">
-                            <Form.Label>Category</Form.Label>
-                            <Form.Select
-                                value={newTransaction.category}
-                                onChange={(e) => setNewTransaction({ ...newTransaction, category: e.target.value })}
-                                required
-                            >
-                                <option value="">Select category</option>
-                                <option value="PERSONAL">Personal</option>
-                                <option value="OTHER">Other</option>
-                            </Form.Select>
-                        </Form.Group>
+                        <div className="row">
+                            <div className="col-md-6">
+                                <Form.Group className="mb-3">
+                                    <Form.Label>Category</Form.Label>
+                                    <Form.Select
+                                        value={newTransaction.category}
+                                        onChange={(e) => setNewTransaction({ ...newTransaction, category: e.target.value })}
+                                        required
+                                    >
+                                        <option value="">Select category</option>
+                                        <option value="PERSONAL">Personal</option>
+                                        <option value="OTHER">Other</option>
+                                    </Form.Select>
+                                </Form.Group>
+                            </div>
+                            <div className="col-md-6">
+                                <Form.Group className="mb-3">
+                                    <Form.Label>Date & Time</Form.Label>
+                                    <Form.Control
+                                        type="datetime-local"
+                                        value={newTransaction.transactionDate}
+                                        onChange={(e) => setNewTransaction({ ...newTransaction, transactionDate: e.target.value })}
+                                        required
+                                    />
+                                </Form.Group>
+                            </div>
+                        </div>
 
                         <Form.Group className="mb-3">
                             <Form.Label>Reference</Form.Label>
@@ -988,20 +1044,10 @@ const TransactionsTable = () => {
                                 onChange={(e) => setNewTransaction({ ...newTransaction, reference: e.target.value })}
                             />
                         </Form.Group>
-
-                        <Form.Group className="mb-3">
-                            <Form.Label>Date & Time</Form.Label>
-                            <Form.Control
-                                type="datetime-local"
-                                value={newTransaction.transactionDate}
-                                onChange={(e) => setNewTransaction({ ...newTransaction, transactionDate: e.target.value })}
-                                required
-                            />
-                        </Form.Group>
                     </Form>
                 </Modal.Body>
                 <Modal.Footer>
-                    <Button variant="warning" onClick={() => handleAddTransaction('WITHDRAWAL')}
+                    <Button variant="primary" onClick={() => handleAddTransaction('WITHDRAWAL')}
                         disabled={isSubmitting || !newTransaction.amount || !newTransaction.paymentMethodId || !newTransaction.description || !newTransaction.category}>
                         {isSubmitting ? 'Adding...' : 'Add Withdrawal'}
                     </Button>
@@ -1019,123 +1065,193 @@ const TransactionsTable = () => {
                 <>
                     <div className="row mb-4">
                         <div className="col-md-3 col-sm-6 mb-3">
-                            <div className="card bg-primary text-white h-100">
+                            <div className="card text-white h-100" style={{
+                                background: 'linear-gradient(to top left, #33ccff 0%, #0000cc 100%',
+                                border: 'none'
+                            }}>
                                 <div className="card-body d-flex flex-column">
                                     <div className="d-flex justify-content-between align-items-center mb-3">
                                         <h6 className="card-title mb-0">Current Balance</h6>
                                         <FaWallet size={24} />
                                     </div>
                                     <h3 className="text-light mb-0">{currencySymbol}{summary.currentBalance.toFixed(2)}</h3>
-                                    <div className="mt-auto text-white" style={{ fontSize: '0.8rem' }}>
+                                    <div className="mt-auto text-white" style={{ fontSize: '0.8rem', opacity: 0.9 }}>
                                         Overall available balance
                                     </div>
                                 </div>
                             </div>
                         </div>
                         <div className="col-md-3 col-sm-6 mb-3">
-                            <div className="card bg-success text-white h-100">
+                            <div className="card text-white h-100" style={{
+                                background: 'linear-gradient(to top left, #33ccff 0%, #0000cc 100%)',
+                                border: 'none',
+                                boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                            }}>
                                 <div className="card-body d-flex flex-column">
                                     <div className="d-flex justify-content-between align-items-center mb-3">
                                         <h6 className="card-title mb-0">Total Income</h6>
-                                        <FaArrowUp size={24} />
+                                        <FaArrowUp size={24} style={{ opacity: 0.8 }} />
                                     </div>
-                                    <h3 className="text-light mb-0">{currencySymbol}{summary.totalIncome.toFixed(2)}</h3>
-                                    <div className="mt-auto text-white" style={{ fontSize: '0.8rem' }}>
+                                    <h3 className="text-light mb-2">{currencySymbol}{summary.totalIncome.toFixed(2)}</h3>
+                                    <div className="text-white mb-3" style={{ fontSize: '0.8rem', opacity: 0.9 }}>
                                         All-time income
                                     </div>
-                                    <Button variant="success" className="me-2" onClick={() => setShowAddIncome(true)}>
-                                        <FaPlus className="me-1" /> Add Income
-                                    </Button>
+                                    <div className="mt-auto">
+                                        <Button
+                                            variant="light"
+                                            className="me-2"
+                                            onClick={() => setShowAddIncome(true)}
+                                            style={{
+                                                borderRadius: '25px',
+                                                border: '2px solid #fff',
+                                                fontWeight: '500',
+                                                padding: '8px 16px',
+                                                boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                                            }}
+                                        >
+                                            <FaPlus className="me-1" /> Add Income
+                                        </Button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                         <div className="col-md-3 col-sm-6 mb-3">
-                            <div className="card bg-danger text-white h-100">
+                            <div className="card text-white h-100" style={{
+                                background: 'linear-gradient(to top left, #33ccff 0%, #0000cc 100%)',
+                                border: 'none',
+                                boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                            }}>
                                 <div className="card-body d-flex flex-column">
                                     <div className="d-flex justify-content-between align-items-center mb-3">
                                         <h6 className="card-title mb-0">Total Expenses</h6>
-                                        <FaArrowDown size={24} />
+                                        <FaArrowDown size={24} style={{ opacity: 0.8 }} />
                                     </div>
-                                    <h3 className="text-light mb-0">{currencySymbol}{summary.totalExpenses.toFixed(2)}</h3>
-                                    <div className="mt-auto text-white" style={{ fontSize: '0.8rem' }}>
+                                    <h3 className="text-light mb-2">{currencySymbol}{summary.totalExpenses.toFixed(2)}</h3>
+                                    <div className="text-white mb-3" style={{ fontSize: '0.8rem', opacity: 0.9 }}>
                                         All-time expenses
                                     </div>
-                                    <Button variant="danger" className="me-2" onClick={() => setShowAddExpense(true)}>
-                                        <FaPlus className="me-1" /> Add Expense
-                                    </Button>
+                                    <div className="mt-auto">
+                                        <Button
+                                            variant="light"
+                                            className="me-2"
+                                            onClick={() => setShowAddExpense(true)}
+                                            style={{
+                                                borderRadius: '25px',
+                                                border: '2px solid #fff',
+                                                fontWeight: '500',
+                                                padding: '8px 16px',
+                                                boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                                            }}
+                                        >
+                                            <FaPlus className="me-1" /> Add Expense
+                                        </Button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                         <div className="col-md-3 col-sm-6 mb-3">
-                            <div className="card bg-warning text-white h-100">
+                            <div className="card text-white h-100" style={{
+                                background: 'linear-gradient(to top left, #33ccff 0%, #0000cc 100%)',
+                                border: 'none',
+                                boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                            }}>
                                 <div className="card-body d-flex flex-column">
                                     <div className="d-flex justify-content-between align-items-center mb-3">
-                                        <h6 className="card-title mb-0">Total Withdrawals</h6>
-                                        <FaMoneyBillWave size={24} />
+                                        <h6 className="card-title mb-0 text-white">Total Withdrawals</h6>
+                                        <FaMoneyBillWave size={24} className="text-white" style={{ opacity: 0.9 }} />
                                     </div>
-                                    <h3 className="text-light mb-0">{currencySymbol}{summary.totalWithdrawals.toFixed(2)}</h3>
-                                    <div className="mt-auto text-white" style={{ fontSize: '0.8rem' }}>
+                                    <h3 className="text-white mb-2">{currencySymbol}{summary.totalWithdrawals.toFixed(2)}</h3>
+                                    <div className="text-white mb-3" style={{ fontSize: '0.8rem', opacity: 0.9 }}>
                                         All-time withdrawals
                                     </div>
-                                    <Button variant="warning" onClick={() => setShowAddWithdrawal(true)}>
-                                        <FaPlus className="me-1" /> Add Withdrawal
-                                    </Button>
+                                    <div className="mt-auto">
+                                        <Button
+                                            variant="light"
+                                            className="me-2"
+                                            onClick={() => setShowAddWithdrawal(true)}
+                                            style={{
+                                                borderRadius: '25px',
+                                                border: '2px solid #fff',
+                                                fontWeight: '500',
+                                                padding: '8px 16px',
+                                                boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                                            }}
+                                        >
+                                            <FaPlus className="me-1" /> Add Withdrawal
+                                        </Button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
                     <div className="row mb-4">
                         <div className="col-md-3 col-sm-6 mb-3">
-                            <div className="card bg-white text-success h-100">
+                            <div className="card text-white h-100" style={{
+                                background: 'linear-gradient(to top left, #33ccff 0%, #0000cc 100%)',
+                                border: 'none',
+                                boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
+                            }}>
                                 <div className="card-body d-flex flex-column">
                                     <div className="d-flex justify-content-between align-items-center mb-3">
-                                        <h6 className="text-success mb-0">Monthly Income</h6>
-                                        <FaChartLine size={24} />
+                                        <h6 className="text-white mb-0">Monthly Income</h6>
+                                        <FaChartLine size={24} className="text-white" />
                                     </div>
-                                    <h3 className="text-success mb-0">{currencySymbol}{summary.monthlyIncome.toFixed(2)}</h3>
-                                    <div className="mt-auto text-white-5" style={{ fontSize: '0.8rem' }}>
+                                    <h3 className="text-white mb-0">{currencySymbol}{summary.monthlyIncome.toFixed(2)}</h3>
+                                    <div className="mt-auto text-white" style={{ fontSize: '0.8rem', opacity: 0.9 }}>
                                         This month's income
                                     </div>
                                 </div>
                             </div>
                         </div>
                         <div className="col-md-3 col-sm-6 mb-3">
-                            <div className="card bg-white text-danger h-100">
+                            <div className="card text-white h-100" style={{
+                                background: 'linear-gradient(to top left, #33ccff 0%, #0000cc 100%)',
+                                border: 'none',
+                                boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
+                            }}>
                                 <div className="card-body d-flex flex-column">
                                     <div className="d-flex justify-content-between align-items-center mb-3">
-                                        <h6 className="text-danger mb-0">Monthly Expenses</h6>
-                                        <FaChartBar size={24} />
+                                        <h6 className="text-white mb-0">Monthly Expenses</h6>
+                                        <FaChartBar size={24} className="text-white" />
                                     </div>
-                                    <h3 className="text-danger mb-0">{currencySymbol}{summary.monthlyExpenses.toFixed(2)}</h3>
-                                    <div className="mt-auto text-white-5" style={{ fontSize: '0.8rem' }}>
+                                    <h3 className="text-white mb-0">{currencySymbol}{summary.monthlyExpenses.toFixed(2)}</h3>
+                                    <div className="mt-auto text-white" style={{ fontSize: '0.8rem', opacity: 0.9 }}>
                                         This month's expenses
                                     </div>
                                 </div>
                             </div>
                         </div>
                         <div className="col-md-3 col-sm-6 mb-3">
-                            <div className="card bg-white text-success h-100">
+                            <div className="card text-white h-100" style={{
+                                background: 'linear-gradient(to top left, #33ccff 0%, #0000cc 100%)',
+                                border: 'none',
+                                boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
+                            }}>
                                 <div className="card-body d-flex flex-column">
                                     <div className="d-flex justify-content-between align-items-center mb-3">
-                                        <h6 className="text-success mb-0">Profit</h6>
-                                        <FaArrowUp size={24} />
+                                        <h6 className="text-white mb-0">Profit</h6>
+                                        <FaArrowUp size={24} className="text-white" />
                                     </div>
-                                    <h3 className="text-success mb-0">{currencySymbol}{summary.profit.toFixed(2)}</h3>
-                                    <div className="mt-auto text-white-5" style={{ fontSize: '0.8rem' }}>
+                                    <h3 className="text-white mb-0">{currencySymbol}{summary.profit.toFixed(2)}</h3>
+                                    <div className="mt-auto text-white" style={{ fontSize: '0.8rem', opacity: 0.9 }}>
                                         Net profit
                                     </div>
                                 </div>
                             </div>
                         </div>
                         <div className="col-md-3 col-sm-6 mb-3">
-                            <div className="card bg-white text-danger h-100">
+                            <div className="card text-white h-100" style={{
+                                background: 'linear-gradient(to top left, #33ccff 0%, #0000cc 100%)',
+                                border: 'none',
+                                boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
+                            }}>
                                 <div className="card-body d-flex flex-column">
                                     <div className="d-flex justify-content-between align-items-center mb-3">
-                                        <h6 className="text-danger mb-0">Loss</h6>
-                                        <FaArrowDown size={24} />
+                                        <h6 className="text-white mb-0">Loss</h6>
+                                        <FaArrowDown size={24} className="text-white" />
                                     </div>
-                                    <h3 className="text-danger mb-0">{currencySymbol}{summary.loss.toFixed(2)}</h3>
-                                    <div className="mt-auto text-white-5" style={{ fontSize: '0.8rem' }}>
+                                    <h3 className="text-white mb-0">{currencySymbol}{summary.loss.toFixed(2)}</h3>
+                                    <div className="mt-auto text-white" style={{ fontSize: '0.8rem', opacity: 0.9 }}>
                                         Net loss
                                     </div>
                                 </div>
@@ -1185,12 +1301,19 @@ const TransactionsTable = () => {
                             const paymentMethod = paymentMethods.find(pm => pm.name === method.paymentMethodName);
                             return (
                                 <div className="col-md-3 col-sm-6 mb-3" key={index}>
-                                    <div className={`card ${paymentMethod?.active ? 'bg-blue' : 'bg-secondary'} text-white h-100`}>
+                                    <div className={`card text-white h-100`} style={paymentMethod?.active ? {
+                                        background: 'linear-gradient(to top left, #cc00cc 0%, #6600cc 100%',
+                                        border: 'none',
+                                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                                    } : {
+                                        background: '#6c757d',
+                                        border: 'none'
+                                    }}>
                                         <div className="card-body d-flex flex-column">
                                             <div className="d-flex justify-content-between align-items-center mb-3">
                                                 <h6 className="card-title mb-0 d-flex align-items-center">
                                                     {getPaymentMethodIcon(method.paymentMethodName)}
-                                                    {method.paymentMethodName}
+                                                    <span className="ms-2">{method.paymentMethodName}</span>
                                                 </h6>
                                                 <div
                                                     onClick={(e) => {
@@ -1202,25 +1325,29 @@ const TransactionsTable = () => {
                                                     style={{ cursor: 'pointer' }}
                                                 >
                                                     {paymentMethod?.active ? (
-                                                        <FaToggleOn size={24} className="text-success" />
+                                                        <FaToggleOn size={24} style={{ color: 'white' }} />
                                                     ) : (
                                                         <FaToggleOff size={24} className="text-light" />
                                                     )}
                                                 </div>
                                             </div>
-                                            <h3 className={`text-white mb-0 ${method.balance > 0 ? 'text-light' :
-                                                method.balance < 0 ? 'text-danger' : ''
+                                            <h3 className={`mb-0 ${method.balance > 0 ? 'text-light' :
+                                                method.balance < 0 ? 'text-danger' : 'text-light'
                                                 }`}>
                                                 {currencySymbol}{method.balance.toFixed(2)}
                                             </h3>
                                             <div className="mt-auto d-flex justify-content-between align-items-center">
-                                                <span style={{ fontSize: '0.8rem' }}>
+                                                <span style={{ fontSize: '0.8rem', opacity: 0.9 }}>
                                                     {paymentMethod?.active ? 'Active' : 'Inactive'}
                                                 </span>
                                                 {paymentMethod && !paymentMethod.default && (
                                                     <FaTrash
-                                                        className="text-danger"
-                                                        style={{ cursor: 'pointer' }}
+                                                        className="text-white"
+                                                        style={{
+                                                            cursor: 'pointer',
+                                                            opacity: 0.7,
+                                                            filter: 'drop-shadow(0 0 2px rgba(0,0,0,0.3))'
+                                                        }}
                                                         onClick={(e) => {
                                                             e.stopPropagation();
                                                             openDeleteConfirmation(paymentMethod.id);
@@ -1240,13 +1367,24 @@ const TransactionsTable = () => {
                                 style={{
                                     border: '2px dashed var(--bs-gray-400)',
                                     cursor: 'pointer',
-                                    background: 'transparent'
+                                    background: 'transparent',
+                                    height: '115px',
+                                    transition: 'all 0.2s ease',
+                                    minHeight: '115px'
                                 }}
                                 onClick={() => setShowAddPaymentMethod(true)}
+                                onMouseEnter={(e) => e.currentTarget.style.borderColor = 'var(--bs-primary)'}
+                                onMouseLeave={(e) => e.currentTarget.style.borderColor = 'var(--bs-gray-400)'}
                             >
-                                <div className="card-body text-center d-flex flex-column align-items-center justify-content-center">
-                                    <FaPlus className="me-1" size={24} />
-                                    <h6>Add Payment Method</h6>
+                                <div className="card-body text-center d-flex flex-column align-items-center justify-content-center p-3">
+                                    <FaPlus
+                                        className="me-1"
+                                        size={24}
+                                        style={{ color: 'var(--bs-gray-600)' }}
+                                    />
+                                    <h6 className="mb-0 mt-2" style={{ color: 'var(--bs-gray-600)' }}>
+                                        Add Payment Method
+                                    </h6>
                                 </div>
                             </div>
                         </div>

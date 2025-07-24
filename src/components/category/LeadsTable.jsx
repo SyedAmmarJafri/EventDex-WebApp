@@ -4,7 +4,7 @@ import { FiTrash, FiEdit, FiPlus, FiEye, FiUpload } from 'react-icons/fi';
 import Button from '@mui/material/Button';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { BASE_URL } from '/src/paths.js';
+import { BASE_URL } from '/src/constants.js';
 import Skeleton from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
 import Switch from '@mui/material/Switch';
@@ -353,6 +353,7 @@ const CategoriesTable = () => {
             setImagePreview('');
         } catch (err) {
             toast.error(err.message);
+            setIsModalOpen(false);
         } finally {
             setUploadingImage(false);
         }
@@ -507,7 +508,9 @@ const CategoriesTable = () => {
 
             const data = await response.json();
             if (!response.ok) {
-                throw new Error(data.message || 'Failed to delete category');
+                // Show the actual error message from the API response
+                const errorMessage = data.error || data.message || 'Failed to delete category';
+                throw new Error(errorMessage);
             }
 
             toast.success('Category deleted successfully', {
@@ -534,6 +537,7 @@ const CategoriesTable = () => {
                 progress: undefined,
                 theme: "colored",
             });
+            setIsDeleteModalOpen(false);
         }
     };
 

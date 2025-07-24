@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { FiX, FiEye, FiEyeOff } from 'react-icons/fi';
-import { BASE_URL } from '/src/paths.js';
+import { BASE_URL } from '/src/constants.js';
 
 const LoginForm = ({ registerPath, resetPath }) => {
     const [formData, setFormData] = useState({

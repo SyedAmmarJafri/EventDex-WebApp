@@ -95,7 +95,7 @@ export const menuList = [
         dropdownMenu: []
     },
     {
-        id: 7,
+        id: 10,
         name: "Analytics",
         path: "#",
         icon: 'feather-bar-chart-2',
@@ -145,7 +145,7 @@ export const menuList = [
         ]
     },
     {
-        id: 9,
+        id: 11,
         name: "Users",
         path: "#",
         icon: 'feather-users',
@@ -165,11 +165,10 @@ export const menuList = [
         ]
     },
     {
-        id: 10,
+        id: 12,
         name: "Online Store",
         path: "/Store/settings",
         icon: 'feather-shopping-cart',
-        dropdownMenu: [
-        ]
+        dropdownMenu: []
     },
 ]

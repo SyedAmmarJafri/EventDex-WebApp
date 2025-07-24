@@ -13,7 +13,7 @@ import {
 } from 'antd';
 import { DownloadOutlined, FilePdfOutlined, FileExcelOutlined } from '@ant-design/icons';
 import axios from 'axios';
-import { BASE_URL } from '/src/paths.js';
+import { BASE_URL } from '/src/constants.js';
 import dayjs from 'dayjs';
 
 const { Option } = Select;

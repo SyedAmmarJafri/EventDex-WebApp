@@ -3,7 +3,7 @@ import { FiCamera, FiUpload } from 'react-icons/fi';
 import { Modal, Button, Form, Spinner } from 'react-bootstrap';
 import axios from 'axios';
 import { toast } from 'react-toastify';
-import { BASE_URL } from '/src/paths.js';
+import { BASE_URL } from '/src/constants.js';
 
 const TabProfile = () => {
     // State for form data

@@ -1,10 +1,10 @@
 import React from 'react'
-import SettingSeoForm from '@/components/setting/settingSeoForm'
+import Setting from '@/components/setting/StoreSettings'
 
 const SettingsSeo = () => {
     return (
         <>
-            <SettingSeoForm />
+            <Setting />
         </>
     )
 }

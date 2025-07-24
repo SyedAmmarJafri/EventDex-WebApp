@@ -6,20 +6,12 @@ import {
     Spin,
     message,
     Typography,
-    Space,
-    Statistic,
     Tag,
     Divider,
     Badge,
     Button
 } from 'antd';
 import {
-    BarChart,
-    Bar,
-    XAxis,
-    YAxis,
-    CartesianGrid,
-    Tooltip,
     Legend,
     ResponsiveContainer,
     PieChart,
@@ -37,6 +29,7 @@ import {
     WarningOutlined,
     ArrowUpOutlined
 } from '@ant-design/icons';
+import { BASE_URL } from '/src/constants.js';
 
 const { Title, Text } = Typography;
 
@@ -123,7 +116,7 @@ const Dashboard = () => {
                 return;
             }
 
-            const response = await axios.get('http://localhost:8080/api/client-admin/analytics/dashboard', {
+            const response = await axios.get(`${ BASE_URL }/api/client-admin/analytics/dashboard`, {
                 headers: {
                     Authorization: `Bearer ${token}`
                 }
