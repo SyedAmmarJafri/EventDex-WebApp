@@ -12,17 +12,6 @@ import MenuItem from '@mui/material/MenuItem';
 import FormControl from '@mui/material/FormControl';
 import InputLabel from '@mui/material/InputLabel';
 import Modal from 'react-bootstrap/Modal';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
-
-// Fix for default markers in react-leaflet
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({
-    iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
-    iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
-    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-});
 
 const OrderTable = () => {
     const [orders, setOrders] = useState([]);
@@ -40,6 +29,8 @@ const OrderTable = () => {
     const [isUpdating, setIsUpdating] = useState(false);
     const [isAssigning, setIsAssigning] = useState(false);
     const [activeFilter, setActiveFilter] = useState('all');
+    const [mapScriptLoaded, setMapScriptLoaded] = useState(false);
+    const [map, setMap] = useState(null);
     const skinTheme = localStorage.getItem('skinTheme') || 'light';
     const isDarkMode = skinTheme === 'dark';
 
@@ -73,6 +64,163 @@ const OrderTable = () => {
             theme: "colored",
         });
     };
+
+    // Load Google Maps script
+    useEffect(() => {
+        if (!isMapModalOpen || mapScriptLoaded) return;
+
+        const script = document.createElement('script');
+        script.src = `https://maps.gomaps.pro/maps/api/js?key=AlzaSyNWmbqBT69lAW7bQ3RKsK37imGf2v6fhcy&libraries=places&callback=initMap`;
+
+        script.async = true;
+        script.defer = true;
+        script.onload = () => setMapScriptLoaded(true);
+        script.onerror = () => showErrorToast('Failed to load Google Maps');
+        document.head.appendChild(script);
+
+        return () => {
+            document.head.removeChild(script);
+        };
+    }, [isMapModalOpen, mapScriptLoaded]);
+
+    // Initialize map when modal opens and script is loaded
+    useEffect(() => {
+        if (isMapModalOpen && mapScriptLoaded && selectedOrder && hasDeliveryLocation(selectedOrder)) {
+            initMap();
+        }
+
+        return () => {
+            if (map) {
+                // Clean up map instance when modal closes
+                setMap(null);
+            }
+        };
+    }, [isMapModalOpen, mapScriptLoaded, selectedOrder]);
+
+    const initMap = () => {
+        if (!selectedOrder || !hasDeliveryLocation(selectedOrder)) return;
+
+        const deliveryLat = parseFloat(selectedOrder.deliveryLatitude);
+        const deliveryLng = parseFloat(selectedOrder.deliveryLongitude);
+        
+        const mapOptions = {
+            center: { lat: deliveryLat, lng: deliveryLng },
+            zoom: 15,
+            styles: isDarkMode ? darkMapStyles : [],
+            mapTypeControl: false,
+            streetViewControl: false,
+            fullscreenControl: true,
+        };
+
+        const mapInstance = new window.google.maps.Map(document.getElementById("google-map"), mapOptions);
+        setMap(mapInstance);
+
+        new window.google.maps.Marker({
+            position: { lat: deliveryLat, lng: deliveryLng },
+            map: mapInstance,
+            title: `Order #${selectedOrder.orderNumber}`,
+        });
+
+        // Add info window
+        const infoWindow = new window.google.maps.InfoWindow({
+            content: `
+                <div style="color: ${isDarkMode ? 'white' : 'black'}">
+                    <strong>Order #${selectedOrder.orderNumber}</strong><br />
+                    Customer: ${selectedOrder.customerName || 'Walk-in Customer'}<br />
+                    Status: ${selectedOrder.status}<br />
+                    Total: ${currencySymbol}${selectedOrder.totalAmount?.toFixed(2)}<br />
+                    Address: ${selectedOrder.deliveryAddress}<br />
+                </div>
+            `,
+        });
+
+        // Open info window by default
+        infoWindow.open(mapInstance, new window.google.maps.Marker({
+            position: { lat: deliveryLat, lng: deliveryLng },
+            map: mapInstance,
+        }));
+    };
+
+    const darkMapStyles = [
+        { elementType: "geometry", stylers: [{ color: "#242f3e" }] },
+        { elementType: "labels.text.stroke", stylers: [{ color: "#242f3e" }] },
+        { elementType: "labels.text.fill", stylers: [{ color: "#746855" }] },
+        {
+            featureType: "administrative.locality",
+            elementType: "labels.text.fill",
+            stylers: [{ color: "#d59563" }],
+        },
+        {
+            featureType: "poi",
+            elementType: "labels.text.fill",
+            stylers: [{ color: "#d59563" }],
+        },
+        {
+            featureType: "poi.park",
+            elementType: "geometry",
+            stylers: [{ color: "#263c3f" }],
+        },
+        {
+            featureType: "poi.park",
+            elementType: "labels.text.fill",
+            stylers: [{ color: "#6b9a76" }],
+        },
+        {
+            featureType: "road",
+            elementType: "geometry",
+            stylers: [{ color: "#38414e" }],
+        },
+        {
+            featureType: "road",
+            elementType: "geometry.stroke",
+            stylers: [{ color: "#212a37" }],
+        },
+        {
+            featureType: "road",
+            elementType: "labels.text.fill",
+            stylers: [{ color: "#9ca5b3" }],
+        },
+        {
+            featureType: "road.highway",
+            elementType: "geometry",
+            stylers: [{ color: "#746855" }],
+        },
+        {
+            featureType: "road.highway",
+            elementType: "geometry.stroke",
+            stylers: [{ color: "#1f2835" }],
+        },
+        {
+            featureType: "road.highway",
+            elementType: "labels.text.fill",
+            stylers: [{ color: "#f3d19c" }],
+        },
+        {
+            featureType: "transit",
+            elementType: "geometry",
+            stylers: [{ color: "#2f3948" }],
+        },
+        {
+            featureType: "transit.station",
+            elementType: "labels.text.fill",
+            stylers: [{ color: "#d59563" }],
+        },
+        {
+            featureType: "water",
+            elementType: "geometry",
+            stylers: [{ color: "#17263c" }],
+        },
+        {
+            featureType: "water",
+            elementType: "labels.text.fill",
+            stylers: [{ color: "#515c6d" }],
+        },
+        {
+            featureType: "water",
+            elementType: "labels.text.stroke",
+            stylers: [{ color: "#17263c" }],
+        },
+    ];
 
     const EmptyState = () => {
         return (
@@ -1303,29 +1451,22 @@ const OrderTable = () => {
                 </Modal.Header>
                 <Modal.Body style={{ padding: 0, height: '500px' }}>
                     {selectedOrder && hasDeliveryLocation(selectedOrder) && (
-                        <MapContainer
-                            center={[parseFloat(selectedOrder.deliveryLatitude), parseFloat(selectedOrder.deliveryLongitude)]}
-                            zoom={15}
-                            style={{ height: '100%', width: '100%' }}
+                        <div 
+                            id="google-map" 
+                            style={{ 
+                                height: '100%', 
+                                width: '100%',
+                                backgroundColor: isDarkMode ? '#1e293b' : '#f8f9fa'
+                            }}
                         >
-                            <TileLayer
-                                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                            />
-                            <Marker
-                                position={[parseFloat(selectedOrder.deliveryLatitude), parseFloat(selectedOrder.deliveryLongitude)]}
-                            >
-                                <Popup>
-                                    <div>
-                                        <strong>Order #{selectedOrder.orderNumber}</strong><br />
-                                        Customer: {selectedOrder.customerName || 'Walk-in Customer'}<br />
-                                        Status: {selectedOrder.status}<br />
-                                        Total: {currencySymbol}{selectedOrder.totalAmount?.toFixed(2)}<br />
-                                        Address: {selectedOrder.deliveryAddress}<br />
+                            {!mapScriptLoaded && (
+                                <div className="d-flex justify-content-center align-items-center h-100">
+                                    <div className="spinner-border text-primary" role="status">
+                                        <span className="visually-hidden">Loading...</span>
                                     </div>
-                                </Popup>
-                            </Marker>
-                        </MapContainer>
+                                </div>
+                            )}
+                        </div>
                     )}
                 </Modal.Body>
                 <Modal.Footer>
@@ -1339,7 +1480,6 @@ const OrderTable = () => {
                                 </>
                             )}
                         </div>
-
                     </div>
                 </Modal.Footer>
             </Modal>
@@ -1396,55 +1536,15 @@ const OrderTable = () => {
     border-color: #1e293b;
 }
 
-/* Leaflet map container styling */
-.leaflet-container {
+/* Google Maps container styling */
+#google-map {
     height: 100%;
     width: 100%;
 }
 
-/* Custom popup styling */
-.leaflet-popup-content {
-    font-size: 14px;
-    line-height: 1.4;
-}
-
-.leaflet-popup-content strong {
-    color: #0092ff;
-}
-
-/* Map controls styling */
-.leaflet-control-zoom a {
-    background-color: #0092ff !important;
-    color: white !important;
-}
-
-.leaflet-control-zoom a:hover {
-    background-color: #0183e6 !important;
-}
-
-/* Attribution styling */
-.leaflet-control-attribution {
-    font-size: 11px;
-    background-color: rgba(255, 255, 255, 0.8);
-}
-
-/* Dark mode adjustments for map */
-.dark-modal .leaflet-popup-content-wrapper {
-    background-color: #1e293b;
-    color: white;
-}
-
-.dark-modal .leaflet-popup-tip {
-    background-color: #1e293b;
-}
-
-.dark-modal .leaflet-control-attribution {
-    background-color: rgba(30, 41, 59, 0.8);
-    color: white;
-}
-
-.dark-modal .leaflet-control-attribution a {
-    color: #60a5fa;
+/* Loading spinner */
+.spinner-border.text-primary {
+    color: #0092ff !important;
 }`}
             </style>
         </>

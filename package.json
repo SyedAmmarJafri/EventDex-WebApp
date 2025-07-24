@@ -21,6 +21,7 @@
     "@fullcalendar/timegrid": "^6.1.15",
     "@mui/material": "^7.2.0",
     "@popperjs/core": "^2.11.8",
+    "@react-google-maps/api": "^2.20.7",
     "@stomp/stompjs": "^7.1.1",
     "@tanstack/react-table": "^8.20.5",
     "@yudiel/react-qr-scanner": "^2.3.1",
@@ -62,6 +63,7 @@
     "react-toastify": "^11.0.5",
     "recharts": "^3.1.0",
     "sockjs-client": "^1.6.1",
+    "stompjs": "^2.3.3",
     "sweetalert2": "^11.14.1",
     "sweetalert2-react-content": "^5.0.7"
   },
