@@ -4,7 +4,7 @@ import { FiTrash, FiEdit, FiPlus, FiEye, FiUpload, FiChevronDown, FiChevronUp, F
 import Button from '@mui/material/Button';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { BASE_URL } from '/src/constants.js';
+import { BASE_URL } from '/src/paths.js';
 import Skeleton from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
 import Modal from 'react-bootstrap/Modal';

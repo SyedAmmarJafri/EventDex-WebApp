@@ -18,9 +18,92 @@ import {
     FaPlus,
     FaToggleOn,
     FaToggleOff,
-    FaTrash
+    FaTrash,
+    FaSync
 } from 'react-icons/fa';
 import { Modal, Button, Form } from 'react-bootstrap';
+
+// IndexedDB setup
+const DB_NAME = 'FinanceAppDB';
+const DB_VERSION = 1;
+const STORE_TRANSACTIONS = 'transactions';
+const STORE_PAYMENT_METHODS = 'paymentMethods';
+const STORE_SUMMARY = 'summary';
+
+const openDB = () => {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+        request.onupgradeneeded = (event) => {
+            const db = event.target.result;
+            if (!db.objectStoreNames.contains(STORE_TRANSACTIONS)) {
+                db.createObjectStore(STORE_TRANSACTIONS, { keyPath: 'id' });
+            }
+            if (!db.objectStoreNames.contains(STORE_PAYMENT_METHODS)) {
+                db.createObjectStore(STORE_PAYMENT_METHODS, { keyPath: 'id' });
+            }
+            if (!db.objectStoreNames.contains(STORE_SUMMARY)) {
+                db.createObjectStore(STORE_SUMMARY, { keyPath: 'id' });
+            }
+        };
+
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+    });
+};
+
+const getFromDB = async (storeName, key) => {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction(storeName, 'readonly');
+        const store = transaction.objectStore(storeName);
+        const request = store.get(key);
+
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+    });
+};
+
+const getAllFromDB = async (storeName) => {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction(storeName, 'readonly');
+        const store = transaction.objectStore(storeName);
+        const request = store.getAll();
+
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+    });
+};
+
+const saveToDB = async (storeName, data) => {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction(storeName, 'readwrite');
+        const store = transaction.objectStore(storeName);
+
+        if (Array.isArray(data)) {
+            data.forEach(item => store.put(item));
+        } else {
+            store.put(data);
+        }
+
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = () => reject(transaction.error);
+    });
+};
+
+const deleteFromDB = async (storeName, key) => {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction(storeName, 'readwrite');
+        const store = transaction.objectStore(storeName);
+        const request = store.delete(key);
+
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+    });
+};
 
 const TransactionsTable = () => {
     const [transactions, setTransactions] = useState([]);
@@ -29,6 +112,7 @@ const TransactionsTable = () => {
     const [loading, setLoading] = useState(true);
     const [summaryLoading, setSummaryLoading] = useState(true);
     const [paymentMethodsLoading, setPaymentMethodsLoading] = useState(true);
+    const [forceRefresh, setForceRefresh] = useState(false);
 
     // Modals state
     const [showAddPaymentMethod, setShowAddPaymentMethod] = useState(false);
@@ -316,7 +400,12 @@ const TransactionsTable = () => {
             const data = await response.json();
             if (data.status === 200) {
                 toast.success("Payment method status updated successfully");
-                fetchPaymentMethods();
+                // Update local state and IndexedDB
+                const updatedPaymentMethods = paymentMethods.map(pm => 
+                    pm.id === paymentMethodId ? { ...pm, active: newStatus } : pm
+                );
+                setPaymentMethods(updatedPaymentMethods);
+                await saveToDB(STORE_PAYMENT_METHODS, updatedPaymentMethods);
             } else {
                 throw new Error(data.message || 'Failed to update payment method status');
             }
@@ -364,8 +453,12 @@ const TransactionsTable = () => {
             const data = await response.json();
             if (data.status === 200) {
                 toast.success("Payment method deleted successfully");
-                fetchPaymentMethods();
-                fetchSummary();
+                // Update local state and IndexedDB
+                const updatedPaymentMethods = paymentMethods.filter(pm => pm.id !== paymentMethodToDelete);
+                setPaymentMethods(updatedPaymentMethods);
+                await deleteFromDB(STORE_PAYMENT_METHODS, paymentMethodToDelete);
+                await saveToDB(STORE_PAYMENT_METHODS, updatedPaymentMethods);
+                fetchSummary(true); // Force refresh summary
             } else {
                 throw new Error(data.message || 'Failed to delete payment method');
             }
@@ -382,13 +475,22 @@ const TransactionsTable = () => {
         setShowDeleteConfirmation(true);
     };
 
-    const fetchTransactions = useCallback(async () => {
+    const fetchTransactions = useCallback(async (force = false) => {
         try {
             setLoading(true);
             const authData = JSON.parse(localStorage.getItem("authData"));
             if (!authData?.token) {
                 toast.error("Authentication token not found");
                 return;
+            }
+
+            // Check if we have cached data and not forcing refresh
+            if (!force) {
+                const cachedTransactions = await getAllFromDB(STORE_TRANSACTIONS);
+                if (cachedTransactions && cachedTransactions.length > 0) {
+                    setTransactions(cachedTransactions);
+                    setLoading(false);
+                }
             }
 
             const response = await fetch(`${BASE_URL}/api/client-admin/finance/transactions`, {
@@ -406,7 +508,9 @@ const TransactionsTable = () => {
 
             const data = await response.json();
             if (data.status === 200 && data.data) {
-                setTransactions(data.data.content || []);
+                const transactionsData = data.data.content || [];
+                setTransactions(transactionsData);
+                await saveToDB(STORE_TRANSACTIONS, transactionsData);
             } else {
                 throw new Error(data.message || 'Failed to fetch transactions');
             }
@@ -417,13 +521,22 @@ const TransactionsTable = () => {
         }
     }, []);
 
-    const fetchSummary = useCallback(async () => {
+    const fetchSummary = useCallback(async (force = false) => {
         try {
             setSummaryLoading(true);
             const authData = JSON.parse(localStorage.getItem("authData"));
             if (!authData?.token) {
                 toast.error("Authentication token not found");
                 return;
+            }
+
+            // Check if we have cached data and not forcing refresh
+            if (!force) {
+                const cachedSummary = await getFromDB(STORE_SUMMARY, 'current');
+                if (cachedSummary) {
+                    setSummary(cachedSummary);
+                    setSummaryLoading(false);
+                }
             }
 
             const response = await fetch(`${BASE_URL}/api/client-admin/finance/summary`, {
@@ -442,6 +555,7 @@ const TransactionsTable = () => {
             const data = await response.json();
             if (data.status === 200 && data.data) {
                 setSummary(data.data);
+                await saveToDB(STORE_SUMMARY, { ...data.data, id: 'current' });
             } else {
                 throw new Error(data.message || 'Failed to fetch summary');
             }
@@ -452,13 +566,22 @@ const TransactionsTable = () => {
         }
     }, []);
 
-    const fetchPaymentMethods = useCallback(async () => {
+    const fetchPaymentMethods = useCallback(async (force = false) => {
         try {
             setPaymentMethodsLoading(true);
             const authData = JSON.parse(localStorage.getItem("authData"));
             if (!authData?.token) {
                 toast.error("Authentication token not found");
                 return;
+            }
+
+            // Check if we have cached data and not forcing refresh
+            if (!force) {
+                const cachedPaymentMethods = await getAllFromDB(STORE_PAYMENT_METHODS);
+                if (cachedPaymentMethods && cachedPaymentMethods.length > 0) {
+                    setPaymentMethods(cachedPaymentMethods);
+                    setPaymentMethodsLoading(false);
+                }
             }
 
             const response = await fetch(`${BASE_URL}/api/client-admin/finance/payment-methods`, {
@@ -477,6 +600,7 @@ const TransactionsTable = () => {
             const data = await response.json();
             if (data.status === 200 && data.data) {
                 setPaymentMethods(data.data);
+                await saveToDB(STORE_PAYMENT_METHODS, data.data);
             } else {
                 throw new Error(data.message || 'Failed to fetch payment methods');
             }
@@ -521,8 +645,12 @@ const TransactionsTable = () => {
                 active: true,
                 default: false
             });
-            fetchPaymentMethods();
-            fetchSummary();
+            
+            // Refresh data and update IndexedDB
+            await Promise.all([
+                fetchPaymentMethods(true),
+                fetchSummary(true)
+            ]);
 
         } catch (err) {
             toast.error(err.message, { className: 'toast-error' });
@@ -592,8 +720,11 @@ const TransactionsTable = () => {
                 transactionDate: new Date().toISOString().slice(0, 16) // Default to current datetime
             });
 
-            // Refresh data
-            await Promise.all([fetchTransactions(), fetchSummary()]);
+            // Refresh data and update IndexedDB
+            await Promise.all([
+                fetchTransactions(true),
+                fetchSummary(true)
+            ]);
 
         } catch (err) {
             toast.error(err.message, { className: 'toast-error' });
@@ -601,6 +732,16 @@ const TransactionsTable = () => {
             setIsSubmitting(false);
         }
     };
+
+    const handleForceRefresh = () => {
+        setForceRefresh(prev => !prev);
+    };
+
+    useEffect(() => {
+        fetchTransactions();
+        fetchSummary();
+        fetchPaymentMethods();
+    }, [fetchTransactions, fetchSummary, fetchPaymentMethods, forceRefresh]);
 
     const columns = React.useMemo(() => [
         {
@@ -672,12 +813,6 @@ const TransactionsTable = () => {
                 return <FaPiggyBank size={20} className="me-2" />;
         }
     };
-
-    useEffect(() => {
-        fetchTransactions();
-        fetchSummary();
-        fetchPaymentMethods();
-    }, [fetchTransactions, fetchSummary, fetchPaymentMethods]);
 
     return (
         <>
@@ -1071,7 +1206,16 @@ const TransactionsTable = () => {
                             }}>
                                 <div className="card-body d-flex flex-column">
                                     <div className="d-flex justify-content-between align-items-center mb-3">
-                                        <h6 className="card-title mb-0">Current Balance</h6>
+                                        <div className="d-flex align-items-center">
+                                            <h6 className="card-title mb-0">Current Balance</h6>
+                                            <FaSync 
+                                                className="ms-2" 
+                                                size={16} 
+                                                style={{ cursor: 'pointer' }} 
+                                                onClick={handleForceRefresh}
+                                                title="Refresh data"
+                                            />
+                                        </div>
                                         <FaWallet size={24} />
                                     </div>
                                     <h3 className="text-light mb-0">{currencySymbol}{summary.currentBalance.toFixed(2)}</h3>
