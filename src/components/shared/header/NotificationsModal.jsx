@@ -18,6 +18,7 @@ import {
   FiVolumeX
 } from 'react-icons/fi';
 import { Link } from 'react-router-dom';
+import { BASE_URL } from '/src/constants.js';
 
 const NOTIFICATION_TYPES = {
   INVENTORY: {
@@ -368,7 +369,7 @@ const NotificationsModal = () => {
             const SockJS = (await import('sockjs-client')).default;
             const Stomp = (await import('stompjs')).default;
 
-            const socket = new SockJS(`http://localhost:8080/ws`);
+            const socket = new SockJS(`${BASE_URL}/ws`);
             const stompClient = Stomp.over(socket);
 
             stompClient.debug = () => {};
@@ -606,9 +607,6 @@ const NotificationsModal = () => {
                     <div className="text-center py-4">
                         <FiBell size={24} className="text-muted mb-2" />
                         <p className="text-muted mb-1">No notifications</p>
-                        <small className="text-muted">
-                            {wsConnected ? 'Connected to real-time updates' : 'Not connected'}
-                        </small>
                     </div>
                 ) : (
                     <div className="notification-list" style={{ maxHeight: '400px', overflowY: 'auto' }}>

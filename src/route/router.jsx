@@ -22,6 +22,7 @@ import Marketinglist from "../pages/marketing";
 import RoleList from "../pages/role";
 import TeamList from "../pages/team";
 import FinanceList from "../pages/finance";
+import Tracker from "../pages/tracker";
 import PosList from "../pages/posList";
 import LayoutSetting from "../layout/layoutSetting";
 import StoreSettings from "../pages/store-setting";
@@ -159,6 +160,10 @@ export const router = createBrowserRouter([
             {
                 path: "/finance",
                 element: <FinanceList />
+            },
+            {
+                path: "/tracker",
+                element: <Tracker />
             },
             {
                 path: "/help/knowledgebase",

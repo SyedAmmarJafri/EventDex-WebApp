@@ -10,7 +10,8 @@ import {
   Space,
   Button,
   Divider,
-  Tag
+  Tag,
+  Select
 } from 'antd';
 import {
   BarChart,
@@ -37,8 +38,10 @@ import {
   CreditCardOutlined,
 } from '@ant-design/icons';
 import { BASE_URL } from '/src/constants.js';
+import dayjs from 'dayjs';
 
 const { RangePicker } = DatePicker;
+const { Option } = Select;
 const { Title, Text } = Typography;
 
 const COLORS = ['#005ece', '#0092ff', '#EC4899', '#F43F5E', '#F59E0B', '#10B981'];
@@ -49,12 +52,13 @@ const currencySymbol = authData?.currencySettings?.currencySymbol || '$';
 
 const ReportsSales = () => {
   const [loading, setLoading] = useState(false);
+  const [period, setPeriod] = useState('last7days');
   const [dateRange, setDateRange] = useState([moment().subtract(7, 'days'), moment()]);
   const [analyticsData, setAnalyticsData] = useState(null);
 
   useEffect(() => {
     fetchAnalyticsData();
-  }, []);
+  }, [period, dateRange]);
 
   const fetchAnalyticsData = async () => {
     try {
@@ -66,12 +70,16 @@ const ReportsSales = () => {
         return;
       }
 
-      const [startDate, endDate] = dateRange;
-      const params = {
-        period: 'custom',
-        startDate: startDate.format('YYYY-MM-DD'),
-        endDate: endDate.format('YYYY-MM-DD')
-      };
+      let params = { period };
+
+      if (period === 'custom') {
+        const [startDate, endDate] = dateRange;
+        params = {
+          ...params,
+          startDate: startDate.format('YYYY-MM-DD'),
+          endDate: endDate.format('YYYY-MM-DD')
+        };
+      }
 
       const response = await axios.get(`${BASE_URL}/api/client-admin/analytics/sales`, {
         params,
@@ -89,10 +97,33 @@ const ReportsSales = () => {
     }
   };
 
-  const handleDateChange = (dates) => {
+  const handlePeriodChange = (value) => {
+    setPeriod(value);
+    // Set default date ranges for each period
+    switch (value) {
+      case 'today':
+        setDateRange([moment(), moment()]);
+        break;
+      case 'yesterday':
+        setDateRange([moment().subtract(1, 'days'), moment().subtract(1, 'days')]);
+        break;
+      case 'last7days':
+        setDateRange([moment().subtract(7, 'days'), moment()]);
+        break;
+      case 'last30days':
+        setDateRange([moment().subtract(30, 'days'), moment()]);
+        break;
+      default:
+        // For custom, keep the existing range
+        break;
+    }
+  };
+
+  const handleDateRangeChange = (dates) => {
     if (dates) {
       setDateRange(dates);
     } else {
+      // Reset to default when cleared
       setDateRange([moment().subtract(7, 'days'), moment()]);
     }
   };
@@ -169,9 +200,7 @@ const ReportsSales = () => {
     return null;
   };
 
-  // Custom Table component with Bootstrap-like styling and summary row
   const CustomTable = ({ data, columns }) => {
-    // Calculate total revenue for summary row
     const totalRevenue = data.reduce((sum, item) => sum + (item.revenue || 0), 0);
 
     return (
@@ -229,7 +258,6 @@ const ReportsSales = () => {
                 ))}
               </tr>
             ))}
-            {/* Summary row */}
             <tr style={{
               borderTop: '2px solid #e5e7eb',
               backgroundColor: '#f9fafb'
@@ -298,37 +326,58 @@ const ReportsSales = () => {
         }}>
           Sales Analytics
         </Title>
-        <Space>
-          <RangePicker
-            value={dateRange}
-            onChange={handleDateChange}
-            disabledDate={disabledDate}
-            size="middle"
-            style={{ width: '280px' }}
-            allowClear={false}
-            ranges={{
-              'Today': [moment(), moment()],
-              'This Week': [moment().startOf('week'), moment().endOf('week')],
-              'This Month': [moment().startOf('month'), moment().endOf('month')],
-              'Last 7 Days': [moment().subtract(7, 'days'), moment()],
-            }}
-          />
-          <Button
-            type="primary"
-            onClick={fetchAnalyticsData}
-            loading={loading}
-            icon={<SyncOutlined spin={loading} />}
-            style={{
-              fontWeight: '500',
-              background: '#0092ff',
-              border: 'none',
-              boxShadow: '0 1px 3px rgba(16, 148, 185, 0.3)',
-            }}
-          >
-            {loading ? 'Refreshing...' : 'Refresh'}
-          </Button>
-        </Space>
+        <Button
+          type="primary"
+          onClick={fetchAnalyticsData}
+          loading={loading}
+          icon={<SyncOutlined spin={loading} />}
+          style={{
+            fontWeight: '500',
+            background: '#0092ff',
+            border: 'none',
+            boxShadow: '0 1px 3px rgba(16, 148, 185, 0.3)',
+          }}
+        >
+          {loading ? 'Refreshing...' : 'Refresh'}
+        </Button>
       </div>
+
+      <Card
+        style={{ marginBottom: '24px', borderRadius: '12px' }}
+        bodyStyle={{ padding: '16px 24px' }}
+      >
+        <Row gutter={[24, 16]}>
+          <Col xs={24} md={8}>
+            <div style={{ marginBottom: '16px' }}>
+              <Text strong style={{ display: 'block', marginBottom: '8px' }}>Period</Text>
+              <Select
+                style={{ width: '100%' }}
+                value={period}
+                onChange={handlePeriodChange}
+              >
+                <Option value="today">Today</Option>
+                <Option value="yesterday">Yesterday</Option>
+                <Option value="last7days">Last 7 Days</Option>
+                <Option value="last30days">Last 30 Days</Option>
+                <Option value="custom">Custom Range</Option>
+              </Select>
+            </div>
+          </Col>
+
+          {period === 'custom' && (
+            <Col xs={24} md={8}>
+              <div style={{ marginBottom: '16px' }}>
+                <Text strong style={{ display: 'block', marginBottom: '8px' }}>Date Range</Text>
+                <RangePicker
+                  style={{ width: '100%' }}
+                  onChange={handleDateRangeChange}
+                  disabledDate={(current) => current && current > dayjs().endOf('day')}
+                />
+              </div>
+            </Col>
+          )}
+        </Row>
+      </Card>
 
       {loading && (
         <div style={{
@@ -336,7 +385,7 @@ const ReportsSales = () => {
           padding: '80px 0',
           background: '#fff',
           borderRadius: '12px'
-        }} className="card bg-white text-light">
+        }}>
           <Spin size="large" tip="Loading sales analytics..." />
         </div>
       )}
@@ -346,7 +395,6 @@ const ReportsSales = () => {
           <Row gutter={[24, 24]} style={{ marginBottom: '24px' }}>
             <Col xs={24} sm={12} md={8}>
               <Card
-                className="card bg-white text-light"
                 bordered={false}
                 style={{
                   borderRadius: '12px',
@@ -365,27 +413,26 @@ const ReportsSales = () => {
                     alignItems: 'center',
                     justifyContent: 'center',
                     marginRight: '16px'
-                  }} className="card bg-white text-light">
+                  }}>
                     <DollarOutlined style={{ fontSize: '20px', color: '#0092ff' }} />
                   </div>
                   <div>
-                    <Text className="text-dark">Total Revenue</Text>
+                    <Text>Total Revenue</Text>
                     <Title level={3} style={{ margin: 0 }}>
                       {currencySymbol}{analyticsData.totalRevenue.toFixed(2)}
                     </Title>
                   </div>
                 </div>
-                <Divider style={{ margin: '12px 0' }} className="card bg-white text-light" />
+                <Divider style={{ margin: '12px 0' }} />
                 <div style={{ display: 'flex', alignItems: 'center' }}>
                   <ArrowUpOutlined style={{ color: '#10B981', fontSize: '16px', marginRight: '8px' }} />
-                  <Text className="text-dark">Compared to last period</Text>
+                  <Text>Compared to last period</Text>
                 </div>
               </Card>
             </Col>
 
             <Col xs={24} sm={12} md={8}>
               <Card
-                className="card bg-white text-light"
                 bordered={false}
                 style={{
                   borderRadius: '12px',
@@ -404,27 +451,26 @@ const ReportsSales = () => {
                     alignItems: 'center',
                     justifyContent: 'center',
                     marginRight: '16px'
-                  }} className="card bg-white text-light">
+                  }}>
                     <ShoppingCartOutlined style={{ fontSize: '20px', color: '#0092ff' }} />
                   </div>
                   <div>
-                    <Text className="text-dark">Total Orders</Text>
+                    <Text>Total Orders</Text>
                     <Title level={3} style={{ margin: 0 }}>
                       {analyticsData.totalOrders}
                     </Title>
                   </div>
                 </div>
-                <Divider style={{ margin: '12px 0' }} className="card bg-white text-light" />
+                <Divider style={{ margin: '12px 0' }} />
                 <div style={{ display: 'flex', alignItems: 'center' }}>
                   <ArrowUpOutlined style={{ color: '#10B981', fontSize: '16px', marginRight: '8px' }} />
-                  <Text className="text-dark">Compared to last period</Text>
+                  <Text>Compared to last period</Text>
                 </div>
               </Card>
             </Col>
 
             <Col xs={24} sm={12} md={8}>
               <Card
-                className="card bg-white text-light"
                 bordered={false}
                 style={{
                   borderRadius: '12px',
@@ -443,20 +489,20 @@ const ReportsSales = () => {
                     alignItems: 'center',
                     justifyContent: 'center',
                     marginRight: '16px'
-                  }} className="card bg-white text-light">
+                  }}>
                     <CreditCardOutlined style={{ fontSize: '20px', color: '#0092ff' }} />
                   </div>
                   <div>
-                    <Text className="text-dark">Avg. Order Value</Text>
+                    <Text>Avg. Order Value</Text>
                     <Title level={3} style={{ margin: 0 }}>
                       {currencySymbol}{analyticsData.averageOrderValue.toFixed(2)}
                     </Title>
                   </div>
                 </div>
-                <Divider style={{ margin: '12px 0' }} className="card bg-white text-light" />
+                <Divider style={{ margin: '12px 0' }} />
                 <div style={{ display: 'flex', alignItems: 'center' }}>
                   <ArrowUpOutlined style={{ color: '#10B981', fontSize: '16px', marginRight: '8px' }} />
-                  <Text className="text-dark">Compared to last period</Text>
+                  <Text>Compared to last period</Text>
                 </div>
               </Card>
             </Col>
@@ -465,8 +511,7 @@ const ReportsSales = () => {
           <Row gutter={[24, 24]} style={{ marginBottom: '24px' }}>
             <Col xs={24} lg={12}>
               <Card
-                className="card bg-white text-light"
-                title={<Text strong style={{ fontSize: '16px' }} className="text-dark">Daily Sales</Text>}
+                title={<Text strong style={{ fontSize: '16px' }}>Daily Sales</Text>}
                 bordered={false}
                 style={{
                   borderRadius: '12px',
@@ -509,8 +554,7 @@ const ReportsSales = () => {
 
             <Col xs={24} lg={12}>
               <Card
-                className="card bg-white text-light"
-                title={<Text strong style={{ fontSize: '16px' }} className="text-dark">Sales by Payment Method</Text>}
+                title={<Text strong style={{ fontSize: '16px' }}>Sales by Payment Method</Text>}
                 bordered={false}
                 style={{
                   borderRadius: '12px',
@@ -562,8 +606,7 @@ const ReportsSales = () => {
           <Row gutter={[24, 24]} style={{ marginBottom: '24px' }}>
             <Col xs={24} lg={12}>
               <Card
-                className="card bg-white text-light"
-                title={<Text strong style={{ fontSize: '16px' }} className="text-dark">Sales by Order Type</Text>}
+                title={<Text strong style={{ fontSize: '16px' }}>Sales by Order Type</Text>}
                 bordered={false}
                 style={{
                   borderRadius: '12px',
@@ -612,8 +655,7 @@ const ReportsSales = () => {
 
             <Col xs={24} lg={12}>
               <Card
-                className="card bg-white text-light"
-                title={<Text strong style={{ fontSize: '16px' }} className="text-dark">Hourly Sales Pattern</Text>}
+                title={<Text strong style={{ fontSize: '16px' }}>Hourly Sales Pattern</Text>}
                 bordered={false}
                 style={{
                   borderRadius: '12px',
@@ -666,8 +708,7 @@ const ReportsSales = () => {
           <Row gutter={[24, 24]}>
             <Col xs={24}>
               <Card
-                className="card bg-white text-light"
-                title={<Text strong style={{ fontSize: '16px' }} className="text-dark">Daily Sales Breakdown</Text>}
+                title={<Text strong style={{ fontSize: '16px' }}>Daily Sales Breakdown</Text>}
                 bordered={false}
                 style={{
                   borderRadius: '12px',

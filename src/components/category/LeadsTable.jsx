@@ -10,33 +10,6 @@ import 'react-loading-skeleton/dist/skeleton.css';
 import Switch from '@mui/material/Switch';
 import Modal from 'react-bootstrap/Modal';
 
-// IndexedDB setup
-const DB_NAME = 'CategoriesDB';
-const DB_VERSION = 1;
-const STORE_NAME = 'categories';
-
-const openDB = () => {
-    return new Promise((resolve, reject) => {
-        const request = indexedDB.open(DB_NAME, DB_VERSION);
-
-        request.onerror = (event) => {
-            console.error('IndexedDB error:', event.target.error);
-            reject('Failed to open database');
-        };
-
-        request.onsuccess = (event) => {
-            resolve(event.target.result);
-        };
-
-        request.onupgradeneeded = (event) => {
-            const db = event.target.result;
-            if (!db.objectStoreNames.contains(STORE_NAME)) {
-                db.createObjectStore(STORE_NAME, { keyPath: 'id' });
-            }
-        };
-    });
-};
-
 const CategoriesTable = () => {
     const [categories, setCategories] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -63,187 +36,8 @@ const CategoriesTable = () => {
     const [uploadingImage, setUploadingImage] = useState(false);
     const [selectedFile, setSelectedFile] = useState(null);
     const [imagePreview, setImagePreview] = useState('');
-    const [dbInitialized, setDbInitialized] = useState(false);
     const skinTheme = localStorage.getItem('skinTheme') || 'light';
     const isDarkMode = skinTheme === 'dark';
-
-    // Initialize IndexedDB
-    useEffect(() => {
-        const initDB = async () => {
-            try {
-                await openDB();
-                setDbInitialized(true);
-            } catch (error) {
-                console.error('Failed to initialize IndexedDB:', error);
-                // Fallback to API-only mode if IndexedDB fails
-                setDbInitialized(false);
-            }
-        };
-        initDB();
-    }, []);
-
-    // IndexedDB operations
-    const getCategoriesFromDB = useCallback(async () => {
-        if (!dbInitialized) return null;
-
-        try {
-            const db = await openDB();
-            return new Promise((resolve, reject) => {
-                const transaction = db.transaction(STORE_NAME, 'readonly');
-                const store = transaction.objectStore(STORE_NAME);
-                const request = store.getAll();
-
-                request.onsuccess = () => resolve(request.result);
-                request.onerror = () => reject('Failed to read from IndexedDB');
-            });
-        } catch (error) {
-            console.error('Error reading from IndexedDB:', error);
-            return null;
-        }
-    }, [dbInitialized]);
-
-    const saveCategoriesToDB = useCallback(async (categories) => {
-        if (!dbInitialized) return;
-
-        try {
-            const db = await openDB();
-            const transaction = db.transaction(STORE_NAME, 'readwrite');
-            const store = transaction.objectStore(STORE_NAME);
-
-            // Clear existing data
-            await new Promise((resolve, reject) => {
-                const clearRequest = store.clear();
-                clearRequest.onsuccess = resolve;
-                clearRequest.onerror = () => reject('Failed to clear IndexedDB');
-            });
-
-            // Add new data
-            await Promise.all(categories.map(category => {
-                return new Promise((resolve, reject) => {
-                    const addRequest = store.add(category);
-                    addRequest.onsuccess = resolve;
-                    addRequest.onerror = () => reject(`Failed to add category ${category.id} to IndexedDB`);
-                });
-            }));
-        } catch (error) {
-            console.error('Error saving to IndexedDB:', error);
-        }
-    }, [dbInitialized]);
-
-    const updateCategoryInDB = useCallback(async (category) => {
-        if (!dbInitialized) return;
-
-        try {
-            const db = await openDB();
-            return new Promise((resolve, reject) => {
-                const transaction = db.transaction(STORE_NAME, 'readwrite');
-                const store = transaction.objectStore(STORE_NAME);
-                const request = store.put(category);
-
-                request.onsuccess = resolve;
-                request.onerror = () => reject('Failed to update category in IndexedDB');
-            });
-        } catch (error) {
-            console.error('Error updating category in IndexedDB:', error);
-        }
-    }, [dbInitialized]);
-
-    const deleteCategoryFromDB = useCallback(async (categoryId) => {
-        if (!dbInitialized) return;
-
-        try {
-            const db = await openDB();
-            return new Promise((resolve, reject) => {
-                const transaction = db.transaction(STORE_NAME, 'readwrite');
-                const store = transaction.objectStore(STORE_NAME);
-                const request = store.delete(categoryId);
-
-                request.onsuccess = resolve;
-                request.onerror = () => reject('Failed to delete category from IndexedDB');
-            });
-        } catch (error) {
-            console.error('Error deleting category from IndexedDB:', error);
-        }
-    }, [dbInitialized]);
-
-    const fetchCategoriesFromAPI = useCallback(async () => {
-        try {
-            const authData = JSON.parse(localStorage.getItem("authData"));
-            if (!authData?.token) {
-                toast.error("Authentication token not found");
-                return;
-            }
-
-            const response = await fetch(`${BASE_URL}/api/client-admin/categories`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${authData.token}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || 'Failed to fetch categories');
-            }
-
-            const data = await response.json();
-            if (data.status === 200 && data.data) {
-                const categoriesWithImages = data.data.map(category => ({
-                    ...category,
-                    imageUrls: category.imageUrls || [],
-                    primaryImageUrl: category.primaryImageUrl || ''
-                }));
-
-                // Save to IndexedDB
-                if (dbInitialized) {
-                    await saveCategoriesToDB(categoriesWithImages);
-                }
-
-                return categoriesWithImages;
-            } else {
-                throw new Error(data.message || 'Failed to fetch categories');
-            }
-        } catch (err) {
-            toast.error(err.message);
-            return null;
-        }
-    }, [dbInitialized, saveCategoriesToDB]);
-
-    const fetchCategories = useCallback(async () => {
-        setLoading(true);
-
-        try {
-            // First try to get data from IndexedDB
-            if (dbInitialized) {
-                const cachedCategories = await getCategoriesFromDB();
-                if (cachedCategories && cachedCategories.length > 0) {
-                    setCategories(cachedCategories);
-
-                    // Fetch fresh data in the background
-                    setTimeout(async () => {
-                        const freshCategories = await fetchCategoriesFromAPI();
-                        if (freshCategories) {
-                            setCategories(freshCategories);
-                        }
-                    }, 0);
-
-                    setLoading(false);
-                    return;
-                }
-            }
-
-            // If no cached data or IndexedDB not available, fetch from API
-            const freshCategories = await fetchCategoriesFromAPI();
-            if (freshCategories) {
-                setCategories(freshCategories);
-            }
-        } catch (err) {
-            console.error('Error fetching categories:', err);
-        } finally {
-            setLoading(false);
-        }
-    }, [dbInitialized, fetchCategoriesFromAPI, getCategoriesFromDB]);
 
     const SkeletonLoader = () => {
         return (
@@ -414,25 +208,20 @@ const CategoriesTable = () => {
                 theme: "colored",
             });
 
-            const updatedCategory = {
-                ...editCategory,
-                imageUrls: editCategory.imageUrls.filter(url => url !== imageUrl),
-                primaryImageUrl: editCategory.primaryImageUrl === imageUrl ?
-                    (editCategory.imageUrls.length > 1 ? editCategory.imageUrls.find(url => url !== imageUrl) : '') :
-                    editCategory.primaryImageUrl
-            };
+            setEditCategory(prev => ({
+                ...prev,
+                imageUrls: prev.imageUrls.filter(url => url !== imageUrl)
+            }));
 
-            setEditCategory(updatedCategory);
-
-            // Update in state and IndexedDB
-            setCategories(prev => prev.map(cat =>
-                cat.id === updatedCategory.id ? updatedCategory : cat
-            ));
-
-            if (dbInitialized) {
-                await updateCategoryInDB(updatedCategory);
+            if (editCategory.primaryImageUrl === imageUrl) {
+                setEditCategory(prev => ({
+                    ...prev,
+                    primaryImageUrl: prev.imageUrls.length > 1 ?
+                        prev.imageUrls.find(url => url !== imageUrl) : ''
+                }));
             }
 
+            await fetchCategories();
         } catch (err) {
             toast.error(err.message, {
                 position: "bottom-center",
@@ -446,6 +235,46 @@ const CategoriesTable = () => {
             });
         }
     };
+
+    const fetchCategories = useCallback(async () => {
+        try {
+            setLoading(true);
+            const authData = JSON.parse(localStorage.getItem("authData"));
+            if (!authData?.token) {
+                toast.error("Authentication token not found");
+                return;
+            }
+
+            const response = await fetch(`${BASE_URL}/api/client-admin/categories`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${authData.token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to fetch categories');
+            }
+
+            const data = await response.json();
+            if (data.status === 200 && data.data) {
+                const categoriesWithImages = data.data.map(category => ({
+                    ...category,
+                    imageUrls: category.imageUrls || [],
+                    primaryImageUrl: category.primaryImageUrl || ''
+                }));
+                setCategories(categoriesWithImages);
+            } else {
+                throw new Error(data.message || 'Failed to fetch categories');
+            }
+        } catch (err) {
+            toast.error(err.message);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
 
     const handleInputChange = (e) => {
         const { name, value } = e.target;
@@ -479,7 +308,6 @@ const CategoriesTable = () => {
             setUploadingImage(true);
             const authData = JSON.parse(localStorage.getItem("authData"));
 
-            // First create the category
             const response = await fetch(`${BASE_URL}/api/client-admin/categories`, {
                 method: 'POST',
                 headers: {
@@ -494,15 +322,12 @@ const CategoriesTable = () => {
                 throw new Error(data.message || 'Failed to create category');
             }
 
-            let createdCategory = data.data;
-
-            // Then upload image if selected
             if (selectedFile) {
                 const formData = new FormData();
                 formData.append('file', selectedFile);
                 formData.append('primary', true);
 
-                const uploadResponse = await fetch(`${BASE_URL}/api/client-admin/categories/${createdCategory.id}/images`, {
+                const uploadResponse = await fetch(`${BASE_URL}/api/client-admin/categories/${data.data.id}/images`, {
                     method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${authData.token}`,
@@ -514,22 +339,10 @@ const CategoriesTable = () => {
                     const uploadError = await uploadResponse.json();
                     throw new Error(uploadError.message || 'Failed to upload image');
                 }
-
-                const uploadData = await uploadResponse.json();
-                createdCategory = {
-                    ...createdCategory,
-                    primaryImageUrl: uploadData.imageUrl,
-                    imageUrls: [uploadData.imageUrl]
-                };
-            }
-
-            // Update local state and IndexedDB
-            setCategories(prev => [...prev, createdCategory]);
-            if (dbInitialized) {
-                await updateCategoryInDB(createdCategory);
             }
 
             toast.success('Category created successfully');
+            await fetchCategories();
             setIsModalOpen(false);
             setNewCategory({
                 name: '',
@@ -540,6 +353,7 @@ const CategoriesTable = () => {
             setImagePreview('');
         } catch (err) {
             toast.error(err.message);
+            setIsModalOpen(false);
         } finally {
             setUploadingImage(false);
         }
@@ -593,22 +407,8 @@ const CategoriesTable = () => {
                 throw new Error(data.message || 'Failed to update category');
             }
 
-            const updatedCategory = {
-                ...data.data,
-                imageUrls: editCategory.imageUrls,
-                primaryImageUrl: imageUrl
-            };
-
-            // Update local state and IndexedDB
-            setCategories(prev => prev.map(cat =>
-                cat.id === updatedCategory.id ? updatedCategory : cat
-            ));
-
-            if (dbInitialized) {
-                await updateCategoryInDB(updatedCategory);
-            }
-
             toast.success('Category updated successfully');
+            await fetchCategories();
             setIsEditModalOpen(false);
             setSelectedFile(null);
             setImagePreview('');
@@ -621,19 +421,13 @@ const CategoriesTable = () => {
 
     const handleStatusChange = async (category) => {
         try {
+            const authData = JSON.parse(localStorage.getItem("authData"));
             const newStatus = !category.active;
-            const updatedCategory = { ...category, active: newStatus };
 
-            // Optimistic update
             setCategories(prev => prev.map(cat =>
-                cat.id === updatedCategory.id ? updatedCategory : cat
+                cat.id === category.id ? { ...cat, active: newStatus } : cat
             ));
 
-            if (dbInitialized) {
-                await updateCategoryInDB(updatedCategory);
-            }
-
-            const authData = JSON.parse(localStorage.getItem("authData"));
             const response = await fetch(`${BASE_URL}/api/client-admin/categories/${category.id}/status`, {
                 method: 'PATCH',
                 headers: {
@@ -648,20 +442,6 @@ const CategoriesTable = () => {
                 throw new Error(data.message || 'Failed to update category status');
             }
 
-            // Final update with any changes from server
-            const finalUpdatedCategory = {
-                ...updatedCategory,
-                ...data.data
-            };
-
-            setCategories(prev => prev.map(cat =>
-                cat.id === finalUpdatedCategory.id ? finalUpdatedCategory : cat
-            ));
-
-            if (dbInitialized) {
-                await updateCategoryInDB(finalUpdatedCategory);
-            }
-
             toast.success(`Category ${newStatus ? 'activated' : 'deactivated'} successfully`, {
                 position: "bottom-center",
                 autoClose: 5000,
@@ -672,16 +452,9 @@ const CategoriesTable = () => {
                 progress: undefined,
                 theme: "colored",
             });
+
+            await fetchCategories();
         } catch (err) {
-            // Revert on error
-            setCategories(prev => prev.map(cat =>
-                cat.id === category.id ? category : cat
-            ));
-
-            if (dbInitialized) {
-                await updateCategoryInDB(category);
-            }
-
             toast.error(err.message, {
                 position: "bottom-center",
                 autoClose: 5000,
@@ -692,6 +465,10 @@ const CategoriesTable = () => {
                 progress: undefined,
                 theme: "colored",
             });
+
+            setCategories(prev => prev.map(cat =>
+                cat.id === category.id ? { ...cat, active: category.active } : cat
+            ));
         }
     };
 
@@ -731,15 +508,9 @@ const CategoriesTable = () => {
 
             const data = await response.json();
             if (!response.ok) {
+                // Show the actual error message from the API response
                 const errorMessage = data.error || data.message || 'Failed to delete category';
                 throw new Error(errorMessage);
-            }
-
-            // Update local state and IndexedDB
-            setCategories(prev => prev.filter(cat => cat.id !== categoryToDelete.id));
-
-            if (dbInitialized) {
-                await deleteCategoryFromDB(categoryToDelete.id);
             }
 
             toast.success('Category deleted successfully', {
@@ -753,6 +524,7 @@ const CategoriesTable = () => {
                 theme: "colored",
             });
 
+            await fetchCategories();
             setIsDeleteModalOpen(false);
         } catch (err) {
             toast.error(err.message, {
@@ -842,13 +614,11 @@ const CategoriesTable = () => {
             ),
             meta: { headerClassName: 'text-end' }
         },
-    ], [handleStatusChange]);
+    ],);
 
     useEffect(() => {
-        if (dbInitialized) {
-            fetchCategories();
-        }
-    }, [dbInitialized, fetchCategories]);
+        fetchCategories();
+    }, [fetchCategories]);
 
     return (
         <>

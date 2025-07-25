@@ -2,21 +2,23 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { FiClock, FiRefreshCw, FiVolume2, FiVolumeX, FiEye, FiWifi, FiWifiOff } from 'react-icons/fi';
 import { Link } from 'react-router-dom';
 import { Modal, Button } from 'react-bootstrap';
+import { BASE_URL } from '/src/constants.js';
 
 // Debug logging helper
 const debugLog = (message, data = null) => {
-  console.log(`[TimesheetsModal] ${message}`, data || '');
+    console.log(`[TimesheetsModal] ${message}`, data || '');
 };
 
 // Error logging helper
 const errorLog = (message, error = null) => {
-  console.error(`[TimesheetsModal ERROR] ${message}`, error || '');
+    console.error(`[TimesheetsModal ERROR] ${message}`, error || '');
 };
 
 window.global ||= window;
 
 const TimesheetsModal = () => {
     // State management
+    const [allOrders, setAllOrders] = useState([]);
     const [pendingOrders, setPendingOrders] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -36,7 +38,7 @@ const TimesheetsModal = () => {
     const [showOrderModal, setShowOrderModal] = useState(false);
     const [selectedOrder, setSelectedOrder] = useState(null);
     const [componentError, setComponentError] = useState(null);
-    
+
     // Refs for cleanup and connection management
     const audioRef = useRef(null);
     const stompClientRef = useRef(null);
@@ -49,6 +51,16 @@ const TimesheetsModal = () => {
         reconnectDelay: 5000,
         connectionTimeout: 15000,
     };
+
+    // Filter orders to only show pending ones
+    const filterPendingOrders = useCallback((orders) => {
+        return orders.filter(order => order.status === 'PENDING');
+    }, []);
+
+    // Update pending orders whenever allOrders changes
+    useEffect(() => {
+        setPendingOrders(filterPendingOrders(allOrders));
+    }, [allOrders, filterPendingOrders]);
 
     // Component error handler
     const handleComponentError = useCallback((error, context = '') => {
@@ -93,7 +105,7 @@ const TimesheetsModal = () => {
             debugLog('Fetching pending orders via API');
             setLoading(true);
             setError(null);
-            
+
             const token = getAuthToken();
 
             if (!token) {
@@ -113,12 +125,12 @@ const TimesheetsModal = () => {
                         ]
                     }
                 ];
-                setPendingOrders(mockOrders);
+                setAllOrders(mockOrders);
                 setLoading(false);
                 return mockOrders;
             }
 
-            const response = await fetch(`http://localhost:8080/api/client-admin/orders/pending`, {
+            const response = await fetch(`${BASE_URL}/api/client-admin/orders/pending`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
@@ -131,24 +143,21 @@ const TimesheetsModal = () => {
 
             const data = await response.json();
             const orders = data.data || [];
-            
+
             debugLog('API orders fetched', orders);
-            
-            if (!wsConnected) {
-                setPendingOrders(orders);
-            }
-            
+
+            setAllOrders(orders);
             setError(null);
             return orders;
         } catch (err) {
             errorLog('Error fetching pending orders', err);
             setError(err.message);
-            setPendingOrders([]);
+            setAllOrders([]);
             return [];
         } finally {
             setLoading(false);
         }
-    }, [wsConnected, getAuthToken]);
+    }, [getAuthToken]);
 
     // Simplified WebSocket connection with dynamic imports
     const connectWebSocket = useCallback(async () => {
@@ -168,7 +177,7 @@ const TimesheetsModal = () => {
         disconnectWebSocket();
 
         try {
-            debugLog('Attempting WebSocket connection', `http://localhost:8080/ws`);
+            debugLog('Attempting WebSocket connection', `${BASE_URL}/ws`);
             setWsError(null);
             setLoading(true);
 
@@ -176,7 +185,7 @@ const TimesheetsModal = () => {
             const SockJS = (await import('sockjs-client')).default;
             const Stomp = (await import('stompjs')).default;
 
-            const socket = new SockJS(`http://localhost:8080/ws`);
+            const socket = new SockJS(`${BASE_URL}/ws`);
             const stompClient = Stomp.over(socket);
 
             // Enable debug for troubleshooting
@@ -224,7 +233,7 @@ const TimesheetsModal = () => {
                                     const orderData = JSON.parse(message.body);
                                     debugLog('📥 New order received via WebSocket', orderData);
 
-                                    setPendingOrders(prevOrders => {
+                                    setAllOrders(prevOrders => {
                                         const existingIndex = prevOrders.findIndex(
                                             order => order.id === orderData.id || order.orderNumber === orderData.orderNumber
                                         );
@@ -258,16 +267,16 @@ const TimesheetsModal = () => {
                     try {
                         clearTimeout(connectionTimeout);
                         errorLog('❌ WebSocket connection error', error);
-                        
+
                         setWsConnected(false);
                         setWsError(error?.toString() || 'Connection failed');
                         setLoading(false);
-                        
+
                         if (reconnectAttempts < WS_CONFIG.maxReconnectAttempts) {
                             const newAttempts = reconnectAttempts + 1;
                             setReconnectAttempts(newAttempts);
                             debugLog(`Attempting to reconnect (${newAttempts}/${WS_CONFIG.maxReconnectAttempts})...`);
-                            
+
                             reconnectTimeoutRef.current = setTimeout(() => {
                                 if (!isUnmountedRef.current) {
                                     connectWebSocket();
@@ -308,7 +317,7 @@ const TimesheetsModal = () => {
                 stompClientRef.current.disconnect();
                 stompClientRef.current = null;
             }
-            
+
             setWsConnected(false);
         } catch (error) {
             errorLog('Error disconnecting WebSocket', error);
@@ -320,7 +329,7 @@ const TimesheetsModal = () => {
         debugLog('Component mounting, initializing connection');
         isUnmountedRef.current = false;
         setComponentError(null);
-        
+
         // Start with API call first, then try WebSocket
         fetchPendingOrdersAPI().then(() => {
             debugLog('Initial API call completed, attempting WebSocket connection');
@@ -334,7 +343,7 @@ const TimesheetsModal = () => {
             errorLog('Initial API call failed', error);
             handleComponentError(error, 'Initial API call');
         });
-        
+
         return () => {
             debugLog('Component unmounting, cleaning up connections');
             isUnmountedRef.current = true;
@@ -397,7 +406,7 @@ const TimesheetsModal = () => {
                 throw new Error('No authentication token found');
             }
 
-            const response = await fetch(`http://localhost:8080/api/client-admin/orders/${orderId}/${action}`, {
+            const response = await fetch(`${BASE_URL}/api/client-admin/orders/${orderId}/${action}`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -409,7 +418,7 @@ const TimesheetsModal = () => {
                 throw new Error(`Failed to ${action} order: HTTP ${response.status}`);
             }
 
-            setPendingOrders(prevOrders => 
+            setAllOrders(prevOrders =>
                 prevOrders.filter(order => order.id !== orderId)
             );
 
@@ -474,7 +483,7 @@ const TimesheetsModal = () => {
                     <div className="alert alert-danger mx-3 my-2">
                         <h5>Component Error</h5>
                         <p>{componentError}</p>
-                        <button 
+                        <button
                             className="btn btn-sm btn-primary"
                             onClick={() => {
                                 setComponentError(null);
@@ -510,10 +519,10 @@ const TimesheetsModal = () => {
                     <div className="d-flex justify-content-between align-items-center timesheets-head">
                         <div className="d-flex align-items-center">
                             <h6 className="fw-bold text-dark mb-0">Pending Orders</h6>
-                            
-                            <ConnectionStatus 
-                                wsConnected={wsConnected} 
-                                wsError={wsError} 
+
+                            <ConnectionStatus
+                                wsConnected={wsConnected}
+                                wsError={wsError}
                             />
 
                             {pendingOrders.length > 0 && (
@@ -534,7 +543,7 @@ const TimesheetsModal = () => {
                             )}
                         </div>
                         <button
-                            className="btn btn-sm btn-link fs-11 text-success text-end ms-auto"
+                            className="btn btn-sm btn-link fs-11 text-primary text-end ms-auto"
                             onClick={handleManualRefresh}
                             disabled={loading}
                             title="Refresh orders"
@@ -569,7 +578,7 @@ const TimesheetsModal = () => {
                             <div className="alert alert-danger mx-3">
                                 <h6>Failed to load orders</h6>
                                 <p className="mb-2">{error}</p>
-                                <button 
+                                <button
                                     className="btn btn-sm btn-primary"
                                     onClick={() => {
                                         setError(null);
@@ -583,67 +592,52 @@ const TimesheetsModal = () => {
                             <div className="text-center py-4">
                                 <i className="feather-clock fs-1 mb-4"></i>
                                 <p className="text-muted">No pending orders found!</p>
-                                <small className="text-muted">
-                                    Connection: {wsConnected ? 'WebSocket' : 'API'} 
-                                    {wsError && ' (WebSocket failed)'}
-                                </small>
                             </div>
                         ) : (
                             pendingOrders.map(order => (
                                 <div key={order.id} className="card mb-2 mx-3">
                                     <div className="card-body p-3">
-                                        <div className="d-flex justify-content-between">
-                                            <div className="flex-grow-1">
-                                                <h6 className="card-title mb-1">
-                                                    Order #{order.orderNumber}
-                                                    <span className={`badge ms-2 bg-${order.status === 'PENDING' ? 'warning' : 'success'}`}>
-                                                        {order.status || 'PENDING'}
-                                                    </span>
-                                                </h6>
-                                                <p className="card-text text-muted small mb-1">
-                                                    <strong>Customer:</strong> {order.customerName}
-                                                </p>
-                                                <p className="card-text text-muted small mb-1">
-                                                    <strong>Contact:</strong> {order.customerContact || 'N/A'}
-                                                </p>
-                                                <p className="card-text text-muted small mb-1">
-                                                    <strong>Total:</strong> ${order.totalAmount?.toFixed(2) || '0.00'}
-                                                </p>
-                                                <p className="card-text text-muted small mb-2">
-                                                    <strong>Created:</strong> {new Date(order.createdAt).toLocaleString()}
-                                                </p>
-                                                {order.items && order.items.length > 0 && (
-                                                    <div className="order-items-preview">
-                                                        <small className="text-muted">
-                                                            <strong>Items:</strong> {order.items.slice(0, 2).map(item => item.name).join(', ')}
-                                                            {order.items.length > 2 && ` + ${order.items.length - 2} more`}
-                                                        </small>
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <div className="d-flex flex-column ms-2">
-                                                <button
-                                                    className="btn btn-sm btn-success mb-1"
-                                                    onClick={() => handleOrderAction(order.id, 'accept')}
-                                                    style={{ minWidth: '70px' }}
-                                                >
-                                                    Accept
-                                                </button>
-                                                <button
-                                                    className="btn btn-sm btn-danger mb-1"
-                                                    onClick={() => handleOrderAction(order.id, 'reject')}
-                                                    style={{ minWidth: '70px' }}
-                                                >
-                                                    Reject
-                                                </button>
-                                                <button
-                                                    className="btn btn-sm btn-primary"
-                                                    onClick={() => handleViewDetails(order)}
-                                                    style={{ minWidth: '70px' }}
-                                                >
-                                                    <FiEye size={14} className="me-1" /> View
-                                                </button>
-                                            </div>
+                                        <div className="d-flex justify-content-between mb-2">
+                                            <button
+                                                className="btn btn-sm btn-success me-1"
+                                                onClick={() => handleOrderAction(order.id, 'accept')}
+                                                style={{ minWidth: '70px' }}
+                                            >
+                                                Accept
+                                            </button>
+                                            <button
+                                                className="btn btn-sm btn-danger me-1"
+                                                onClick={() => handleOrderAction(order.id, 'reject')}
+                                                style={{ minWidth: '70px' }}
+                                            >
+                                                Reject
+                                            </button>
+                                            <button
+                                                className="btn btn-sm btn-primary me-1"
+                                                onClick={() => handleViewDetails(order)}
+                                                style={{ minWidth: '60px' }}
+                                            >
+                                                <FiEye size={14} className="me-1" /> View
+                                            </button>
+                                        </div>
+
+                                        <div className="flex-grow-1">
+                                            <h8 className="card-title mb-1"><strong>
+                                                ORDER #{order.orderNumber}
+                                            </strong>
+                                            </h8>
+                                            <p className="card-text text-muted small mb-1">
+                                                <strong>Customer:</strong> {order.customerName}
+                                            </p>
+                                            <p className="card-text text-muted small mb-1">
+                                                <strong>Contact:</strong> {order.customerContact || 'N/A'}
+                                            </p>
+                                            <p className="card-text text-muted small mb-1">
+                                                <strong>Total:</strong> ${order.totalAmount?.toFixed(2) || '0.00'}
+                                            </p>
+                                            <p className="card-text text-muted small mb-1">
+                                                <strong>Created:</strong> {new Date(order.createdAt).toLocaleString()}
+                                            </p>
                                         </div>
                                     </div>
                                 </div>
@@ -657,7 +651,7 @@ const TimesheetsModal = () => {
                 </div>
 
                 {selectedOrder && (
-                    <OrderDetailsModal 
+                    <OrderDetailsModal
                         show={showOrderModal}
                         onHide={handleCloseModal}
                         order={selectedOrder}
@@ -759,9 +753,9 @@ const TimesheetsModal = () => {
 
 // Connection Status Component
 const ConnectionStatus = ({ wsConnected, wsError }) => (
-    <span 
-        className={`ms-2 ${wsConnected ? 'text-success' : 'text-warning'}`}
-        title={wsConnected ? 'WebSocket Connected' : wsError || 'WebSocket Disconnected'}
+    <span
+        className={`ms-2 ${wsConnected ? 'text-primary' : 'text-warning'}`}
+        title={wsConnected ? 'Connected' : wsError || 'Disconnected'}
     >
         {wsConnected ? <FiWifi size={14} /> : <FiWifiOff size={14} />}
     </span>
@@ -770,7 +764,7 @@ const ConnectionStatus = ({ wsConnected, wsError }) => (
 // Order Details Modal Component
 const OrderDetailsModal = ({ show, onHide, order, onAccept, onReject }) => {
     if (!order) return null;
-    
+
     return (
         <Modal show={show} onHide={onHide} centered size="lg">
             <Modal.Header closeButton>
@@ -782,7 +776,7 @@ const OrderDetailsModal = ({ show, onHide, order, onAccept, onReject }) => {
                         <div className="col-md-6">
                             <div className="card h-100">
                                 <div className="card-header bg-primary">
-                                    <h6 className="mb-0" style={{color: 'white'}}>Customer Information</h6>
+                                    <h6 className="mb-0" style={{ color: 'white' }}>Customer Information</h6>
                                 </div>
                                 <div className="card-body">
                                     <h6 className="mb-2"><strong>Name:</strong> {order.customerName}</h6>
@@ -795,10 +789,10 @@ const OrderDetailsModal = ({ show, onHide, order, onAccept, onReject }) => {
                         <div className="col-md-6">
                             <div className="card h-100">
                                 <div className="card-header bg-primary">
-                                    <h6 className="mb-0" style={{color: 'white'}}>Order Summary</h6>
+                                    <h6 className="mb-0" style={{ color: 'white' }}>Order Summary</h6>
                                 </div>
                                 <div className="card-body">
-                                    <h6 className="mb-2"><strong>Status:</strong> <span className={`badge bg-${order.status === 'PENDING' ? 'warning' : 'success'}`}>{order.status}</span></h6>
+                                    <h6 className="mb-2"><strong>Status:</strong> <span className="badge bg-primary">{order.status}</span></h6>
                                     <h6 className="mb-2"><strong>Order ID:</strong> #{order.orderNumber}</h6>
                                     <h6 className="mb-2"><strong>Created:</strong> {new Date(order.createdAt).toLocaleString()}</h6>
                                     <h6 className="mb-0"><strong>Fulfillment:</strong> {order.fulfillmentType || 'Not specified'}</h6>
@@ -809,7 +803,7 @@ const OrderDetailsModal = ({ show, onHide, order, onAccept, onReject }) => {
 
                     <div className="card mb-4">
                         <div className="card-header bg-primary">
-                            <h6 className="mb-0" style={{color: 'white'}}>Order Items</h6>
+                            <h6 className="mb-0" style={{ color: 'white' }}>Order Items</h6>
                         </div>
                         <div className="card-body p-0">
                             <div className="table-responsive">
@@ -843,7 +837,7 @@ const OrderDetailsModal = ({ show, onHide, order, onAccept, onReject }) => {
                         <div className="col-md-6">
                             <div className="card mb-4">
                                 <div className="card-header bg-primary">
-                                    <h6 className="mb-0" style={{color: 'white'}}>Payment Details</h6>
+                                    <h6 className="mb-0" style={{ color: 'white' }}>Payment Details</h6>
                                 </div>
                                 <div className="card-body">
                                     <h6 className="mb-2"><strong>Method:</strong> {order.paymentMethod || 'Not specified'}</h6>
@@ -855,7 +849,7 @@ const OrderDetailsModal = ({ show, onHide, order, onAccept, onReject }) => {
                         <div className="col-md-6">
                             <div className="card">
                                 <div className="card-header bg-primary">
-                                    <h6 className="mb-0" style={{color: 'white'}}>Order Totals</h6>
+                                    <h6 className="mb-0" style={{ color: 'white' }}>Order Totals</h6>
                                 </div>
                                 <div className="card-body">
                                     <div className="d-flex justify-content-between mb-2">
@@ -892,7 +886,7 @@ const OrderDetailsModal = ({ show, onHide, order, onAccept, onReject }) => {
                     {order.notes && (
                         <div className="card mt-4">
                             <div className="card-header bg-primary">
-                                <h6 className="mb-0" style={{color: 'white'}}>Special Notes</h6>
+                                <h6 className="mb-0" style={{ color: 'white' }}>Special Notes</h6>
                             </div>
                             <div className="card-body">
                                 <h6 className="mb-0">{order.notes}</h6>
@@ -901,21 +895,6 @@ const OrderDetailsModal = ({ show, onHide, order, onAccept, onReject }) => {
                     )}
                 </div>
             </Modal.Body>
-            <Modal.Footer>
-                <div className="d-flex justify-content-between w-100">
-                    <div className="d-flex gap-2">
-                        <Button variant="success" onClick={onAccept}>
-                            Accept Order
-                        </Button>
-                        <Button variant="danger" onClick={onReject}>
-                            Reject Order
-                        </Button>
-                    </div>
-                    <Button variant="secondary" onClick={onHide}>
-                        Close
-                    </Button>
-                </div>
-            </Modal.Footer>
         </Modal>
     );
 };

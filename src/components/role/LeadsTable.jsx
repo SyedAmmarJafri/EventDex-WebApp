@@ -11,6 +11,29 @@ import Switch from '@mui/material/Switch';
 import Modal from 'react-bootstrap/Modal';
 import Form from 'react-bootstrap/Form';
 
+// Initialize IndexedDB
+const initIndexedDB = () => {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open('RolesDB', 1);
+
+    request.onerror = (event) => {
+      console.error('IndexedDB error:', event.target.error);
+      reject('Failed to open IndexedDB');
+    };
+
+    request.onsuccess = (event) => {
+      resolve(event.target.result);
+    };
+
+    request.onupgradeneeded = (event) => {
+      const db = event.target.result;
+      if (!db.objectStoreNames.contains('roles')) {
+        db.createObjectStore('roles', { keyPath: 'id' });
+      }
+    };
+  });
+};
+
 const RolesTable = () => {
     const [roles, setRoles] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -35,6 +58,7 @@ const RolesTable = () => {
     });
     const [formErrors, setFormErrors] = useState({});
     const [editFormErrors, setEditFormErrors] = useState({});
+    const [db, setDb] = useState(null);
     const skinTheme = localStorage.getItem('skinTheme') || 'light';
     const isDarkMode = skinTheme === 'dark';
 
@@ -83,6 +107,143 @@ const RolesTable = () => {
         'Order': availablePermissions.filter(p => p.startsWith('ORDER_')),
         'Tax': availablePermissions.filter(p => p.startsWith('TAX_'))
     };
+
+    // Initialize IndexedDB on component mount
+    useEffect(() => {
+        initIndexedDB().then(database => {
+            setDb(database);
+            // Check if we need to sync with server
+            checkAndSyncData(database);
+        }).catch(error => {
+            console.error('IndexedDB initialization failed:', error);
+            // Fallback to regular API calls
+            fetchRolesFromAPI();
+        });
+    }, []);
+
+    // Check if we need to sync with server (once per hour)
+    const checkAndSyncData = useCallback(async (database) => {
+        const now = Date.now();
+        const lastSync = localStorage.getItem('rolesLastSync') || 0;
+        
+        // If more than 1 hour since last sync or no data in IndexedDB
+        if (now - lastSync > 3600000 || !(await hasDataInIndexedDB(database))) {
+            await fetchRolesFromAPI(database);
+            localStorage.setItem('rolesLastSync', now);
+        } else {
+            // Load from IndexedDB
+            loadRolesFromIndexedDB(database);
+        }
+    }, []);
+
+    const hasDataInIndexedDB = async (database) => {
+        return new Promise((resolve) => {
+            const transaction = database.transaction(['roles'], 'readonly');
+            const store = transaction.objectStore('roles');
+            const request = store.count();
+            
+            request.onsuccess = () => {
+                resolve(request.result > 0);
+            };
+            
+            request.onerror = () => {
+                resolve(false);
+            };
+        });
+    };
+
+    const loadRolesFromIndexedDB = async (database) => {
+        return new Promise((resolve) => {
+            const transaction = database.transaction(['roles'], 'readonly');
+            const store = transaction.objectStore('roles');
+            const request = store.getAll();
+            
+            request.onsuccess = () => {
+                setRoles(request.result);
+                setLoading(false);
+                resolve(request.result);
+            };
+            
+            request.onerror = () => {
+                setLoading(false);
+                resolve([]);
+            };
+        });
+    };
+
+    const saveRolesToIndexedDB = async (roles, database) => {
+        return new Promise((resolve) => {
+            const transaction = database.transaction(['roles'], 'readwrite');
+            const store = transaction.objectStore('roles');
+            
+            // Clear existing data
+            store.clear();
+            
+            // Add all new roles
+            roles.forEach(role => {
+                store.put(role);
+            });
+            
+            transaction.oncomplete = () => {
+                resolve();
+            };
+            
+            transaction.onerror = () => {
+                resolve();
+            };
+        });
+    };
+
+    const fetchRolesFromAPI = useCallback(async (database = db) => {
+        try {
+            setLoading(true);
+            const authData = JSON.parse(localStorage.getItem("authData"));
+            if (!authData?.token) {
+                toast.error("Authentication token not found");
+                setLoading(false);
+                return;
+            }
+
+            const response = await fetch(`${BASE_URL}/api/client-admin/roles`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${authData.token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.message || 'Failed to fetch roles');
+            }
+
+            let rolesData = [];
+            if (Array.isArray(data)) {
+                rolesData = data;
+            } else if (data.data && Array.isArray(data.data)) {
+                rolesData = data.data;
+            } else if (data.status === 200 && data.data) {
+                rolesData = data.data;
+            } else {
+                throw new Error('Invalid roles data format received');
+            }
+
+            setRoles(rolesData);
+            if (database) {
+                await saveRolesToIndexedDB(rolesData, database);
+            }
+        } catch (err) {
+            console.error('Error fetching roles:', err);
+            toast.error(err.message || 'Failed to load roles');
+            // Try to load from IndexedDB if API fails
+            if (database) {
+                await loadRolesFromIndexedDB(database);
+            }
+        } finally {
+            setLoading(false);
+        }
+    }, [db]);
 
     const SkeletonLoader = () => {
         return (
@@ -189,48 +350,6 @@ const RolesTable = () => {
         );
     };
 
-    const fetchRoles = useCallback(async () => {
-        try {
-            setLoading(true);
-            const authData = JSON.parse(localStorage.getItem("authData"));
-            if (!authData?.token) {
-                toast.error("Authentication token not found");
-                setLoading(false);
-                return;
-            }
-
-            const response = await fetch(`${BASE_URL}/api/client-admin/roles`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${authData.token}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.message || 'Failed to fetch roles');
-            }
-
-            if (Array.isArray(data)) {
-                setRoles(data);
-            } else if (data.data && Array.isArray(data.data)) {
-                setRoles(data.data);
-            } else if (data.status === 200 && data.data) {
-                setRoles(data.data);
-            } else {
-                throw new Error('Invalid roles data format received');
-            }
-        } catch (err) {
-            console.error('Error fetching roles:', err);
-            toast.error(err.message || 'Failed to load roles');
-            setRoles([]);
-        } finally {
-            setLoading(false);
-        }
-    }, []);
-
     const handleInputChange = (e) => {
         const { name, value } = e.target;
         setNewRole(prev => ({ ...prev, [name]: value }));
@@ -324,7 +443,14 @@ const RolesTable = () => {
             }
 
             toast.success('Role created successfully');
-            await fetchRoles();
+            
+            // Update local state and IndexedDB
+            const updatedRoles = [...roles, data];
+            setRoles(updatedRoles);
+            if (db) {
+                await saveRolesToIndexedDB(updatedRoles, db);
+            }
+            
             setIsModalOpen(false);
             setNewRole({
                 name: '',
@@ -364,7 +490,16 @@ const RolesTable = () => {
             }
 
             toast.success('Role updated successfully');
-            await fetchRoles();
+            
+            // Update local state and IndexedDB
+            const updatedRoles = roles.map(r => 
+                r.id === editRole.id ? data : r
+            );
+            setRoles(updatedRoles);
+            if (db) {
+                await saveRolesToIndexedDB(updatedRoles, db);
+            }
+            
             setIsEditModalOpen(false);
         } catch (err) {
             toast.error(err.message);
@@ -397,9 +532,13 @@ const RolesTable = () => {
 
         try {
             const authData = JSON.parse(localStorage.getItem("authData"));
-
+            
             // Optimistic update
-            setRoles(prev => prev.filter(role => role.id !== roleToDelete.id));
+            const updatedRoles = roles.filter(role => role.id !== roleToDelete.id);
+            setRoles(updatedRoles);
+            if (db) {
+                await saveRolesToIndexedDB(updatedRoles, db);
+            }
             setIsDeleteModalOpen(false);
 
             const response = await fetch(`${BASE_URL}/api/client-admin/roles/${roleToDelete.id}`, {
@@ -416,10 +555,12 @@ const RolesTable = () => {
             }
 
             toast.success('Role deleted successfully');
-            await fetchRoles(); // Refresh data to ensure consistency
         } catch (err) {
             // Revert on error
-            setRoles(prev => [...prev, roleToDelete]);
+            setRoles(roles);
+            if (db) {
+                await saveRolesToIndexedDB(roles, db);
+            }
             toast.error(err.message);
         } finally {
             setRoleToDelete(null);
@@ -499,8 +640,8 @@ const RolesTable = () => {
     ], []);
 
     useEffect(() => {
-        fetchRoles();
-    }, [fetchRoles]);
+        fetchRolesFromAPI();
+    }, [fetchRolesFromAPI]);
 
     return (
         <>

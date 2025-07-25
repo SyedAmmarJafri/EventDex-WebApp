@@ -299,15 +299,6 @@ const TabProfile = () => {
                                     </div>
                                 </div>
 
-                                <button
-                                    type="button"
-                                    className="btn btn-outline-primary d-flex align-items-center gap-2 py-2 px-3"
-                                    onClick={() => fileInputRef.current.click()}
-                                >
-                                    <FiUpload size={16} />
-                                    <span>Upload Image</span>
-                                </button>
-
                                 <input
                                     ref={fileInputRef}
                                     type="file"

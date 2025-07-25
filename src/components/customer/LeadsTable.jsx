@@ -8,6 +8,72 @@ import Skeleton from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
 import Modal from 'react-bootstrap/Modal';
 
+// IndexedDB setup
+const DB_NAME = 'CustomerDB';
+const DB_VERSION = 1;
+const STORE_NAME = 'customers';
+const CACHE_EXPIRY = 15 * 60 * 1000; // 15 minutes in milliseconds
+
+const openDB = () => {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+    request.onupgradeneeded = (event) => {
+      const db = event.target.result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+      }
+    };
+
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+};
+
+const getCachedData = async () => {
+  try {
+    const db = await openDB();
+    const transaction = db.transaction(STORE_NAME, 'readonly');
+    const store = transaction.objectStore(STORE_NAME);
+    const request = store.getAll();
+
+    return new Promise((resolve, reject) => {
+      request.onsuccess = () => {
+        const data = request.result[0]; // Get first record
+        if (data && (Date.now() - data.timestamp) < CACHE_EXPIRY) {
+          resolve(data.customers);
+        } else {
+          resolve(null);
+        }
+      };
+      request.onerror = () => reject(request.error);
+    });
+  } catch (error) {
+    console.error('IndexedDB error:', error);
+    return null;
+  }
+};
+
+const storeData = async (customers) => {
+  try {
+    const db = await openDB();
+    const transaction = db.transaction(STORE_NAME, 'readwrite');
+    const store = transaction.objectStore(STORE_NAME);
+    
+    // Clear existing data
+    store.clear();
+    
+    // Store new data with timestamp
+    store.put({
+      id: 1, // Using a fixed ID since we only store one set of data
+      customers,
+      timestamp: Date.now()
+    });
+  } catch (error) {
+    console.error('IndexedDB error:', error);
+  }
+};
+
 const CustomerTable = () => {
     const [customers, setCustomers] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -50,10 +116,9 @@ const CustomerTable = () => {
         );
     };
 
-    // Fetch customers
-    const fetchCustomers = useCallback(async () => {
+    // Fetch customers from API
+    const fetchCustomersFromAPI = useCallback(async () => {
         try {
-            setLoading(true);
             const authData = JSON.parse(localStorage.getItem("authData"));
             if (!authData?.token) {
                 throw new Error("No authentication token found");
@@ -74,21 +139,55 @@ const CustomerTable = () => {
 
             const data = await response.json();
             if (data.data && data.data.content) {
-                setCustomers(data.data.content);
-            } else {
-                throw new Error(data.message || 'Failed to fetch customers');
+                const customersData = data.data.content;
+                await storeData(customersData); // Cache the new data
+                return customersData;
             }
+            throw new Error(data.message || 'Failed to fetch customers');
         } catch (err) {
             showErrorToast(err.message);
-        } finally {
-            setLoading(false);
+            return null;
         }
     }, []);
+
+    // Fetch customers with cache logic
+    const fetchCustomers = useCallback(async () => {
+        setLoading(true);
+        
+        try {
+            // First try to get cached data
+            const cachedCustomers = await getCachedData();
+            
+            if (cachedCustomers) {
+                setCustomers(cachedCustomers);
+                setLoading(false);
+                
+                // Fetch fresh data in background
+                setTimeout(async () => {
+                    const freshCustomers = await fetchCustomersFromAPI();
+                    if (freshCustomers) {
+                        setCustomers(freshCustomers);
+                    }
+                }, 0);
+            } else {
+                // No valid cache, fetch from API
+                const freshCustomers = await fetchCustomersFromAPI();
+                if (freshCustomers) {
+                    setCustomers(freshCustomers);
+                }
+                setLoading(false);
+            }
+        } catch (err) {
+            console.error('Error fetching customers:', err);
+            setLoading(false);
+        }
+    }, [fetchCustomersFromAPI]);
 
     useEffect(() => {
         fetchCustomers();
     }, [fetchCustomers]);
 
+    // Rest of your component remains the same...
     const handleViewCustomer = (customer) => {
         setSelectedCustomer(customer);
         setIsViewModalOpen(true);

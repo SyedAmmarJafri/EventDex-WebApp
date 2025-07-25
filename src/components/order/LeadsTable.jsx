@@ -1,6 +1,6 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import Table from '@/components/shared/table/Table';
-import { FiEye, FiDownload, FiEdit, FiUserPlus, FiMap } from 'react-icons/fi';
+import { FiEye, FiDownload, FiEdit, FiUserPlus, FiMap, FiWifi, FiWifiOff, FiRefreshCw } from 'react-icons/fi';
 import Button from '@mui/material/Button';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -12,6 +12,18 @@ import MenuItem from '@mui/material/MenuItem';
 import FormControl from '@mui/material/FormControl';
 import InputLabel from '@mui/material/InputLabel';
 import Modal from 'react-bootstrap/Modal';
+
+// Debug logging helper
+const debugLog = (message, data = null) => {
+    console.log(`[OrderTable] ${message}`, data || '');
+};
+
+// Error logging helper
+const errorLog = (message, error = null) => {
+    console.error(`[OrderTable ERROR] ${message}`, error || '');
+};
+
+window.global ||= window;
 
 const OrderTable = () => {
     const [orders, setOrders] = useState([]);
@@ -31,12 +43,68 @@ const OrderTable = () => {
     const [activeFilter, setActiveFilter] = useState('all');
     const [mapScriptLoaded, setMapScriptLoaded] = useState(false);
     const [map, setMap] = useState(null);
+    
+    // WebSocket states
+    const [wsConnected, setWsConnected] = useState(false);
+    const [wsError, setWsError] = useState(null);
+    const [reconnectAttempts, setReconnectAttempts] = useState(0);
+    const [componentError, setComponentError] = useState(null);
+    
+    // Refs for cleanup and connection management
+    const stompClientRef = useRef(null);
+    const reconnectTimeoutRef = useRef(null);
+    const isUnmountedRef = useRef(false);
+    
     const skinTheme = localStorage.getItem('skinTheme') || 'light';
     const isDarkMode = skinTheme === 'dark';
 
     // Get currency settings from localStorage
     const authData = JSON.parse(localStorage.getItem("authData"));
     const currencySymbol = authData?.currencySettings?.currencySymbol || '$';
+
+    // WebSocket configuration
+    const WS_CONFIG = {
+        maxReconnectAttempts: 3,
+        reconnectDelay: 5000,
+        connectionTimeout: 15000,
+    };
+
+    // Component error handler
+    const handleComponentError = useCallback((error, context = '') => {
+        errorLog(`Component error in ${context}`, error);
+        setComponentError(`Error in ${context}: ${error.message}`);
+    }, []);
+
+    // Get client ID from auth data
+    const getClientId = useCallback(() => {
+        try {
+            const authData = localStorage.getItem('authData');
+            if (authData) {
+                const parsedData = JSON.parse(authData);
+                const clientId = parsedData.clientId || parsedData.id || parsedData.userId;
+                debugLog('Client ID retrieved', clientId);
+                return clientId;
+            }
+            debugLog('No auth data found, using fallback client ID');
+        } catch (error) {
+            errorLog('Error getting client ID', error);
+        }
+        return "686faaeda2c5d3eee0137da1"; // Fallback client ID
+    }, []);
+
+    // Get auth token
+    const getAuthToken = useCallback(() => {
+        try {
+            const authData = localStorage.getItem('authData');
+            if (authData) {
+                const parsedData = JSON.parse(authData);
+                return parsedData.token;
+            }
+        } catch (error) {
+            errorLog('Error getting auth token', error);
+        }
+        return null;
+    }, []);
 
     // Toast notification helpers
     const showSuccessToast = (message) => {
@@ -64,6 +132,285 @@ const OrderTable = () => {
             theme: "colored",
         });
     };
+
+    // API fetch orders function
+    const fetchOrdersAPI = useCallback(async () => {
+        try {
+            debugLog('Fetching orders via API');
+            setLoading(true);
+            setComponentError(null);
+            
+            const token = getAuthToken();
+            if (!token) {
+                throw new Error("No authentication token found");
+            }
+
+            const response = await fetch(`${BASE_URL}/api/client-admin/orders`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to fetch orders');
+            }
+
+            const data = await response.json();
+            if (data.status === 200 && data.data) {
+                debugLog('API orders fetched', data.data.length + ' orders');
+                
+                // Only update orders if WebSocket is not connected to avoid conflicts
+                if (!wsConnected) {
+                    setOrders(data.data);
+                }
+                return data.data;
+            } else {
+                throw new Error(data.message || 'Failed to fetch orders');
+            }
+        } catch (err) {
+            errorLog('Error fetching orders', err);
+            if (!wsConnected) {
+                showErrorToast(err.message);
+                setOrders([]);
+            }
+            return [];
+        } finally {
+            setLoading(false);
+        }
+    }, [wsConnected, getAuthToken]);
+
+    // WebSocket connection with dynamic imports
+    const connectWebSocket = useCallback(async () => {
+        if (isUnmountedRef.current) {
+            debugLog('Component unmounted, skipping WebSocket connection');
+            return;
+        }
+
+        const clientId = getClientId();
+        if (!clientId) {
+            debugLog('No client ID available, falling back to API');
+            fetchOrdersAPI();
+            return;
+        }
+
+        // Clear any existing connection first
+        disconnectWebSocket();
+
+        try {
+            debugLog('Attempting WebSocket connection', `${BASE_URL.replace('/api', '')}/ws`);
+            setWsError(null);
+            setLoading(true);
+
+            // Dynamically import SockJS and Stomp
+            const SockJS = (await import('sockjs-client')).default;
+            const Stomp = (await import('stompjs')).default;
+
+            const socket = new SockJS(`${BASE_URL.replace('/api', '')}/ws`);
+            const stompClient = Stomp.over(socket);
+
+            // Enable debug for troubleshooting
+            stompClient.debug = (str) => {
+                debugLog('STOMP Debug', str);
+            };
+
+            // Connection timeout
+            const connectionTimeout = setTimeout(() => {
+                if (stompClient && !stompClient.connected) {
+                    debugLog('WebSocket connection timeout');
+                    try {
+                        stompClient.disconnect();
+                    } catch (e) {
+                        errorLog('Error disconnecting on timeout', e);
+                    }
+                    setWsError('Connection timeout');
+                    fetchOrdersAPI();
+                }
+            }, WS_CONFIG.connectionTimeout);
+
+            // Connect to WebSocket
+            stompClient.connect(
+                {}, // headers
+                (frame) => {
+                    try {
+                        clearTimeout(connectionTimeout);
+                        if (isUnmountedRef.current) {
+                            debugLog('Component unmounted during connection, disconnecting');
+                            stompClient.disconnect();
+                            return;
+                        }
+
+                        debugLog('✅ Connected to WebSocket', frame);
+                        setWsConnected(true);
+                        setWsError(null);
+                        setReconnectAttempts(0);
+                        setLoading(false);
+
+                        // Subscribe to orders topic for all order updates
+                        const subscription = stompClient.subscribe(
+                            `/topic/orders/${clientId}`,
+                            (message) => {
+                                try {
+                                    const orderData = JSON.parse(message.body);
+                                    debugLog('📥 Order update received via WebSocket', orderData);
+
+                                    setOrders(prevOrders => {
+                                        const existingIndex = prevOrders.findIndex(
+                                            order => order.id === orderData.id || order.orderNumber === orderData.orderNumber
+                                        );
+
+                                        let updatedOrders;
+
+                                        if (existingIndex >= 0) {
+                                            // Update existing order
+                                            updatedOrders = [...prevOrders];
+                                            updatedOrders[existingIndex] = orderData;
+                                            debugLog('Updated existing order', orderData);
+                                        } else {
+                                            // Add new order at the beginning
+                                            updatedOrders = [orderData, ...prevOrders];
+                                            debugLog('Added new order', orderData);
+                                        }
+
+                                        return updatedOrders;
+                                    });
+                                } catch (parseError) {
+                                    errorLog('Error parsing WebSocket message', parseError);
+                                }
+                            }
+                        );
+
+                        // Subscribe to order deletions/cancellations
+                        const deletionSubscription = stompClient.subscribe(
+                            `/topic/orders/${clientId}/deleted`,
+                            (message) => {
+                                try {
+                                    const deletedOrderId = JSON.parse(message.body);
+                                    debugLog('🗑️ Order deletion received via WebSocket', deletedOrderId);
+
+                                    setOrders(prevOrders => 
+                                        prevOrders.filter(order => order.id !== deletedOrderId)
+                                    );
+                                } catch (parseError) {
+                                    errorLog('Error parsing WebSocket deletion message', parseError);
+                                }
+                            }
+                        );
+
+                        stompClientRef.current = stompClient;
+                        debugLog('WebSocket setup completed successfully');
+                    } catch (connectionError) {
+                        errorLog('Error in connection success handler', connectionError);
+                        handleComponentError(connectionError, 'WebSocket connection handler');
+                    }
+                },
+                (error) => {
+                    try {
+                        clearTimeout(connectionTimeout);
+                        errorLog('❌ WebSocket connection error', error);
+                        
+                        setWsConnected(false);
+                        setWsError(error?.toString() || 'Connection failed');
+                        setLoading(false);
+                        
+                        if (reconnectAttempts < WS_CONFIG.maxReconnectAttempts) {
+                            const newAttempts = reconnectAttempts + 1;
+                            setReconnectAttempts(newAttempts);
+                            debugLog(`Attempting to reconnect (${newAttempts}/${WS_CONFIG.maxReconnectAttempts})...`);
+                            
+                            reconnectTimeoutRef.current = setTimeout(() => {
+                                if (!isUnmountedRef.current) {
+                                    connectWebSocket();
+                                }
+                            }, WS_CONFIG.reconnectDelay);
+                        } else {
+                            debugLog('Max reconnection attempts reached, falling back to API polling');
+                            fetchOrdersAPI();
+                            
+                            // Set up periodic API polling as final fallback
+                            setInterval(() => {
+                                if (!isUnmountedRef.current && !wsConnected) {
+                                    fetchOrdersAPI();
+                                }
+                            }, 30000); // Poll every 30 seconds
+                        }
+                    } catch (errorHandlerError) {
+                        errorLog('Error in error handler', errorHandlerError);
+                        handleComponentError(errorHandlerError, 'WebSocket error handler');
+                        fetchOrdersAPI();
+                    }
+                }
+            );
+
+        } catch (error) {
+            errorLog('Error creating WebSocket connection', error);
+            setWsError(error?.toString() || 'Setup failed');
+            setWsConnected(false);
+            setLoading(false);
+            handleComponentError(error, 'WebSocket setup');
+            fetchOrdersAPI();
+        }
+    }, [getClientId, reconnectAttempts, fetchOrdersAPI, handleComponentError, wsConnected]);
+
+    // Disconnect WebSocket
+    const disconnectWebSocket = useCallback(() => {
+        try {
+            if (reconnectTimeoutRef.current) {
+                clearTimeout(reconnectTimeoutRef.current);
+                reconnectTimeoutRef.current = null;
+            }
+
+            if (stompClientRef.current && stompClientRef.current.connected) {
+                debugLog('Disconnecting WebSocket...');
+                stompClientRef.current.disconnect();
+                stompClientRef.current = null;
+            }
+            
+            setWsConnected(false);
+        } catch (error) {
+            errorLog('Error disconnecting WebSocket', error);
+        }
+    }, []);
+
+    // Manual refresh
+    const handleManualRefresh = () => {
+        debugLog('Manual refresh triggered');
+        if (wsConnected) {
+            disconnectWebSocket();
+            setTimeout(() => connectWebSocket(), 1000);
+        } else {
+            fetchOrdersAPI();
+        }
+    };
+
+    // Initialize connection on mount
+    useEffect(() => {
+        debugLog('Component mounting, initializing connection');
+        isUnmountedRef.current = false;
+        setComponentError(null);
+        
+        // Start with API call first, then try WebSocket
+        fetchOrdersAPI().then(() => {
+            debugLog('Initial API call completed, attempting WebSocket connection');
+            // Small delay to ensure API data is loaded first
+            setTimeout(() => {
+                if (!isUnmountedRef.current) {
+                    connectWebSocket();
+                }
+            }, 1000);
+        }).catch((error) => {
+            errorLog('Initial API call failed', error);
+            handleComponentError(error, 'Initial API call');
+        });
+        
+        return () => {
+            debugLog('Component unmounting, cleaning up connections');
+            isUnmountedRef.current = true;
+            disconnectWebSocket();
+        };
+    }, []);
 
     // Load Google Maps script
     useEffect(() => {
@@ -244,9 +591,23 @@ const OrderTable = () => {
                 </div>
                 <h5 className="mb-2">No Orders Found</h5>
                 <p className="text-muted mb-4">Your order list is currently empty. New orders will appear here.</p>
+                <small className="text-muted">
+                    Connection: {wsConnected ? 'WebSocket (Real-time)' : 'API'} 
+                    {wsError && ' (WebSocket failed)'}
+                </small>
             </div>
         );
     };
+
+    // Connection Status Component
+    const ConnectionStatus = ({ wsConnected, wsError }) => (
+        <span 
+            className={`ms-2 ${wsConnected ? 'text-primary' : 'text-warning'}`}
+            title={wsConnected ? 'Connected' : wsError || 'Disconnected'}
+        >
+            {wsConnected ? <FiWifi size={14} /> : <FiWifiOff size={14} />}
+        </span>
+    );
 
     // Filter orders based on active filter
     const filterOrders = useCallback(() => {
@@ -301,42 +662,6 @@ const OrderTable = () => {
         filterOrders();
     }, [filterOrders]);
 
-    // Fetch orders
-    const fetchOrders = useCallback(async () => {
-        try {
-            setLoading(true);
-            const authData = JSON.parse(localStorage.getItem("authData"));
-            if (!authData?.token) {
-                throw new Error("No authentication token found");
-            }
-
-            const response = await fetch(`${BASE_URL}/api/client-admin/orders`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${authData.token}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || 'Failed to fetch orders');
-            }
-
-            const data = await response.json();
-            if (data.status === 200 && data.data) {
-                setOrders(data.data);
-                setFilteredOrders(data.data);
-            } else {
-                throw new Error(data.message || 'Failed to fetch orders');
-            }
-        } catch (err) {
-            showErrorToast(err.message);
-        } finally {
-            setLoading(false);
-        }
-    }, []);
-
     // Fetch riders
     const fetchRiders = useCallback(async () => {
         try {
@@ -373,10 +698,6 @@ const OrderTable = () => {
             showErrorToast(err.message);
         }
     }, []);
-
-    useEffect(() => {
-        fetchOrders();
-    }, [fetchOrders]);
 
     const handleViewOrder = (order) => {
         setSelectedOrder(order);
@@ -496,7 +817,11 @@ const OrderTable = () => {
             const data = await response.json();
             if (data.status === 200) {
                 showSuccessToast('Order status updated successfully');
-                fetchOrders(); // Refresh orders
+                
+                // If WebSocket is not connected, refresh via API
+                if (!wsConnected) {
+                    fetchOrdersAPI();
+                }
                 setIsEditModalOpen(false);
             } else {
                 throw new Error(data.message || 'Failed to update order status');
@@ -532,7 +857,11 @@ const OrderTable = () => {
             }
 
             showSuccessToast('Rider assigned successfully');
-            fetchOrders(); // Refresh orders
+            
+            // If WebSocket is not connected, refresh via API
+            if (!wsConnected) {
+                fetchOrdersAPI();
+            }
             setIsRiderModalOpen(false);
         } catch (err) {
             showErrorToast(err.message);
@@ -765,6 +1094,27 @@ const OrderTable = () => {
         );
     };
 
+    // Component error display
+    if (componentError) {
+        return (
+            <div className="container mt-4">
+                <div className="alert alert-danger">
+                    <h4>Component Error</h4>
+                    <p>{componentError}</p>
+                    <button 
+                        className="btn btn-primary"
+                        onClick={() => {
+                            setComponentError(null);
+                            window.location.reload();
+                        }}
+                    >
+                        Reload Page
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
     const columns = React.useMemo(() => [
         {
             accessorKey: 'orderNumber',
@@ -787,10 +1137,14 @@ const OrderTable = () => {
             cell: (info) => getFulfillmentBadge(info.getValue() || 'In House')
         },
         {
-            accessorKey: 'totalAmount',
-            header: 'Total',
-            cell: (info) => `${currencySymbol}${info.getValue().toFixed(2)}`
-        },
+         
+    accessorKey: 'totalAmount',
+    header: 'Total',
+    cell: (info) => {
+        const value = info.getValue();
+        return `${currencySymbol}${value ? value.toFixed(2) : '0.00'}`;
+    }
+},
         {
             accessorKey: 'paymentMethod',
             header: 'Payment',
@@ -878,677 +1232,722 @@ const OrderTable = () => {
         },
     ], [currencySymbol]);
 
-    return (
-        <>
-            <ToastContainer
-                position="bottom-center"
-                autoClose={5000}
-                hideProgressBar={false}
-                newestOnTop={false}
-                closeOnClick
-                rtl={false}
-                pauseOnFocusLoss
-                draggable
-                pauseOnHover
-                theme="colored"
-            />
-
-            <div className="d-flex justify-content-between align-items-center mb-4">
-                <h4>Orders</h4>
-            </div>
-
-            {/* Filter Buttons - Compact Version */}
-            <div className="mb-4" style={{ overflowX: 'auto', whiteSpace: 'nowrap', paddingBottom: '8px' }}>
-                <div className="d-flex gap-1">
-                    <Button
-                        size="small"
-                        variant={activeFilter === 'all' ? 'contained' : 'outlined'}
-                        onClick={() => handleFilterChange('all')}
-                        style={{
-                            minWidth: '60px',
-                            fontSize: '0.75rem',
-                            backgroundColor: activeFilter === 'all' ? '#0092ff' : '',
-                            color: activeFilter === 'all' ? 'white' : ''
-                        }}
-                    >
-                        All
-                    </Button>
-                    <Button
-                        size="small"
-                        variant={activeFilter === 'pos' ? 'contained' : 'outlined'}
-                        onClick={() => handleFilterChange('pos')}
-                        style={{
-                            minWidth: '60px',
-                            fontSize: '0.75rem',
-                            backgroundColor: activeFilter === 'pos' ? 'rgb(0, 0, 0)' : '',
-                            color: activeFilter === 'pos' ? 'white' : ''
-                        }}
-                    >
-                        POS
-                    </Button>
-                    <Button
-                        size="small"
-                        variant={activeFilter === 'delivery' ? 'contained' : 'outlined'}
-                        onClick={() => handleFilterChange('delivery')}
-                        style={{
-                            minWidth: '80px',
-                            fontSize: '0.75rem',
-                            backgroundColor: activeFilter === 'delivery' ? 'rgb(102, 16, 242)' : '',
-                            color: activeFilter === 'delivery' ? 'white' : ''
-                        }}
-                    >
-                        Delivery
-                    </Button>
-                    <Button
-                        size="small"
-                        variant={activeFilter === 'takeaway' ? 'contained' : 'outlined'}
-                        onClick={() => handleFilterChange('takeaway')}
-                        style={{
-                            minWidth: '80px',
-                            fontSize: '0.75rem',
-                            backgroundColor: activeFilter === 'takeaway' ? 'rgb(236, 72, 153)' : '',
-                            color: activeFilter === 'takeaway' ? 'white' : ''
-                        }}
-                    >
-                        Takeaway
-                    </Button>
-                    <Button
-                        size="small"
-                        variant={activeFilter === 'accepted' ? 'contained' : 'outlined'}
-                        onClick={() => handleFilterChange('accepted')}
-                        style={{
-                            minWidth: '80px',
-                            fontSize: '0.75rem',
-                            backgroundColor: activeFilter === 'accepted' ? '#3b82f6' : '',
-                            color: activeFilter === 'accepted' ? 'white' : ''
-                        }}
-                    >
-                        Accepted
-                    </Button>
-                    <Button
-                        size="small"
-                        variant={activeFilter === 'preparing' ? 'contained' : 'outlined'}
-                        onClick={() => handleFilterChange('preparing')}
-                        style={{
-                            minWidth: '80px',
-                            fontSize: '0.75rem',
-                            backgroundColor: activeFilter === 'preparing' ? '#f97316' : '',
-                            color: activeFilter === 'preparing' ? 'white' : ''
-                        }}
-                    >
-                        Preparing
-                    </Button>
-                    <Button
-                        size="small"
-                        variant={activeFilter === 'ready' ? 'contained' : 'outlined'}
-                        onClick={() => handleFilterChange('ready')}
-                        style={{
-                            minWidth: '60px',
-                            fontSize: '0.75rem',
-                            backgroundColor: activeFilter === 'ready' ? 'rgb(246, 185, 0)' : '',
-                            color: activeFilter === 'ready' ? 'white' : ''
-                        }}
-                    >
-                        Ready
-                    </Button>
-                    <Button
-                        size="small"
-                        variant={activeFilter === 'dispatched' ? 'contained' : 'outlined'}
-                        onClick={() => handleFilterChange('dispatched')}
-                        style={{
-                            minWidth: '90px',
-                            fontSize: '0.75rem',
-                            backgroundColor: activeFilter === 'dispatched' ? '#7c3aed' : '',
-                            color: activeFilter === 'dispatched' ? 'white' : ''
-                        }}
-                    >
-                        Dispatched
-                    </Button>
-                    <Button
-                        size="small"
-                        variant={activeFilter === 'delivered' ? 'contained' : 'outlined'}
-                        onClick={() => handleFilterChange('delivered')}
-                        style={{
-                            minWidth: '80px',
-                            fontSize: '0.75rem',
-                            backgroundColor: activeFilter === 'delivered' ? '#10b981' : '',
-                            color: activeFilter === 'delivered' ? 'white' : ''
-                        }}
-                    >
-                        Delivered
-                    </Button>
-                    <Button
-                        size="small"
-                        variant={activeFilter === 'completed' ? 'contained' : 'outlined'}
-                        onClick={() => handleFilterChange('completed')}
-                        style={{
-                            minWidth: '90px',
-                            fontSize: '0.75rem',
-                            backgroundColor: activeFilter === 'completed' ? '#00c60d' : '',
-                            color: activeFilter === 'completed' ? 'white' : ''
-                        }}
-                    >
-                        Completed
-                    </Button>
-                    <Button
-                        size="small"
-                        variant={activeFilter === 'cancelled' ? 'contained' : 'outlined'}
-                        onClick={() => handleFilterChange('cancelled')}
-                        style={{
-                            minWidth: '80px',
-                            fontSize: '0.75rem',
-                            backgroundColor: activeFilter === 'cancelled' ? '#ef4444' : '',
-                            color: activeFilter === 'cancelled' ? 'white' : ''
-                        }}
-                    >
-                        Cancelled
-                    </Button>
-                    <Button
-                        size="small"
-                        variant={activeFilter === 'rejected' ? 'contained' : 'outlined'}
-                        onClick={() => handleFilterChange('rejected')}
-                        style={{
-                            minWidth: '80px',
-                            fontSize: '0.75rem',
-                            backgroundColor: activeFilter === 'rejected' ? '#8B0000' : '',
-                            color: activeFilter === 'rejected' ? 'white' : ''
-                        }}
-                    >
-                        Rejected
-                    </Button>
-                </div>
-            </div>
-
-            {loading ? (
-                <SkeletonLoader />
-            ) : filteredOrders.length === 0 ? (
-                <EmptyState />
-            ) : (
-                <Table
-                    data={filteredOrders}
-                    columns={columns}
-                    initialState={{ pagination: { pageSize: 10 } }}
+    try {
+        return (
+            <>
+                <ToastContainer
+                    position="bottom-center"
+                    autoClose={5000}
+                    hideProgressBar={false}
+                    newestOnTop={false}
+                    closeOnClick
+                    rtl={false}
+                    pauseOnFocusLoss
+                    draggable
+                    pauseOnHover
+                    theme="colored"
                 />
-            )}
 
-            {/* View Order Modal */}
-            <Modal
-                show={isViewModalOpen}
-                onHide={() => setIsViewModalOpen(false)}
-                size="lg"
-                centered
-                scrollable
-                className={isDarkMode ? 'dark-modal' : ''}
-            >
-                <Modal.Header closeButton>
-                    <Modal.Title>Order Details</Modal.Title>
-                </Modal.Header>
-                <Modal.Body>
-                    {selectedOrder && (
-                        <div>
-                            <div className="row mb-3">
-                                <div className="col-md-6">
-                                    <h5>Order Number</h5>
-                                    <p>{selectedOrder.orderNumber}</p>
-                                </div>
-                                <div className="col-md-6">
-                                    <h5>Date</h5>
-                                    <p>{formatDate(selectedOrder.createdAt)}</p>
-                                </div>
-                            </div>
-                            <div className="row mb-3">
-                                <div className="col-md-6">
-                                    <h5>Customer</h5>
-                                    <p>{selectedOrder.customerName || 'Walk-in Customer'}</p>
-                                </div>
-                                <div className="col-md-6">
-                                    <h5>Status</h5>
-                                    <p>{getStatusBadge(selectedOrder.status)}</p>
-                                </div>
-                            </div>
-                            <div className="row mb-3">
-                                <div className="col-md-6">
-                                    <h5>Fulfillment Type</h5>
-                                    <p>{getFulfillmentBadge(selectedOrder.fulfillmentType)}</p>
-                                </div>
-                                <div className="col-md-6">
-                                    <h5>Order Type</h5>
-                                    <p>{getOrderTypeBadge(selectedOrder.orderType)}</p>
-                                </div>
-                            </div>
-                            <div className="row mb-3">
-                                <div className="col-md-6">
-                                    <h5>Payment Method</h5>
-                                    <p>{selectedOrder.paymentMethod ? selectedOrder.paymentMethod.charAt(0).toUpperCase() + selectedOrder.paymentMethod.slice(1).toLowerCase() : 'N/A'}</p>
-                                </div>
-                                <div className="col-md-6">
-                                    <h5>Notes</h5>
-                                    <p>{selectedOrder.notes || 'N/A'}</p>
-                                </div>
-                            </div>
+                <div className="d-flex justify-content-between align-items-center mb-4">
+                    <div className="d-flex align-items-center">
+                        <h4 className="mb-0">Orders</h4>
+                        <button
+                            className="btn btn-sm btn-link text-primary ms-2"
+                            onClick={handleManualRefresh}
+                            disabled={loading}
+                            title="Refresh orders"
+                        >
+                            <FiRefreshCw size={16} className={loading ? 'spin' : ''} />
+                        </button>
+                    </div>
+                </div>
 
-                            {hasDeliveryLocation(selectedOrder) && (
-                                <div className="row mb-3">
-                                    <div className="col-md-6">
-                                        <h5>Delivery Location</h5>
-                                        <p>
-                                            <p>{selectedOrder.deliveryAddress || 'N/A'}</p>
-                                        </p>
-                                    </div>
-                                    <div className="col-md-6">
-                                        <h5>View Location</h5>
-                                        <Button
-                                            variant="contained"
-                                            size="small"
-                                            onClick={() => handleViewOnMap(selectedOrder)}
-                                            startIcon={<FiMap />}
-                                            style={{ backgroundColor: '#0092ff', color: 'white' }}
-                                        >
-                                            View on Map
-                                        </Button>
-                                    </div>
-                                </div>
-                            )}
+                {wsError && !wsConnected && (
+                    <div className="alert alert-warning alert-dismissible fade show mb-3" role="alert">
+                        <strong>Connection Notice:</strong> WebSocket connection failed ({wsError}). Using API fallback for updates.
+                        <button type="button" className="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                )}
 
-                            <div className="mb-3">
-                                <h5>Items</h5>
-                                <div className="table-responsive">
-                                    <table className="table table-bordered">
-                                        <thead>
-                                            <tr>
-                                                <th>Item</th>
-                                                <th>Price</th>
-                                                <th>Qty</th>
-                                                <th>Total</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {selectedOrder.items?.map((item, index) => (
-                                                <React.Fragment key={index}>
-                                                    <tr>
-                                                        <td>
-                                                            {item.name}
-                                                            {item.variants && item.variants.length > 0 && (
-                                                                <div className="mt-1">
-                                                                    {item.variants.map((variant, vIndex) => (
-                                                                        <div key={vIndex} className="text-muted small">
-                                                                            <strong>{variant.name}:</strong>
-                                                                            {variant.options.map((opt, oIndex) => (
-                                                                                <span key={oIndex}>
-                                                                                    {oIndex > 0 && ', '}
-                                                                                    {opt.name} (+{currencySymbol}{opt.priceModifier.toFixed(2)})
-                                                                                </span>
-                                                                            ))}
-                                                                        </div>
-                                                                    ))}
-                                                                </div>
-                                                            )}
-                                                        </td>
-                                                        <td>{currencySymbol}{item.price.toFixed(2)}</td>
-                                                        <td>{item.quantity}</td>
-                                                        <td>{currencySymbol}{item.itemTotal.toFixed(2)}</td>
-                                                    </tr>
-                                                </React.Fragment>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-
-                            <div className="row mb-3">
-                                <div className="col-md-6">
-                                    <h5>Subtotal</h5>
-                                    <p>{currencySymbol}{selectedOrder.subtotal?.toFixed(2) || '0.00'}</p>
-                                </div>
-                                <div className="col-md-6">
-                                    <h5>Taxes</h5>
-                                    <p>{currencySymbol}{selectedOrder.totalTaxAmount?.toFixed(2) || '0.00'}</p>
-                                </div>
-                            </div>
-                            <div className="row mb-4">
-                                <div className="col-md-6">
-                                    <h5>Total Amount</h5>
-                                    <p className="fw-bold">{currencySymbol}{selectedOrder.totalAmount?.toFixed(2) || '0.00'}</p>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                </Modal.Body>
-                <Modal.Footer>
-                    <Button
-                        variant="contained"
-                        onClick={() => handleDownloadInvoice(selectedOrder)}
-                        style={{ backgroundColor: '#0092ff', color: 'white' }}
-                    >
-                        <FiDownload className="me-2" /> Download Invoice
-                    </Button>
-                </Modal.Footer>
-            </Modal>
-
-            {/* Edit Order Modal */}
-            <Modal
-                show={isEditModalOpen}
-                onHide={() => setIsEditModalOpen(false)}
-                centered
-                className={isDarkMode ? 'dark-modal' : ''}
-            >
-                <Modal.Header closeButton>
-                    <Modal.Title>Update Order Status</Modal.Title>
-                </Modal.Header>
-                <Modal.Body>
-                    {selectedOrder && (
-                        <div>
-                            <div className="mb-4">
-                                <p><strong>Order #:</strong> {selectedOrder.orderNumber}</p>
-                                <p><strong>Customer:</strong> {selectedOrder.customerName || 'Walk-in Customer'}</p>
-                                <p><strong>Current Status:</strong> {getStatusBadge(selectedOrder.status)}</p>
-                                <p><strong>Fulfillment:</strong> {getFulfillmentBadge(selectedOrder.fulfillmentType)}</p>
-                            </div>
-
-                            <FormControl fullWidth>
-                                <InputLabel
-                                    id="status-select-label"
-                                    sx={{
-                                        color: '#0092ff',
-                                        '&.Mui-focused': {
-                                            color: '#0092ff'
-                                        }
-                                    }}
-                                >
-                                    Next Status
-                                </InputLabel>
-                                <Select
-                                    labelId="status-select-label"
-                                    id="status-select"
-                                    value={selectedStatus}
-                                    label="Next Status"
-                                    onChange={(e) => setSelectedStatus(e.target.value)}
-                                    disabled={nextStatusOptions.length === 0}
-                                    sx={{
-                                        color: '#0092ff',
-                                        '& .MuiOutlinedInput-notchedOutline': {
-                                            borderColor: '#0092ff',
-                                        },
-                                        '&:hover .MuiOutlinedInput-notchedOutline': {
-                                            borderColor: '#0092ff',
-                                        },
-                                        '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                                            borderColor: '#0092ff',
-                                        },
-                                        '& .MuiSvgIcon-root': {
-                                            color: '#0092ff',
-                                        },
-                                    }}
-                                    MenuProps={{
-                                        PaperProps: {
-                                            sx: {
-                                                backgroundColor: '#0092ff',
-                                                color: 'white',
-                                                '& .MuiMenuItem-root': {
-                                                    '&:hover': {
-                                                        backgroundColor: '#0183e6ff',
-                                                    },
-                                                },
-                                            },
-                                        },
-                                    }}
-                                >
-                                    {nextStatusOptions.length === 0 ? (
-                                        <MenuItem value="" disabled>
-                                            No further actions available
-                                        </MenuItem>
-                                    ) : (
-                                        nextStatusOptions.map((option) => (
-                                            <MenuItem
-                                                key={option.value}
-                                                value={option.value}
-                                                sx={{
-                                                    color: 'white',
-                                                    '&:hover': {
-                                                        backgroundColor: 'rgba(255, 255, 255, 0.08)',
-                                                    },
-                                                }}
-                                            >
-                                                <span className={`badge ${option.color} me-2`}></span>
-                                                {option.label}
-                                            </MenuItem>
-                                        ))
-                                    )}
-                                </Select>
-                            </FormControl>
-                        </div>
-                    )}
-                </Modal.Body>
-                <Modal.Footer>
-                    <Button
-                        variant="contained"
-                        onClick={handleStatusUpdate}
-                        disabled={isUpdating || !selectedStatus || nextStatusOptions.length === 0}
-                        style={{ backgroundColor: '#0092ff', color: 'white' }}
-                    >
-                        {isUpdating ? 'Updating...' : 'Update Status'}
-                    </Button>
-                </Modal.Footer>
-            </Modal>
-
-            {/* Assign Rider Modal */}
-            <Modal
-                show={isRiderModalOpen}
-                onHide={() => setIsRiderModalOpen(false)}
-                centered
-                className={isDarkMode ? 'dark-modal' : ''}
-            >
-                <Modal.Header closeButton>
-                    <Modal.Title>Assign Rider</Modal.Title>
-                </Modal.Header>
-                <Modal.Body>
-                    {selectedOrder && (
-                        <div>
-                            <div className="mb-4">
-                                <p><strong>Order #:</strong> {selectedOrder.orderNumber}</p>
-                                <p><strong>Customer:</strong> {selectedOrder.customerName || 'Walk-in Customer'}</p>
-                                <p><strong>Status:</strong> {getStatusBadge(selectedOrder.status)}</p>
-                            </div>
-
-                            <FormControl fullWidth>
-                                <InputLabel
-                                    id="rider-select-label"
-                                    sx={{
-                                        color: '#0092ff',
-                                        '&.Mui-focused': {
-                                            color: '#0092ff'
-                                        }
-                                    }}
-                                >
-                                    Select Rider
-                                </InputLabel>
-                                <Select
-                                    labelId="rider-select-label"
-                                    id="rider-select"
-                                    value={selectedRider}
-                                    label="Select Rider"
-                                    onChange={(e) => setSelectedRider(e.target.value)}
-                                    disabled={riders.length === 0}
-                                    sx={{
-                                        color: '#0092ff',
-                                        '& .MuiOutlinedInput-notchedOutline': {
-                                            borderColor: '#0092ff',
-                                        },
-                                        '&:hover .MuiOutlinedInput-notchedOutline': {
-                                            borderColor: '#0092ff',
-                                        },
-                                        '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                                            borderColor: '#0092ff',
-                                        },
-                                        '& .MuiSvgIcon-root': {
-                                            color: '#0092ff',
-                                        },
-                                    }}
-                                    MenuProps={{
-                                        PaperProps: {
-                                            sx: {
-                                                backgroundColor: '#0092ff',
-                                                color: 'white',
-                                                '& .MuiMenuItem-root': {
-                                                    '&:hover': {
-                                                        backgroundColor: '#0183e6ff',
-                                                    },
-                                                },
-                                            },
-                                        },
-                                    }}
-                                >
-                                    {riders.length === 0 ? (
-                                        <MenuItem value="" disabled>
-                                            No riders available
-                                        </MenuItem>
-                                    ) : (
-                                        riders.map((rider) => (
-                                            <MenuItem
-                                                key={rider.id}
-                                                value={rider.id}
-                                                sx={{
-                                                    color: 'white',
-                                                    '&:hover': {
-                                                        backgroundColor: 'rgba(255, 255, 255, 0.08)',
-                                                    },
-                                                }}
-                                            >
-                                                {rider.name} ({rider.phone})
-                                            </MenuItem>
-                                        ))
-                                    )}
-                                </Select>
-                            </FormControl>
-                        </div>
-                    )}
-                </Modal.Body>
-                <Modal.Footer>
-                    <Button
-                        variant="contained"
-                        onClick={handleAssignRider}
-                        disabled={isAssigning || !selectedRider || riders.length === 0}
-                        style={{ backgroundColor: '#0092ff', color: 'white' }}
-                    >
-                        {isAssigning ? 'Assigning...' : 'Assign Rider'}
-                    </Button>
-                </Modal.Footer>
-            </Modal>
-
-            {/* Map Modal */}
-            <Modal
-                show={isMapModalOpen}
-                onHide={() => setIsMapModalOpen(false)}
-                size="lg"
-                centered
-                className={isDarkMode ? 'dark-modal' : ''}
-            >
-                <Modal.Header closeButton>
-                    <Modal.Title>
-                        <FiMap className="me-2" />
-                        Delivery Location - Order #{selectedOrder?.orderNumber}
-                    </Modal.Title>
-                </Modal.Header>
-                <Modal.Body style={{ padding: 0, height: '500px' }}>
-                    {selectedOrder && hasDeliveryLocation(selectedOrder) && (
-                        <div 
-                            id="google-map" 
-                            style={{ 
-                                height: '100%', 
-                                width: '100%',
-                                backgroundColor: isDarkMode ? '#1e293b' : '#f8f9fa'
+                {/* Filter Buttons - Compact Version */}
+                <div className="mb-4" style={{ overflowX: 'auto', whiteSpace: 'nowrap', paddingBottom: '8px' }}>
+                    <div className="d-flex gap-1">
+                        <Button
+                            size="small"
+                            variant={activeFilter === 'all' ? 'contained' : 'outlined'}
+                            onClick={() => handleFilterChange('all')}
+                            style={{
+                                minWidth: '60px',
+                                fontSize: '0.75rem',
+                                backgroundColor: activeFilter === 'all' ? '#0092ff' : '',
+                                color: activeFilter === 'all' ? 'white' : ''
                             }}
                         >
-                            {!mapScriptLoaded && (
-                                <div className="d-flex justify-content-center align-items-center h-100">
-                                    <div className="spinner-border text-primary" role="status">
-                                        <span className="visually-hidden">Loading...</span>
+                            All
+                        </Button>
+                        <Button
+                            size="small"
+                            variant={activeFilter === 'pos' ? 'contained' : 'outlined'}
+                            onClick={() => handleFilterChange('pos')}
+                            style={{
+                                minWidth: '60px',
+                                fontSize: '0.75rem',
+                                backgroundColor: activeFilter === 'pos' ? 'rgb(0, 0, 0)' : '',
+                                color: activeFilter === 'pos' ? 'white' : ''
+                            }}
+                        >
+                            POS
+                        </Button>
+                        <Button
+                            size="small"
+                            variant={activeFilter === 'delivery' ? 'contained' : 'outlined'}
+                            onClick={() => handleFilterChange('delivery')}
+                            style={{
+                                minWidth: '80px',
+                                fontSize: '0.75rem',
+                                backgroundColor: activeFilter === 'delivery' ? 'rgb(102, 16, 242)' : '',
+                                color: activeFilter === 'delivery' ? 'white' : ''
+                            }}
+                        >
+                            Delivery
+                        </Button>
+                        <Button
+                            size="small"
+                            variant={activeFilter === 'takeaway' ? 'contained' : 'outlined'}
+                            onClick={() => handleFilterChange('takeaway')}
+                            style={{
+                                minWidth: '80px',
+                                fontSize: '0.75rem',
+                                backgroundColor: activeFilter === 'takeaway' ? 'rgb(236, 72, 153)' : '',
+                                color: activeFilter === 'takeaway' ? 'white' : ''
+                            }}
+                        >
+                            Takeaway
+                        </Button>
+                        <Button
+                            size="small"
+                            variant={activeFilter === 'accepted' ? 'contained' : 'outlined'}
+                            onClick={() => handleFilterChange('accepted')}
+                            style={{
+                                minWidth: '80px',
+                                fontSize: '0.75rem',
+                                backgroundColor: activeFilter === 'accepted' ? '#3b82f6' : '',
+                                color: activeFilter === 'accepted' ? 'white' : ''
+                            }}
+                        >
+                            Accepted
+                        </Button>
+                        <Button
+                            size="small"
+                            variant={activeFilter === 'preparing' ? 'contained' : 'outlined'}
+                            onClick={() => handleFilterChange('preparing')}
+                            style={{
+                                minWidth: '80px',
+                                fontSize: '0.75rem',
+                                backgroundColor: activeFilter === 'preparing' ? '#f97316' : '',
+                                color: activeFilter === 'preparing' ? 'white' : ''
+                            }}
+                        >
+                            Preparing
+                        </Button>
+                        <Button
+                            size="small"
+                            variant={activeFilter === 'ready' ? 'contained' : 'outlined'}
+                            onClick={() => handleFilterChange('ready')}
+                            style={{
+                                minWidth: '60px',
+                                fontSize: '0.75rem',
+                                backgroundColor: activeFilter === 'ready' ? 'rgb(246, 185, 0)' : '',
+                                color: activeFilter === 'ready' ? 'white' : ''
+                            }}
+                        >
+                            Ready
+                        </Button>
+                        <Button
+                            size="small"
+                            variant={activeFilter === 'dispatched' ? 'contained' : 'outlined'}
+                            onClick={() => handleFilterChange('dispatched')}
+                            style={{
+                                minWidth: '90px',
+                                fontSize: '0.75rem',
+                                backgroundColor: activeFilter === 'dispatched' ? '#7c3aed' : '',
+                                color: activeFilter === 'dispatched' ? 'white' : ''
+                            }}
+                        >
+                            Dispatched
+                        </Button>
+                        <Button
+                            size="small"
+                            variant={activeFilter === 'delivered' ? 'contained' : 'outlined'}
+                            onClick={() => handleFilterChange('delivered')}
+                            style={{
+                                minWidth: '80px',
+                                fontSize: '0.75rem',
+                                backgroundColor: activeFilter === 'delivered' ? '#10b981' : '',
+                                color: activeFilter === 'delivered' ? 'white' : ''
+                            }}
+                        >
+                            Delivered
+                        </Button>
+                        <Button
+                            size="small"
+                            variant={activeFilter === 'completed' ? 'contained' : 'outlined'}
+                            onClick={() => handleFilterChange('completed')}
+                            style={{
+                                minWidth: '90px',
+                                fontSize: '0.75rem',
+                                backgroundColor: activeFilter === 'completed' ? '#00c60d' : '',
+                                color: activeFilter === 'completed' ? 'white' : ''
+                            }}
+                        >
+                            Completed
+                        </Button>
+                        <Button
+                            size="small"
+                            variant={activeFilter === 'cancelled' ? 'contained' : 'outlined'}
+                            onClick={() => handleFilterChange('cancelled')}
+                            style={{
+                                minWidth: '80px',
+                                fontSize: '0.75rem',
+                                backgroundColor: activeFilter === 'cancelled' ? '#ef4444' : '',
+                                color: activeFilter === 'cancelled' ? 'white' : ''
+                            }}
+                        >
+                            Cancelled
+                        </Button>
+                        <Button
+                            size="small"
+                            variant={activeFilter === 'rejected' ? 'contained' : 'outlined'}
+                            onClick={() => handleFilterChange('rejected')}
+                            style={{
+                                minWidth: '80px',
+                                fontSize: '0.75rem',
+                                backgroundColor: activeFilter === 'rejected' ? '#8B0000' : '',
+                                color: activeFilter === 'rejected' ? 'white' : ''
+                            }}
+                        >
+                            Rejected
+                        </Button>
+                    </div>
+                </div>
+
+                {loading ? (
+                    <SkeletonLoader />
+                ) : filteredOrders.length === 0 ? (
+                    <EmptyState />
+                ) : (
+                    <Table
+                        data={filteredOrders}
+                        columns={columns}
+                        initialState={{ pagination: { pageSize: 10 } }}
+                    />
+                )}
+
+                {/* View Order Modal */}
+                <Modal
+                    show={isViewModalOpen}
+                    onHide={() => setIsViewModalOpen(false)}
+                    size="lg"
+                    centered
+                    scrollable
+                    className={isDarkMode ? 'dark-modal' : ''}
+                >
+                    <Modal.Header closeButton>
+                        <Modal.Title>Order Details</Modal.Title>
+                    </Modal.Header>
+                    <Modal.Body>
+                        {selectedOrder && (
+                            <div>
+                                <div className="row mb-3">
+                                    <div className="col-md-6">
+                                        <h5>Order Number</h5>
+                                        <p>{selectedOrder.orderNumber}</p>
+                                    </div>
+                                    <div className="col-md-6">
+                                        <h5>Date</h5>
+                                        <p>{formatDate(selectedOrder.createdAt)}</p>
                                     </div>
                                 </div>
-                            )}
+                                <div className="row mb-3">
+                                    <div className="col-md-6">
+                                        <h5>Customer</h5>
+                                        <p>{selectedOrder.customerName || 'Walk-in Customer'}</p>
+                                    </div>
+                                    <div className="col-md-6">
+                                        <h5>Status</h5>
+                                        <p>{getStatusBadge(selectedOrder.status)}</p>
+                                    </div>
+                                </div>
+                                <div className="row mb-3">
+                                    <div className="col-md-6">
+                                        <h5>Fulfillment Type</h5>
+                                        <p>{getFulfillmentBadge(selectedOrder.fulfillmentType)}</p>
+                                    </div>
+                                    <div className="col-md-6">
+                                        <h5>Order Type</h5>
+                                        <p>{getOrderTypeBadge(selectedOrder.orderType)}</p>
+                                    </div>
+                                </div>
+                                <div className="row mb-3">
+                                    <div className="col-md-6">
+                                        <h5>Payment Method</h5>
+                                        <p>{selectedOrder.paymentMethod ? selectedOrder.paymentMethod.charAt(0).toUpperCase() + selectedOrder.paymentMethod.slice(1).toLowerCase() : 'N/A'}</p>
+                                    </div>
+                                    <div className="col-md-6">
+                                        <h5>Notes</h5>
+                                        <p>{selectedOrder.notes || 'N/A'}</p>
+                                    </div>
+                                </div>
+
+                                {hasDeliveryLocation(selectedOrder) && (
+                                    <div className="row mb-3">
+                                        <div className="col-md-6">
+                                            <h5>Delivery Location</h5>
+                                            <p>
+                                                <p>{selectedOrder.deliveryAddress || 'N/A'}</p>
+                                            </p>
+                                        </div>
+                                        <div className="col-md-6">
+                                            <h5>View Location</h5>
+                                            <Button
+                                                variant="contained"
+                                                size="small"
+                                                onClick={() => handleViewOnMap(selectedOrder)}
+                                                startIcon={<FiMap />}
+                                                style={{ backgroundColor: '#0092ff', color: 'white' }}
+                                            >
+                                                View on Map
+                                            </Button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="mb-3">
+                                    <h5>Items</h5>
+                                    <div className="table-responsive">
+                                        <table className="table table-bordered">
+                                            <thead>
+                                                <tr>
+                                                    <th>Item</th>
+                                                    <th>Price</th>
+                                                    <th>Qty</th>
+                                                    <th>Total</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {selectedOrder.items?.map((item, index) => (
+                                                    <React.Fragment key={index}>
+                                                        <tr>
+                                                            <td>
+                                                                {item.name}
+                                                                {item.variants && item.variants.length > 0 && (
+                                                                    <div className="mt-1">
+                                                                        {item.variants.map((variant, vIndex) => (
+                                                                            <div key={vIndex} className="text-muted small">
+                                                                                <strong>{variant.name}:</strong>
+                                                                                {variant.options.map((opt, oIndex) => (
+                                                                                    <span key={oIndex}>
+                                                                                        {oIndex > 0 && ', '}
+                                                                                        {opt.name} (+{currencySymbol}{opt.priceModifier.toFixed(2)})
+                                                                                    </span>
+                                                                                ))}
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                )}
+                                                            </td>
+                                                            <td>{currencySymbol}{item.price.toFixed(2)}</td>
+                                                            <td>{item.quantity}</td>
+                                                            <td>{currencySymbol}{item.itemTotal.toFixed(2)}</td>
+                                                        </tr>
+                                                    </React.Fragment>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                <div className="row mb-3">
+                                    <div className="col-md-6">
+                                        <h5>Subtotal</h5>
+                                        <p>{currencySymbol}{selectedOrder.subtotal?.toFixed(2) || '0.00'}</p>
+                                    </div>
+                                    <div className="col-md-6">
+                                        <h5>Taxes</h5>
+                                        <p>{currencySymbol}{selectedOrder.totalTaxAmount?.toFixed(2) || '0.00'}</p>
+                                    </div>
+                                </div>
+                                <div className="row mb-4">
+                                    <div className="col-md-6">
+                                        <h5>Total Amount</h5>
+                                        <p className="fw-bold">{currencySymbol}{selectedOrder.totalAmount?.toFixed(2) || '0.00'}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </Modal.Body>
+                    <Modal.Footer>
+                        <Button
+                            variant="contained"
+                            onClick={() => handleDownloadInvoice(selectedOrder)}
+                            style={{ backgroundColor: '#0092ff', color: 'white' }}
+                        >
+                            <FiDownload className="me-2" /> Download Invoice
+                        </Button>
+                    </Modal.Footer>
+                </Modal>
+
+                {/* Edit Order Modal */}
+                <Modal
+                    show={isEditModalOpen}
+                    onHide={() => setIsEditModalOpen(false)}
+                    centered
+                    className={isDarkMode ? 'dark-modal' : ''}
+                >
+                    <Modal.Header closeButton>
+                        <Modal.Title>Update Order Status</Modal.Title>
+                    </Modal.Header>
+                    <Modal.Body>
+                        {selectedOrder && (
+                            <div>
+                                <div className="mb-4">
+                                    <p><strong>Order #:</strong> {selectedOrder.orderNumber}</p>
+                                    <p><strong>Customer:</strong> {selectedOrder.customerName || 'Walk-in Customer'}</p>
+                                    <p><strong>Current Status:</strong> {getStatusBadge(selectedOrder.status)}</p>
+                                    <p><strong>Fulfillment:</strong> {getFulfillmentBadge(selectedOrder.fulfillmentType)}</p>
+                                </div>
+
+                                <FormControl fullWidth>
+                                    <InputLabel
+                                        id="status-select-label"
+                                        sx={{
+                                            color: '#0092ff',
+                                            '&.Mui-focused': {
+                                                color: '#0092ff'
+                                            }
+                                        }}
+                                    >
+                                        Next Status
+                                    </InputLabel>
+                                    <Select
+                                        labelId="status-select-label"
+                                        id="status-select"
+                                        value={selectedStatus}
+                                        label="Next Status"
+                                        onChange={(e) => setSelectedStatus(e.target.value)}
+                                        disabled={nextStatusOptions.length === 0}
+                                        sx={{
+                                            color: '#0092ff',
+                                            '& .MuiOutlinedInput-notchedOutline': {
+                                                borderColor: '#0092ff',
+                                            },
+                                            '&:hover .MuiOutlinedInput-notchedOutline': {
+                                                borderColor: '#0092ff',
+                                            },
+                                            '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                                                borderColor: '#0092ff',
+                                            },
+                                            '& .MuiSvgIcon-root': {
+                                                color: '#0092ff',
+                                            },
+                                        }}
+                                        MenuProps={{
+                                            PaperProps: {
+                                                sx: {
+                                                    backgroundColor: '#0092ff',
+                                                    color: 'white',
+                                                    '& .MuiMenuItem-root': {
+                                                        '&:hover': {
+                                                            backgroundColor: '#0183e6ff',
+                                                        },
+                                                    },
+                                                },
+                                            },
+                                        }}
+                                    >
+                                        {nextStatusOptions.length === 0 ? (
+                                            <MenuItem value="" disabled>
+                                                No further actions available
+                                            </MenuItem>
+                                        ) : (
+                                            nextStatusOptions.map((option) => (
+                                                <MenuItem
+                                                    key={option.value}
+                                                    value={option.value}
+                                                    sx={{
+                                                        color: 'white',
+                                                        '&:hover': {
+                                                            backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                                                        },
+                                                    }}
+                                                >
+                                                    <span className={`badge ${option.color} me-2`}></span>
+                                                    {option.label}
+                                                </MenuItem>
+                                            ))
+                                        )}
+                                    </Select>
+                                </FormControl>
+                            </div>
+                        )}
+                    </Modal.Body>
+                    <Modal.Footer>
+                        <Button
+                            variant="contained"
+                            onClick={handleStatusUpdate}
+                            disabled={isUpdating || !selectedStatus || nextStatusOptions.length === 0}
+                            style={{ backgroundColor: '#0092ff', color: 'white' }}
+                        >
+                            {isUpdating ? 'Updating...' : 'Update Status'}
+                        </Button>
+                    </Modal.Footer>
+                </Modal>
+
+                {/* Assign Rider Modal */}
+                <Modal
+                    show={isRiderModalOpen}
+                    onHide={() => setIsRiderModalOpen(false)}
+                    centered
+                    className={isDarkMode ? 'dark-modal' : ''}
+                >
+                    <Modal.Header closeButton>
+                        <Modal.Title>Assign Rider</Modal.Title>
+                    </Modal.Header>
+                    <Modal.Body>
+                        {selectedOrder && (
+                            <div>
+                                <div className="mb-4">
+                                    <p><strong>Order #:</strong> {selectedOrder.orderNumber}</p>
+                                    <p><strong>Customer:</strong> {selectedOrder.customerName || 'Walk-in Customer'}</p>
+                                    <p><strong>Status:</strong> {getStatusBadge(selectedOrder.status)}</p>
+                                </div>
+
+                                <FormControl fullWidth>
+                                    <InputLabel
+                                        id="rider-select-label"
+                                        sx={{
+                                            color: '#0092ff',
+                                            '&.Mui-focused': {
+                                                color: '#0092ff'
+                                            }
+                                        }}
+                                    >
+                                        Select Rider
+                                    </InputLabel>
+                                    <Select
+                                        labelId="rider-select-label"
+                                        id="rider-select"
+                                        value={selectedRider}
+                                        label="Select Rider"
+                                        onChange={(e) => setSelectedRider(e.target.value)}
+                                        disabled={riders.length === 0}
+                                        sx={{
+                                            color: '#0092ff',
+                                            '& .MuiOutlinedInput-notchedOutline': {
+                                                borderColor: '#0092ff',
+                                            },
+                                            '&:hover .MuiOutlinedInput-notchedOutline': {
+                                                borderColor: '#0092ff',
+                                            },
+                                            '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                                                borderColor: '#0092ff',
+                                            },
+                                            '& .MuiSvgIcon-root': {
+                                                color: '#0092ff',
+                                            },
+                                        }}
+                                        MenuProps={{
+                                            PaperProps: {
+                                                sx: {
+                                                    backgroundColor: '#0092ff',
+                                                    color: 'white',
+                                                    '& .MuiMenuItem-root': {
+                                                        '&:hover': {
+                                                            backgroundColor: '#0183e6ff',
+                                                        },
+                                                    },
+                                                },
+                                            },
+                                        }}
+                                    >
+                                        {riders.length === 0 ? (
+                                            <MenuItem value="" disabled>
+                                                No riders available
+                                            </MenuItem>
+                                        ) : (
+                                            riders.map((rider) => (
+                                                <MenuItem
+                                                    key={rider.id}
+                                                    value={rider.id}
+                                                    sx={{
+                                                        color: 'white',
+                                                        '&:hover': {
+                                                            backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                                                        },
+                                                    }}
+                                                >
+                                                    {rider.name} ({rider.phone})
+                                                </MenuItem>
+                                            ))
+                                        )}
+                                    </Select>
+                                </FormControl>
+                            </div>
+                        )}
+                    </Modal.Body>
+                    <Modal.Footer>
+                        <Button
+                            variant="contained"
+                            onClick={handleAssignRider}
+                            disabled={isAssigning || !selectedRider || riders.length === 0}
+                            style={{ backgroundColor: '#0092ff', color: 'white' }}
+                        >
+                            {isAssigning ? 'Assigning...' : 'Assign Rider'}
+                        </Button>
+                    </Modal.Footer>
+                </Modal>
+
+                {/* Map Modal */}
+                <Modal
+                    show={isMapModalOpen}
+                    onHide={() => setIsMapModalOpen(false)}
+                    size="lg"
+                    centered
+                    className={isDarkMode ? 'dark-modal' : ''}
+                >
+                    <Modal.Header closeButton>
+                        <Modal.Title>
+                            <FiMap className="me-2" />
+                            Delivery Location - Order #{selectedOrder?.orderNumber}
+                        </Modal.Title>
+                    </Modal.Header>
+                    <Modal.Body style={{ padding: 0, height: '500px' }}>
+                        {selectedOrder && hasDeliveryLocation(selectedOrder) && (
+                            <div 
+                                id="google-map" 
+                                style={{ 
+                                    height: '100%', 
+                                    width: '100%',
+                                    backgroundColor: isDarkMode ? '#1e293b' : '#f8f9fa'
+                                }}
+                            >
+                                {!mapScriptLoaded && (
+                                    <div className="d-flex justify-content-center align-items-center h-100">
+                                        <div className="spinner-border text-primary" role="status">
+                                            <span className="visually-hidden">Loading...</span>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </Modal.Body>
+                    <Modal.Footer>
+                        <div className="d-flex justify-content-between align-items-center w-100">
+                            <div className="text-muted small">
+                                {selectedOrder && (
+                                    <>
+                                        Customer: {selectedOrder.customerName || 'Walk-in Customer'} |
+                                        Total: {currencySymbol}{selectedOrder.totalAmount?.toFixed(2)} |
+                                        Status: {selectedOrder.status}
+                                    </>
+                                )}
+                            </div>
                         </div>
-                    )}
-                </Modal.Body>
-                <Modal.Footer>
-                    <div className="d-flex justify-content-between align-items-center w-100">
-                        <div className="text-muted small">
-                            {selectedOrder && (
-                                <>
-                                    Customer: {selectedOrder.customerName || 'Walk-in Customer'} |
-                                    Total: {currencySymbol}{selectedOrder.totalAmount?.toFixed(2)} |
-                                    Status: {selectedOrder.status}
-                                </>
-                            )}
-                        </div>
-                    </div>
-                </Modal.Footer>
-            </Modal>
+                    </Modal.Footer>
+                </Modal>
 
-            <style>
-                {`/* Custom badge colors */
-.bg-purple { background-color: #9333ea; color: white; }
-.bg-teal { background-color: #0d9488; color: white; }
-.bg-indigo { background-color: #4f46e5; color: white; }
-.bg-orange { background-color: #f97316; color: white; }
-.bg-pink { background-color: #ec4899; color: white; }
-.bg-gray { background-color: #6b7280; color: white; }
-.bg-blue { background-color: #3b82f6; color: white; }
-.bg-cyan { background-color: #06b6d4; color: white; }
-.bg-yellow { background-color:rgb(246, 185, 0); color: white; }
-.bg-violet { background-color: #7c3aed; color: white; }
-.bg-fuchsia { background-color: #c026d3; color: white; }
-.bg-emerald { background-color: #10b981; color: white; }
-.bg-black { background-color:rgb(0, 0, 0); color: white; }
-.bg-green1 { background-color:rgb(0, 198, 13); color: white; }
-.bg-red { background-color: #ef4444; color: white; }
-.bg-dark-red { background-color: #8B0000; color: white; }
-.bg-info { background-color: #17a2b8; color: white; }
-.bg-primary { background-color: #007bff; color: white; }
-.bg-warning { background-color: #ffc107; color: #212529; }
-.bg-success { background-color: #28a745; color: white; }
-.bg-secondary { background-color: #6c757d; color: white; }
+                <style>
+                    {`/* Custom badge colors */
+    .bg-purple { background-color: #9333ea; color: white; }
+    .bg-teal { background-color: #0d9488; color: white; }
+    .bg-indigo { background-color: #4f46e5; color: white; }
+    .bg-orange { background-color: #f97316; color: white; }
+    .bg-pink { background-color: #ec4899; color: white; }
+    .bg-gray { background-color: #6b7280; color: white; }
+    .bg-blue { background-color: #3b82f6; color: white; }
+    .bg-cyan { background-color: #06b6d4; color: white; }
+    .bg-yellow { background-color:rgb(246, 185, 0); color: white; }
+    .bg-violet { background-color: #7c3aed; color: white; }
+    .bg-fuchsia { background-color: #c026d3; color: white; }
+    .bg-emerald { background-color: #10b981; color: white; }
+    .bg-black { background-color:rgb(0, 0, 0); color: white; }
+    .bg-green1 { background-color:rgb(0, 198, 13); color: white; }
+    .bg-red { background-color: #ef4444; color: white; }
+    .bg-dark-red { background-color: #8B0000; color: white; }
+    .bg-info { background-color: #17a2b8; color: white; }
+    .bg-primary { background-color: #007bff; color: white; }
+    .bg-warning { background-color: #ffc107; color: #212529; }
+    .bg-success { background-color: #28a745; color: white; }
+    .bg-secondary { background-color: #6c757d; color: white; }
 
-/* Dark mode modal styles */
-.dark-modal .modal-content {
-    background-color: #0f172a;
-    color: white;
-}
+    /* Dark mode modal styles */
+    .dark-modal .modal-content {
+        background-color: #0f172a;
+        color: white;
+    }
 
-.dark-modal .modal-header,
-.dark-modal .modal-footer {
-    border-color: #1e293b;
-}
+    .dark-modal .modal-header,
+    .dark-modal .modal-footer {
+        border-color: #1e293b;
+    }
 
-.dark-modal .close {
-    color: white;
-}
+    .dark-modal .close {
+        color: white;
+    }
 
-.dark-modal .table {
-    color: white;
-}
+    .dark-modal .table {
+        color: white;
+    }
 
-.dark-modal .table-bordered {
-    border-color: #1e293b;
-}
+    .dark-modal .table-bordered {
+        border-color: #1e293b;
+    }
 
-.dark-modal .table-bordered th,
-.dark-modal .table-bordered td {
-    border-color: #1e293b;
-}
+    .dark-modal .table-bordered th,
+    .dark-modal .table-bordered td {
+        border-color: #1e293b;
+    }
 
-/* Google Maps container styling */
-#google-map {
-    height: 100%;
-    width: 100%;
-}
+    /* Google Maps container styling */
+    #google-map {
+        height: 100%;
+        width: 100%;
+    }
 
-/* Loading spinner */
-.spinner-border.text-primary {
-    color: #0092ff !important;
-}`}
-            </style>
-        </>
-    );
+    /* Loading spinner */
+    .spinner-border.text-primary {
+        color: #0092ff !important;
+    }
+
+    /* Spin animation for refresh button */
+    .spin {
+        animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }`}
+                </style>
+            </>
+        );
+    } catch (renderError) {
+        errorLog('Component render error', renderError);
+        return (
+            <div className="container mt-4">
+                <div className="alert alert-danger">
+                    <h4>Render Error</h4>
+                    <p>There was an error rendering the orders table. Please refresh the page.</p>
+                    <button 
+                        className="btn btn-primary"
+                        onClick={() => window.location.reload()}
+                    >
+                        Reload Page
+                    </button>
+                </div>
+            </div>
+        );
+    }
 };
 
 export default OrderTable;

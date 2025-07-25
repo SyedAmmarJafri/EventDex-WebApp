@@ -35,6 +35,64 @@ const { Title, Text } = Typography;
 
 const COLORS = ['#005ece', '#0092ff', '#EC4899', '#F43F5E', '#F59E0B', '#10B981'];
 
+// IndexedDB setup
+const DB_NAME = 'DashboardDB';
+const DB_VERSION = 1;
+const STORE_NAME = 'dashboardData';
+const CACHE_TTL = 15 * 60 * 1000; // 15 minutes cache validity
+
+const openDB = () => {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+        request.onupgradeneeded = (event) => {
+            const db = event.target.result;
+            if (!db.objectStoreNames.contains(STORE_NAME)) {
+                db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+            }
+        };
+
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = (event) => reject(event.target.error);
+    });
+};
+
+const getCachedData = async () => {
+    try {
+        const db = await openDB();
+        const transaction = db.transaction(STORE_NAME, 'readonly');
+        const store = transaction.objectStore(STORE_NAME);
+        const request = store.get('dashboard');
+
+        return new Promise((resolve, reject) => {
+            request.onsuccess = () => {
+                const data = request.result;
+                // Check if cached data exists and is still valid
+                if (data && Date.now() - data.timestamp < CACHE_TTL) {
+                    resolve(data.value);
+                } else {
+                    resolve(null);
+                }
+            };
+            request.onerror = () => reject(request.error);
+        });
+    } catch (error) {
+        console.error('IndexedDB error:', error);
+        return null;
+    }
+};
+
+const cacheData = async (data) => {
+    try {
+        const db = await openDB();
+        const transaction = db.transaction(STORE_NAME, 'readwrite');
+        const store = transaction.objectStore(STORE_NAME);
+        store.put({ id: 'dashboard', value: data, timestamp: Date.now() });
+    } catch (error) {
+        console.error('IndexedDB caching error:', error);
+    }
+};
+
 // Custom Table component with improved UI
 const CustomTable = ({ data, columns }) => {
     return (
@@ -101,14 +159,36 @@ const CustomTable = ({ data, columns }) => {
 const Dashboard = () => {
     const [loading, setLoading] = useState(true);
     const [dashboardData, setDashboardData] = useState(null);
+    const [isRefreshing, setIsRefreshing] = useState(false);
 
     useEffect(() => {
-        fetchDashboardData();
+        const loadData = async () => {
+            // First try to load from cache
+            const cachedData = await getCachedData();
+            if (cachedData) {
+                setDashboardData(cachedData);
+                setLoading(false);
+            }
+
+            // Then fetch fresh data in the background
+            fetchDashboardData(false);
+        };
+
+        loadData();
     }, []);
 
-    const fetchDashboardData = async () => {
+    const fetchDashboardData = async (forceRefresh = true) => {
         try {
-            setLoading(true);
+            if (forceRefresh) {
+                setIsRefreshing(true);
+            } else if (dashboardData && !forceRefresh) {
+                // If we already have data and this isn't a forced refresh,
+                // we can skip showing the loading spinner
+                setLoading(false);
+            } else {
+                setLoading(true);
+            }
+
             const token = localStorage.getItem('authData') ? JSON.parse(localStorage.getItem('authData')).token : null;
 
             if (!token) {
@@ -116,18 +196,26 @@ const Dashboard = () => {
                 return;
             }
 
-            const response = await axios.get(`${ BASE_URL }/api/client-admin/analytics/dashboard`, {
+            const response = await axios.get(`${BASE_URL}/api/client-admin/analytics/dashboard`, {
                 headers: {
                     Authorization: `Bearer ${token}`
                 }
             });
 
-            setDashboardData(response.data.data);
+            const data = response.data.data;
+            setDashboardData(data);
+            await cacheData(data);
+
         } catch (error) {
             console.error('Error fetching dashboard data:', error);
-            message.error('Failed to fetch dashboard data');
+            if (forceRefresh) {
+                message.error('Failed to refresh dashboard data');
+            } else if (!dashboardData) {
+                message.error('Failed to load dashboard data');
+            }
         } finally {
             setLoading(false);
+            setIsRefreshing(false);
         }
     };
 
@@ -208,36 +296,45 @@ const Dashboard = () => {
 
     const lowStockColumns = [
         {
-            title: 'Item Name',
+            title: 'Product',
             dataIndex: 'itemName',
             key: 'itemName',
-            render: (text) => <Text strong style={{ color: '#111827' }} className="text-dark">{text}</Text>
+            render: (text) => <Text className="text-dark">{text}</Text>
         },
         {
-            title: 'Current Stock',
+            title: 'Stock Level',
             dataIndex: 'currentStock',
             key: 'currentStock',
             render: (stock) => (
-                <Badge
-                    count={stock}
-                    style={{
-                        backgroundColor: stock <= 2 ? '#f5222d' : '#faad14',
-                        color: '#fff',
-                        padding: '0 6px',
-                        borderRadius: '10px'
-                    }}
-                />
-            ),
-            align: 'right'
+                <Text className="text-dark">
+                    {stock} in stock
+                </Text>
+            )
         },
         {
             title: 'Threshold',
             dataIndex: 'threshold',
             key: 'threshold',
             render: (threshold) => (
-                <Text className="text-dark">{threshold}</Text>
-            ),
-            align: 'right'
+                <Text className="text-dark">Threshold: {threshold}</Text>
+            )
+        },
+        {
+            title: 'Status',
+            key: 'status',
+            render: (_, record) => {
+                const { currentStock } = record;
+                const isOutOfStock = currentStock === 0;
+
+                return (
+                    <Tag Status Distribution
+                        color={isOutOfStock ? '#000000ff' : '#b10101ff'}
+                        style={{ fontWeight: 500 }}
+                    >
+                        {isOutOfStock ? 'Out of Stock' : 'Low Stock'}
+                    </Tag>
+                );
+            }
         }
     ];
 
@@ -266,9 +363,9 @@ const Dashboard = () => {
                 </Title>
                 <Button
                     type="primary"
-                    onClick={fetchDashboardData}
-                    loading={loading}
-                    icon={<SyncOutlined spin={loading} />}
+                    onClick={() => fetchDashboardData(true)}
+                    loading={isRefreshing}
+                    icon={<SyncOutlined spin={isRefreshing} />}
                     style={{
                         fontWeight: '500',
                         background: '#0092ff',
@@ -276,11 +373,11 @@ const Dashboard = () => {
                         boxShadow: '0 1px 3px rgba(16, 148, 185, 0.3)',
                     }}
                 >
-                    {loading ? 'Refreshing...' : 'Refresh'}
+                    {isRefreshing ? 'Refreshing...' : 'Refresh'}
                 </Button>
             </div>
 
-            {loading && (
+            {loading && !dashboardData && (
                 <div style={{
                     textAlign: 'center',
                     padding: '80px 0',
@@ -291,7 +388,7 @@ const Dashboard = () => {
                 </div>
             )}
 
-            {dashboardData && !loading && (
+            {dashboardData && (
                 <>
                     <Row gutter={[24, 24]} style={{ marginBottom: '24px' }}>
                         <Col xs={24} sm={12} md={8} lg={6}>
@@ -480,7 +577,6 @@ const Dashboard = () => {
                                             dataKey="value"
                                             nameKey="name"
                                             label={({ name, percent }) => `${name}\n${(percent * 100).toFixed(0)}%`}
-                                            labelLine={false}
                                         >
                                             {formatOrderStatusData().map((entry, index) => (
                                                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />

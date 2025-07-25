@@ -9,6 +9,32 @@ import Skeleton from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
 import Modal from 'react-bootstrap/Modal';
 
+// Initialize IndexedDB
+const initIndexedDB = () => {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open('MarketingDB', 2);
+
+    request.onerror = (event) => {
+      console.error('IndexedDB error:', event.target.error);
+      reject('Failed to open IndexedDB');
+    };
+
+    request.onsuccess = (event) => {
+      resolve(event.target.result);
+    };
+
+    request.onupgradeneeded = (event) => {
+      const db = event.target.result;
+      if (!db.objectStoreNames.contains('templates')) {
+        db.createObjectStore('templates', { keyPath: 'id' });
+      }
+      if (!db.objectStoreNames.contains('emailConfig')) {
+        db.createObjectStore('emailConfig', { keyPath: 'id' });
+      }
+    };
+  });
+};
+
 const TemplatesTable = () => {
     const [templates, setTemplates] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -39,8 +65,171 @@ const TemplatesTable = () => {
     const [configFormErrors, setConfigFormErrors] = useState({});
     const [activeTab, setActiveTab] = useState('edit');
     const [editActiveTab, setEditActiveTab] = useState('edit');
+    const [db, setDb] = useState(null);
     const skinTheme = localStorage.getItem('skinTheme') || 'light';
     const isDarkMode = skinTheme === 'dark';
+
+    // Initialize IndexedDB on component mount
+    useEffect(() => {
+        initIndexedDB().then(database => {
+            setDb(database);
+            // Load initial data
+            loadInitialData(database);
+        }).catch(error => {
+            console.error('IndexedDB initialization failed:', error);
+            // Fallback to API calls
+            fetchTemplatesFromAPI();
+            fetchEmailConfigFromAPI();
+        });
+    }, []);
+
+    // Load initial data from cache or API
+    const loadInitialData = async (database) => {
+        try {
+            setLoading(true);
+            
+            // Check if we have cached templates
+            const cachedTemplates = await getFromIndexedDB(database, 'templates');
+            if (cachedTemplates && cachedTemplates.length > 0) {
+                setTemplates(cachedTemplates);
+                
+                // Check if data is stale (older than 1 hour)
+                const lastSync = localStorage.getItem('templatesLastSync') || 0;
+                if (Date.now() - lastSync > 3600000) {
+                    await fetchTemplatesFromAPI(database);
+                }
+            } else {
+                await fetchTemplatesFromAPI(database);
+            }
+            
+            // Load email config
+            const cachedConfig = await getFromIndexedDB(database, 'emailConfig', 'config');
+            if (cachedConfig) {
+                setEmailConfig({
+                    fromEmail: cachedConfig.fromEmail,
+                    appPassword: ''
+                });
+            } else {
+                await fetchEmailConfigFromAPI(database);
+            }
+        } catch (error) {
+            console.error('Error loading initial data:', error);
+            toast.error('Failed to load initial data');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Generic function to get data from IndexedDB
+    const getFromIndexedDB = (database, storeName, key = null) => {
+        return new Promise((resolve) => {
+            const transaction = database.transaction([storeName], 'readonly');
+            const store = transaction.objectStore(storeName);
+            
+            const request = key ? store.get(key) : store.getAll();
+            
+            request.onsuccess = () => {
+                resolve(request.result);
+            };
+            
+            request.onerror = () => {
+                resolve(null);
+            };
+        });
+    };
+
+    // Generic function to save data to IndexedDB
+    const saveToIndexedDB = (database, storeName, data, key = null) => {
+        return new Promise((resolve) => {
+            const transaction = database.transaction([storeName], 'readwrite');
+            const store = transaction.objectStore(storeName);
+            
+            if (key) {
+                store.put({ ...data, id: key });
+            } else {
+                // Clear existing data if storing array
+                store.clear();
+                data.forEach(item => store.put(item));
+            }
+            
+            transaction.oncomplete = () => {
+                resolve(true);
+            };
+            
+            transaction.onerror = () => {
+                resolve(false);
+            };
+        });
+    };
+
+    const fetchTemplatesFromAPI = async (database = db) => {
+        try {
+            const authData = JSON.parse(localStorage.getItem("authData"));
+            if (!authData?.token) {
+                throw new Error("Authentication token not found");
+            }
+
+            const response = await fetch(`${BASE_URL}/api/admin/marketing/templates`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${authData.token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to fetch templates');
+            }
+
+            const data = await response.json();
+            if (data && Array.isArray(data)) {
+                setTemplates(data);
+                if (database) {
+                    await saveToIndexedDB(database, 'templates', data);
+                    localStorage.setItem('templatesLastSync', Date.now());
+                }
+            } else {
+                throw new Error('Invalid data format received from server');
+            }
+        } catch (err) {
+            toast.error(err.message);
+        }
+    };
+
+    const fetchEmailConfigFromAPI = async (database = db) => {
+        try {
+            const authData = JSON.parse(localStorage.getItem("authData"));
+            if (!authData?.token) {
+                throw new Error("Authentication token not found");
+            }
+
+            const response = await fetch(`${BASE_URL}/api/admin/marketing/email-configuration`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${authData.token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to fetch email configuration');
+            }
+
+            const data = await response.json();
+            setEmailConfig({
+                fromEmail: data.fromEmail,
+                appPassword: ''
+            });
+            
+            if (database) {
+                await saveToIndexedDB(database, 'emailConfig', data, 'config');
+            }
+        } catch (err) {
+            toast.error(err.message);
+        }
+    };
 
     const EmptyState = () => {
         return (
@@ -147,72 +336,6 @@ const TemplatesTable = () => {
         );
     };
 
-    const fetchTemplates = useCallback(async () => {
-        try {
-            setLoading(true);
-            const authData = JSON.parse(localStorage.getItem("authData"));
-            if (!authData?.token) {
-                toast.error("Authentication token not found");
-                return;
-            }
-
-            const response = await fetch(`${BASE_URL}/api/admin/marketing/templates`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${authData.token}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || 'Failed to fetch templates');
-            }
-
-            const data = await response.json();
-            if (data && Array.isArray(data)) {
-                setTemplates(data);
-            } else {
-                throw new Error('Invalid data format received from server');
-            }
-        } catch (err) {
-            toast.error(err.message);
-        } finally {
-            setLoading(false);
-        }
-    }, []);
-
-    const fetchEmailConfig = useCallback(async () => {
-        try {
-            const authData = JSON.parse(localStorage.getItem("authData"));
-            if (!authData?.token) {
-                toast.error("Authentication token not found");
-                return;
-            }
-
-            const response = await fetch(`${BASE_URL}/api/admin/marketing/email-configuration`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${authData.token}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || 'Failed to fetch email configuration');
-            }
-
-            const data = await response.json();
-            setEmailConfig({
-                fromEmail: data.fromEmail,
-                appPassword: ''
-            });
-        } catch (err) {
-            toast.error(err.message);
-        }
-    }, []);
-
     const handleConfigInputChange = (e) => {
         const { name, value } = e.target;
         setEmailConfig(prev => ({ ...prev, [name]: value }));
@@ -279,8 +402,15 @@ const TemplatesTable = () => {
             }
 
             toast.success('Email configuration updated successfully');
-            setIsConfigModalOpen(false);
+            
+            // Update local state and IndexedDB
+            const newConfig = { fromEmail: emailConfig.fromEmail };
             setEmailConfig(prev => ({ ...prev, appPassword: '' }));
+            if (db) {
+                await saveToIndexedDB(db, 'emailConfig', newConfig, 'config');
+            }
+            
+            setIsConfigModalOpen(false);
         } catch (err) {
             toast.error(err.message);
         }
@@ -308,7 +438,14 @@ const TemplatesTable = () => {
             }
 
             toast.success('Template created successfully');
-            await fetchTemplates();
+            
+            // Update local state and IndexedDB
+            const updatedTemplates = [...templates, data];
+            setTemplates(updatedTemplates);
+            if (db) {
+                await saveToIndexedDB(db, 'templates', updatedTemplates);
+            }
+            
             setIsModalOpen(false);
             setNewTemplate({
                 name: '',
@@ -347,7 +484,16 @@ const TemplatesTable = () => {
             }
 
             toast.success('Template updated successfully');
-            await fetchTemplates();
+            
+            // Update local state and IndexedDB
+            const updatedTemplates = templates.map(t => 
+                t.id === editTemplate.id ? data : t
+            );
+            setTemplates(updatedTemplates);
+            if (db) {
+                await saveToIndexedDB(db, 'templates', updatedTemplates);
+            }
+            
             setIsEditModalOpen(false);
             setEditActiveTab('edit');
         } catch (err) {
@@ -378,6 +524,14 @@ const TemplatesTable = () => {
     const handleDeleteTemplate = async () => {
         try {
             const authData = JSON.parse(localStorage.getItem("authData"));
+            
+            // Optimistically update the UI
+            const updatedTemplates = templates.filter(t => t.id !== templateToDelete.id);
+            setTemplates(updatedTemplates);
+            if (db) {
+                await saveToIndexedDB(db, 'templates', updatedTemplates);
+            }
+
             const response = await fetch(`${BASE_URL}/api/admin/marketing/templates/${templateToDelete.id}`, {
                 method: 'DELETE',
                 headers: {
@@ -386,9 +540,9 @@ const TemplatesTable = () => {
                 }
             });
 
-            const data = await response.json();
             if (!response.ok) {
-                throw new Error(data.message || 'Failed to delete template');
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to delete template');
             }
 
             toast.success('Template deleted successfully', {
@@ -402,9 +556,14 @@ const TemplatesTable = () => {
                 theme: "colored",
             });
 
-            await fetchTemplates();
             setIsDeleteModalOpen(false);
         } catch (err) {
+            // Revert the UI change if the API call fails
+            setTemplates(templates);
+            if (db) {
+                await saveToIndexedDB(db, 'templates', templates);
+            }
+
             toast.error(err.message, {
                 position: "bottom-center",
                 autoClose: 5000,
@@ -419,7 +578,6 @@ const TemplatesTable = () => {
     };
 
     const handleOpenConfigModal = () => {
-        fetchEmailConfig();
         setIsConfigModalOpen(true);
     };
 
@@ -482,10 +640,6 @@ const TemplatesTable = () => {
             meta: { headerClassName: 'text-end' }
         },
     ], []);
-
-    useEffect(() => {
-        fetchTemplates();
-    }, [fetchTemplates]);
 
     return (
         <>

@@ -146,6 +146,13 @@ export const menuList = [
     },
     {
         id: 11,
+        name: "Live Tracker",
+        path: "/tracker",
+        icon: 'feather-map-pin',
+        dropdownMenu: []
+    },
+    {
+        id: 12,
         name: "Users",
         path: "#",
         icon: 'feather-users',
@@ -165,7 +172,7 @@ export const menuList = [
         ]
     },
     {
-        id: 12,
+        id: 13,
         name: "Online Store",
         path: "/Store/settings",
         icon: 'feather-shopping-cart',

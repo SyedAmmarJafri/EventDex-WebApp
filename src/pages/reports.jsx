@@ -195,7 +195,14 @@ const ReportsTeam = () => {
                   <div style={{ marginBottom: '16px' }}>
                     <Text strong style={{ display: 'block', marginBottom: '8px' }} className="text-dark">Date Range</Text>
                     <RangePicker
-                      style={{ width: '100%'}}
+                      style={{
+                        width: '100%',
+                        backgroundColor: 'white',
+                      }}
+                      inputStyle={{
+                        color: 'black',
+                        backgroundColor: 'white',
+                      }}
                       onChange={handleDateRangeChange}
                       disabledDate={(current) => current && current > dayjs().endOf('day')}
                     />

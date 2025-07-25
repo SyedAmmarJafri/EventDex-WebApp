@@ -24,7 +24,7 @@ import {
 import { Modal, Button, Form } from 'react-bootstrap';
 
 // IndexedDB setup
-const DB_NAME = 'FinanceAppDB';
+const DB_NAME = 'FinanceDB';
 const DB_VERSION = 1;
 const STORE_TRANSACTIONS = 'transactions';
 const STORE_PAYMENT_METHODS = 'paymentMethods';
@@ -401,7 +401,7 @@ const TransactionsTable = () => {
             if (data.status === 200) {
                 toast.success("Payment method status updated successfully");
                 // Update local state and IndexedDB
-                const updatedPaymentMethods = paymentMethods.map(pm => 
+                const updatedPaymentMethods = paymentMethods.map(pm =>
                     pm.id === paymentMethodId ? { ...pm, active: newStatus } : pm
                 );
                 setPaymentMethods(updatedPaymentMethods);
@@ -645,7 +645,7 @@ const TransactionsTable = () => {
                 active: true,
                 default: false
             });
-            
+
             // Refresh data and update IndexedDB
             await Promise.all([
                 fetchPaymentMethods(true),
@@ -750,11 +750,26 @@ const TransactionsTable = () => {
             cell: (info) => {
                 const type = info.getValue();
                 let color = '';
-                if (type === 'INCOME') color = 'text-success';
-                if (type === 'EXPENSE') color = 'text-danger';
-                if (type === 'WITHDRAWAL') color = 'text-warning';
+                let badgeClass = 'badge ';
 
-                return <span className={color}>{type}</span>;
+                if (type === 'INCOME') {
+                    color = 'text-success';
+                    badgeClass += 'bg-success';
+                }
+                if (type === 'EXPENSE') {
+                    color = 'text-danger';
+                    badgeClass += 'bg-danger';
+                }
+                if (type === 'WITHDRAWAL') {
+                    color = 'text-warning';
+                    badgeClass += 'bg-warning';
+                }
+
+                return (
+                    <span className={`badge ${badgeClass}`}>
+                        {type}
+                    </span>
+                );
             }
         },
         {
@@ -800,19 +815,6 @@ const TransactionsTable = () => {
             }
         },
     ], []);
-
-    const getPaymentMethodIcon = (methodName) => {
-        switch (methodName.toLowerCase()) {
-            case 'cash':
-                return <FaMoneyBillWave size={20} className="me-2" />;
-            case 'credit card':
-                return <FaCreditCard size={20} className="me-2" />;
-            case 'bank transfer':
-                return <FaExchangeAlt size={20} className="me-2" />;
-            default:
-                return <FaPiggyBank size={20} className="me-2" />;
-        }
-    };
 
     return (
         <>
@@ -1208,10 +1210,10 @@ const TransactionsTable = () => {
                                     <div className="d-flex justify-content-between align-items-center mb-3">
                                         <div className="d-flex align-items-center">
                                             <h6 className="card-title mb-0">Current Balance</h6>
-                                            <FaSync 
-                                                className="ms-2" 
-                                                size={16} 
-                                                style={{ cursor: 'pointer' }} 
+                                            <FaSync
+                                                className="ms-2"
+                                                size={16}
+                                                style={{ cursor: 'pointer' }}
                                                 onClick={handleForceRefresh}
                                                 title="Refresh data"
                                             />
@@ -1234,7 +1236,7 @@ const TransactionsTable = () => {
                                 <div className="card-body d-flex flex-column">
                                     <div className="d-flex justify-content-between align-items-center mb-3">
                                         <h6 className="card-title mb-0">Total Income</h6>
-                                        <FaArrowUp size={24} style={{ opacity: 0.8 }} />
+                                        <FaArrowUp size={24} />
                                     </div>
                                     <h3 className="text-light mb-2">{currencySymbol}{summary.totalIncome.toFixed(2)}</h3>
                                     <div className="text-white mb-3" style={{ fontSize: '0.8rem', opacity: 0.9 }}>
@@ -1268,7 +1270,7 @@ const TransactionsTable = () => {
                                 <div className="card-body d-flex flex-column">
                                     <div className="d-flex justify-content-between align-items-center mb-3">
                                         <h6 className="card-title mb-0">Total Expenses</h6>
-                                        <FaArrowDown size={24} style={{ opacity: 0.8 }} />
+                                        <FaArrowDown size={24} />
                                     </div>
                                     <h3 className="text-light mb-2">{currencySymbol}{summary.totalExpenses.toFixed(2)}</h3>
                                     <div className="text-white mb-3" style={{ fontSize: '0.8rem', opacity: 0.9 }}>
@@ -1302,7 +1304,7 @@ const TransactionsTable = () => {
                                 <div className="card-body d-flex flex-column">
                                     <div className="d-flex justify-content-between align-items-center mb-3">
                                         <h6 className="card-title mb-0 text-white">Total Withdrawals</h6>
-                                        <FaMoneyBillWave size={24} className="text-white" style={{ opacity: 0.9 }} />
+                                        <FaMoneyBillWave size={24} className="text-white" />
                                     </div>
                                     <h3 className="text-white mb-2">{currencySymbol}{summary.totalWithdrawals.toFixed(2)}</h3>
                                     <div className="text-white mb-3" style={{ fontSize: '0.8rem', opacity: 0.9 }}>
@@ -1456,7 +1458,7 @@ const TransactionsTable = () => {
                                         <div className="card-body d-flex flex-column">
                                             <div className="d-flex justify-content-between align-items-center mb-3">
                                                 <h6 className="card-title mb-0 d-flex align-items-center">
-                                                    {getPaymentMethodIcon(method.paymentMethodName)}
+                                                    <FaWallet size={20} className="me-2" />
                                                     <span className="ms-2">{method.paymentMethodName}</span>
                                                 </h6>
                                                 <div
@@ -1517,8 +1519,6 @@ const TransactionsTable = () => {
                                     minHeight: '115px'
                                 }}
                                 onClick={() => setShowAddPaymentMethod(true)}
-                                onMouseEnter={(e) => e.currentTarget.style.borderColor = 'var(--bs-primary)'}
-                                onMouseLeave={(e) => e.currentTarget.style.borderColor = 'var(--bs-gray-400)'}
                             >
                                 <div className="card-body text-center d-flex flex-column align-items-center justify-content-center p-3">
                                     <FaPlus

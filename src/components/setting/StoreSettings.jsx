@@ -866,7 +866,7 @@ const StoreSettingsForm = () => {
                         </Card.Header>
                         <Card.Body>
                             {alertBars.length === 0 ? (
-                                <p>No alert bars configured</p>
+                                <h8>No alert bars configured</h8>
                             ) : (
                                 <div className="alert-bars-list">
                                     {alertBars.map((alert) => (
