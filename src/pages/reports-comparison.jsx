@@ -160,11 +160,12 @@ const ComparisonAnalytics = () => {
     moment().subtract(31, 'days')
   ]);
   const [comparisonData, setComparisonData] = useState(null);
-  const [comparisonType, setComparisonType] = useState('month-over-month');
+  const [currentPeriod, setCurrentPeriod] = useState('last30days');
+  const [previousPeriod, setPreviousPeriod] = useState('previous30days');
 
   useEffect(() => {
     fetchComparisonData();
-  }, []);
+  }, [currentPeriod, previousPeriod, currentRange, previousRange]);
 
   const fetchComparisonData = async () => {
     try {
@@ -199,44 +200,104 @@ const ComparisonAnalytics = () => {
     }
   };
 
+  const handleCurrentPeriodChange = (value) => {
+    setCurrentPeriod(value);
+    switch (value) {
+      case 'today':
+        setCurrentRange([moment(), moment()]);
+        break;
+      case 'yesterday':
+        setCurrentRange([moment().subtract(1, 'days'), moment().subtract(1, 'days')]);
+        break;
+      case 'last7days':
+        setCurrentRange([moment().subtract(7, 'days'), moment()]);
+        break;
+      case 'last30days':
+        setCurrentRange([moment().subtract(30, 'days'), moment()]);
+        break;
+      case 'thismonth':
+        setCurrentRange([moment().startOf('month'), moment().endOf('month')]);
+        break;
+      case 'lastmonth':
+        setCurrentRange([
+          moment().subtract(1, 'month').startOf('month'),
+          moment().subtract(1, 'month').endOf('month')
+        ]);
+        break;
+      case 'custom':
+        // Keep existing range
+        break;
+      default:
+        setCurrentRange([moment().subtract(30, 'days'), moment()]);
+    }
+  };
+
+  const handlePreviousPeriodChange = (value) => {
+    setPreviousPeriod(value);
+    switch (value) {
+      case 'previousday':
+        setPreviousRange([
+          moment(currentRange[0]).subtract(1, 'days'),
+          moment(currentRange[1]).subtract(1, 'days')
+        ]);
+        break;
+      case 'previousweek':
+        setPreviousRange([
+          moment(currentRange[0]).subtract(7, 'days'),
+          moment(currentRange[1]).subtract(7, 'days')
+        ]);
+        break;
+      case 'previous30days':
+        setPreviousRange([
+          moment(currentRange[0]).subtract(30, 'days'),
+          moment(currentRange[1]).subtract(30, 'days')
+        ]);
+        break;
+      case 'previousmonth':
+        setPreviousRange([
+          moment(currentRange[0]).subtract(1, 'month'),
+          moment(currentRange[1]).subtract(1, 'month')
+        ]);
+        break;
+      case 'previousyear':
+        setPreviousRange([
+          moment(currentRange[0]).subtract(1, 'year'),
+          moment(currentRange[1]).subtract(1, 'year')
+        ]);
+        break;
+      case 'custom':
+        // Keep existing range
+        break;
+      default:
+        setPreviousRange([
+          moment(currentRange[0]).subtract(30, 'days'),
+          moment(currentRange[1]).subtract(30, 'days')
+        ]);
+    }
+  };
+
   const handleCurrentDateChange = (dates) => {
     if (dates) {
       setCurrentRange(dates);
-      // Auto-adjust previous period based on comparison type
-      if (comparisonType === 'month-over-month') {
-        const duration = moment(dates[1]).diff(moment(dates[0]), 'days');
-        setPreviousRange([
-          moment(dates[0]).subtract(duration + 1, 'days'),
-          moment(dates[0]).subtract(1, 'days')
-        ]);
-      } else if (comparisonType === 'year-over-year') {
-        setPreviousRange([
-          moment(dates[0]).subtract(1, 'year'),
-          moment(dates[1]).subtract(1, 'year')
-        ]);
-      }
+      setCurrentPeriod('custom');
     }
   };
 
   const handlePreviousDateChange = (dates) => {
     if (dates) {
       setPreviousRange(dates);
+      setPreviousPeriod('custom');
     }
   };
 
   const handleComparisonTypeChange = (value) => {
     setComparisonType(value);
     if (value === 'month-over-month') {
-      const duration = moment(currentRange[1]).diff(moment(currentRange[0]), 'days');
-      setPreviousRange([
-        moment(currentRange[0]).subtract(duration + 1, 'days'),
-        moment(currentRange[0]).subtract(1, 'days')
-      ]);
+      setCurrentPeriod('thismonth');
+      setPreviousPeriod('previousmonth');
     } else if (value === 'year-over-year') {
-      setPreviousRange([
-        moment(currentRange[0]).subtract(1, 'year'),
-        moment(currentRange[1]).subtract(1, 'year')
-      ]);
+      setCurrentPeriod('last30days');
+      setPreviousPeriod('previousyear');
     }
   };
 
@@ -375,15 +436,6 @@ const ComparisonAnalytics = () => {
           Performance Comparison
         </Title>
         <Space>
-          <Select
-            defaultValue="month-over-month"
-            style={{ width: 180 }}
-            onChange={handleComparisonTypeChange}
-          >
-            <Option value="month-over-month">Month-over-Month</Option>
-            <Option value="year-over-year">Year-over-Year</Option>
-            <Option value="custom">Custom Range</Option>
-          </Select>
           <Button
             type="primary"
             onClick={fetchComparisonData}
@@ -401,49 +453,107 @@ const ComparisonAnalytics = () => {
         </Space>
       </div>
 
-      <div style={{ marginBottom: '24px' }}>
-        <Row gutter={[24, 24]}>
-          <Col xs={24} md={12}>
-            <Card
-              className="card bg-white text-light"
-              title={<Text strong className="text-dark">Current Period</Text>}
-              bordered={false}
-              style={{ borderRadius: '12px' }}
-            >
-              <RangePicker
-                value={currentRange}
-                onChange={handleCurrentDateChange}
-                disabledDate={disabledDate}
-                style={{ width: '100%' }}
-                allowClear={false}
-              />
-              <div style={{ marginTop: '16px', color: '#6B7280' }}>
-                {currentRange[0].format('MMM D, YYYY')} - {currentRange[1].format('MMM D, YYYY')}
-              </div>
-            </Card>
-          </Col>
-          <Col xs={24} md={12}>
-            <Card
-              className="card bg-white text-light"
-              title={<Text strong className="text-dark">Previous Period</Text>}
-              bordered={false}
-              style={{ borderRadius: '12px' }}
-            >
-              <RangePicker
-                value={previousRange}
-                onChange={handlePreviousDateChange}
-                disabledDate={disabledDate}
-                style={{ width: '100%' }}
-                allowClear={false}
-                disabled={comparisonType !== 'custom'}
-              />
-              <div style={{ marginTop: '16px', color: '#6B7280' }}>
-                {previousRange[0].format('MMM D, YYYY')} - {previousRange[1].format('MMM D, YYYY')}
-              </div>
-            </Card>
-          </Col>
-        </Row>
-      </div>
+      {/* Period Selection Cards */}
+      <Row gutter={[24, 24]} style={{ marginBottom: '24px' }}>
+        <Col xs={24} md={12}>
+          <Card
+            className="card bg-white text-light"
+            title={<Text strong className="text-dark">Current Period</Text>}
+            bordered={false}
+            style={{ borderRadius: '12px' }}
+          >
+            <Row gutter={[16, 16]}>
+              <Col xs={24} md={12}>
+                <div style={{ marginBottom: '8px' }}>
+                  <Select
+                    style={{ width: '100%' }}
+                    value={currentPeriod}
+                    onChange={handleCurrentPeriodChange}
+                  >
+                    <Option value="today">Today</Option>
+                    <Option value="yesterday">Yesterday</Option>
+                    <Option value="last7days">Last 7 Days</Option>
+                    <Option value="last30days">Last 30 Days</Option>
+                    <Option value="thismonth">This Month</Option>
+                    <Option value="lastmonth">Last Month</Option>
+                    <Option value="custom">Custom Range</Option>
+                  </Select>
+                </div>
+              </Col>
+              {currentPeriod === 'custom' && (
+                <Col xs={24} md={12}>
+                  <div style={{ marginBottom: '8px' }}>
+                    <RangePicker
+                      style={{
+                        width: '100%',
+                        backgroundColor: 'white',
+                      }}
+                      inputStyle={{
+                        color: 'black',
+                        backgroundColor: 'white',
+                      }}
+                      onChange={handleCurrentDateChange}
+                      disabledDate={disabledDate}
+                    />
+                  </div>
+                </Col>
+              )}
+            </Row>
+            <div style={{ marginTop: '16px', color: '#6B7280' }} className="text-dark">
+              {currentRange[0].format('MMM D, YYYY')} - {currentRange[1].format('MMM D, YYYY')}
+            </div>
+          </Card>
+        </Col>
+
+        <Col xs={24} md={12}>
+          <Card
+            className="card bg-white text-light"
+            title={<Text strong className="text-dark">Previous Period</Text>}
+            bordered={false}
+            style={{ borderRadius: '12px' }}
+          >
+            <Row gutter={[16, 16]}>
+              <Col xs={24} md={12}>
+                <div style={{ marginBottom: '8px' }}>
+                  <Select
+                    style={{ width: '100%' }}
+                    value={previousPeriod}
+                    onChange={handlePreviousPeriodChange}
+                  >
+                    <Option value="previousday">Previous Day</Option>
+                    <Option value="previousweek">Previous Week</Option>
+                    <Option value="previous30days">Previous 30 Days</Option>
+                    <Option value="previousmonth">Previous Month</Option>
+                    <Option value="previousyear">Previous Year</Option>
+                    <Option value="custom">Custom Range</Option>
+                  </Select>
+                </div>
+              </Col>
+              {previousPeriod === 'custom' && (
+                <Col xs={24} md={12}>
+                  <div style={{ marginBottom: '8px' }}>
+                    <RangePicker
+                      style={{
+                        width: '100%',
+                        backgroundColor: 'white',
+                      }}
+                      inputStyle={{
+                        color: 'black',
+                        backgroundColor: 'white',
+                      }}
+                      onChange={handlePreviousDateChange}
+                      disabledDate={disabledDate}
+                    />
+                  </div>
+                </Col>
+              )}
+            </Row>
+            <div style={{ marginTop: '16px', color: '#6B7280' }} className="text-dark">
+              {previousRange[0].format('MMM D, YYYY')} - {previousRange[1].format('MMM D, YYYY')}
+            </div>
+          </Card>
+        </Col>
+      </Row>
 
       {loading && (
         <div style={{
@@ -682,7 +792,7 @@ const ComparisonAnalytics = () => {
                       }}
                       contentStyle={{
                         background: '#fff',
-                        color:'#000',
+                        color: '#000',
                         border: 'none',
                         borderRadius: '8px',
                         boxShadow: '0 4px 12px rgba(0,0,0,0.1)'

@@ -506,7 +506,7 @@ const TeamTable = () => {
                     className="d-flex align-items-center gap-2"
                     style={{ backgroundColor: '#0092ff', color: 'white' }}
                 >
-                    <FiPlus /> Add Team Member
+                    <FiPlus /> Add Team
                 </Button>
             </div>
 

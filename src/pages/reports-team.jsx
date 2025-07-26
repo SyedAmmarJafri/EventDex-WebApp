@@ -166,11 +166,11 @@ const ReportsTeam = () => {
   const [loading, setLoading] = useState(false);
   const [dateRange, setDateRange] = useState([moment().startOf('month'), moment().endOf('month')]);
   const [analyticsData, setAnalyticsData] = useState(null);
-  const [period, setPeriod] = useState('thismonth');
+  const [period, setPeriod] = useState('last30days');
 
   useEffect(() => {
     fetchAnalyticsData();
-  }, [period]);
+  }, [period, dateRange]);
 
   const fetchAnalyticsData = async () => {
     try {
@@ -182,15 +182,15 @@ const ReportsTeam = () => {
         return;
       }
 
-      const params = {
-        period: period
-      };
+      let params = { period };
 
-      // If custom period is selected, use date range
       if (period === 'custom') {
         const [startDate, endDate] = dateRange;
-        params.startDate = startDate.format('YYYY-MM-DD');
-        params.endDate = endDate.format('YYYY-MM-DD');
+        params = {
+          ...params,
+          startDate: startDate.format('YYYY-MM-DD'),
+          endDate: endDate.format('YYYY-MM-DD')
+        };
       }
 
       const response = await axios.get(`${BASE_URL}/api/client-admin/analytics/staff`, {
@@ -212,13 +212,42 @@ const ReportsTeam = () => {
   const handleDateChange = (dates) => {
     if (dates) {
       setDateRange(dates);
+      setPeriod('custom');
     } else {
       setDateRange([moment().startOf('month'), moment().endOf('month')]);
+      setPeriod('thismonth');
     }
   };
 
   const handlePeriodChange = (value) => {
     setPeriod(value);
+    // Set default date ranges for each period
+    switch (value) {
+      case 'today':
+        setDateRange([moment(), moment()]);
+        break;
+      case 'yesterday':
+        setDateRange([moment().subtract(1, 'days'), moment().subtract(1, 'days')]);
+        break;
+      case 'last7days':
+        setDateRange([moment().subtract(7, 'days'), moment()]);
+        break;
+      case 'last30days':
+        setDateRange([moment().subtract(30, 'days'), moment()]);
+        break;
+      case 'thisweek':
+        setDateRange([moment().startOf('week'), moment().endOf('week')]);
+        break;
+      case 'thismonth':
+        setDateRange([moment().startOf('month'), moment().endOf('month')]);
+        break;
+      case 'lastmonth':
+        setDateRange([moment().subtract(1, 'month').startOf('month'), moment().subtract(1, 'month').endOf('month')]);
+        break;
+      default:
+        // For custom, keep the existing range
+        break;
+    }
   };
 
   const disabledDate = (current) => {
@@ -389,46 +418,67 @@ const ReportsTeam = () => {
         }}>
           Team Analytics
         </Title>
-        <Space>
-          <Select
-            defaultValue="thismonth"
-            style={{ width: 180 }}
-            onChange={handlePeriodChange}
-          >
-            <Option value="today">Today</Option>
-            <Option value="thisweek">This Week</Option>
-            <Option value="thismonth">This Month</Option>
-            <Option value="lastmonth">Last Month</Option>
-            <Option value="custom">Custom Range</Option>
-          </Select>
+        <Button
+          type="primary"
+          onClick={fetchAnalyticsData}
+          loading={loading}
+          icon={<SyncOutlined spin={loading} />}
+          style={{
+            fontWeight: '500',
+            background: '#0092ff',
+            border: 'none',
+            boxShadow: '0 1px 3px rgba(16, 148, 185, 0.3)',
+          }}
+        >
+          {loading ? 'Refreshing...' : 'Refresh'}
+        </Button>
+      </div>
+
+      {/* Added Period Selection Card */}
+      <Card
+        className="card bg-white text-light"
+        style={{ marginBottom: '24px', borderRadius: '12px' }}
+        bodyStyle={{ padding: '16px 24px' }}
+      >
+        <Row gutter={[24, 16]}>
+          <Col xs={24} md={8}>
+            <div style={{ marginBottom: '16px' }}>
+              <Text strong style={{ display: 'block', marginBottom: '8px' }} className="text-dark">Period</Text>
+              <Select
+                style={{ width: '100%' }}
+                value={period}
+                onChange={handlePeriodChange}
+              >
+                <Option value="today">Today</Option>
+                <Option value="yesterday">Yesterday</Option>
+                <Option value="last7days">Last 7 Days</Option>
+                <Option value="last30days">Last 30 Days</Option>
+                <Option value="custom">Custom Range</Option>
+              </Select>
+            </div>
+          </Col>
 
           {period === 'custom' && (
-            <RangePicker
-              value={dateRange}
-              onChange={handleDateChange}
-              disabledDate={disabledDate}
-              size="middle"
-              style={{ width: '280px' }}
-              allowClear={false}
-            />
+            <Col xs={24} md={8}>
+              <div style={{ marginBottom: '16px' }}>
+                <Text strong style={{ display: 'block', marginBottom: '8px' }} className="text-dark">Date Range</Text>
+                <RangePicker
+                  style={{
+                    width: '100%',
+                    backgroundColor: 'white',
+                  }}
+                  inputStyle={{
+                    color: 'black',
+                    backgroundColor: 'white',
+                  }}
+                  onChange={handleDateChange}
+                  disabledDate={disabledDate}
+                />
+              </div>
+            </Col>
           )}
-
-          <Button
-            type="primary"
-            onClick={fetchAnalyticsData}
-            loading={loading}
-            icon={<SyncOutlined spin={loading} />}
-            style={{
-              fontWeight: '500',
-              background: '#0092ff',
-              border: 'none',
-              boxShadow: '0 1px 3px rgba(16, 148, 185, 0.3)',
-            }}
-          >
-            {loading ? 'Refreshing...' : 'Refresh'}
-          </Button>
-        </Space>
-      </div>
+        </Row>
+      </Card>
 
       {loading && (
         <div style={{

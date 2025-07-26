@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Card,
   Row,
@@ -27,6 +27,24 @@ const ReportsTeam = () => {
   const [period, setPeriod] = useState('today');
   const [dateRange, setDateRange] = useState(null);
   const [pdfUrl, setPdfUrl] = useState(null);
+  const [iframeHeight, setIframeHeight] = useState(600);
+
+  useEffect(() => {
+    const handleResize = () => {
+      // Adjust height based on window size
+      const newHeight = window.innerWidth < 768 ? 400 : 600;
+      setIframeHeight(newHeight);
+    };
+
+    // Set initial height
+    handleResize();
+
+    // Add event listener for window resize
+    window.addEventListener('resize', handleResize);
+
+    // Cleanup
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const generateReport = async () => {
     try {
@@ -94,7 +112,6 @@ const ReportsTeam = () => {
         responseType: 'blob'
       });
 
-      // Create download link for CSV
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
@@ -102,9 +119,6 @@ const ReportsTeam = () => {
       document.body.appendChild(link);
       link.click();
       link.parentNode.removeChild(link);
-
-      message.success('CSV file downloaded successfully');
-
     } catch (error) {
       console.error('Error downloading CSV:', error);
       message.error('Failed to download CSV file');
@@ -211,7 +225,15 @@ const ReportsTeam = () => {
               )}
             </Row>
 
-            <Space style={{ marginTop: '24px', width: '100%', justifyContent: 'flex-end' }}>
+            <Space 
+              style={{ 
+                marginTop: '24px', 
+                width: '100%', 
+                justifyContent: 'flex-end',
+                flexWrap: 'wrap',
+                gap: '16px'
+              }}
+            >
               <Button
                 type="primary"
                 icon={<FileExcelOutlined />}
@@ -224,11 +246,13 @@ const ReportsTeam = () => {
                   background: '#00a46dff',
                   border: 'none',
                   boxShadow: '0 1px 3px rgba(16, 185, 129, 0.3)',
-                  padding: '0 24px',
-                  height: '40px'
+                  padding: '0 16px',
+                  height: '40px',
+                  width: '100%',
+                  maxWidth: '200px'
                 }}
               >
-                Download CSV
+                <span className="responsive-text">Download CSV</span>
               </Button>
 
               <Button
@@ -243,11 +267,13 @@ const ReportsTeam = () => {
                   background: '#0092ff',
                   border: 'none',
                   boxShadow: '0 1px 3px rgba(16, 148, 185, 0.3)',
-                  padding: '0 24px',
-                  height: '40px'
+                  padding: '0 16px',
+                  height: '40px',
+                  width: '100%',
+                  maxWidth: '200px'
                 }}
               >
-                Generate PDF
+                <span className="responsive-text">Generate PDF</span>
               </Button>
             </Space>
 
@@ -270,18 +296,37 @@ const ReportsTeam = () => {
             )}
 
             {pdfUrl && !loading && (
-              <div style={{ marginTop: '24px', borderRadius: '8px' }}>
-                <iframe
-                  src={pdfUrl}
-                  style={{
-                    width: '100%',
-                    height: '600px',
-                    border: 'none',
-                    borderRadius: '8px'
-                  }}
-                  title="Analytics Report"
-                />
-                <div style={{ textAlign: 'right', marginTop: '16px' }}>
+              <div style={{ 
+                marginTop: '24px', 
+                borderRadius: '8px',
+                overflow: 'hidden'
+              }}>
+                <div style={{
+                  width: '100%',
+                  overflow: 'auto',
+                  border: '1px solid #f0f0f0',
+                  borderRadius: '8px'
+                }}>
+                  <iframe
+                    src={pdfUrl}
+                    style={{
+                      width: '100%',
+                      height: `1200px`,
+                      border: 'none',
+                    }}
+                    title="Analytics Report"
+                  />
+                </div>
+                <div style={{ 
+                  textAlign: 'right', 
+                  marginTop: '16px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center'
+                }}>
+                  <Text type="secondary" style={{ fontSize: '12px' }}>
+                    Scroll horizontally to view full document
+                  </Text>
                   <Button
                     type="link"
                     href={pdfUrl}
@@ -289,7 +334,7 @@ const ReportsTeam = () => {
                     download={`${reportType}_report_${period === 'custom' ? 'custom_range' : period}.pdf`}
                     style={{ fontWeight: 500 }}
                   >
-                    Download PDF
+                    <DownloadOutlined /> Download PDF
                   </Button>
                 </div>
               </div>
@@ -297,6 +342,22 @@ const ReportsTeam = () => {
           </Card>
         </Col>
       </Row>
+
+      <style>{`
+        @media (max-width: 768px) {
+          .responsive-text {
+            display: none;
+          }
+          .ant-btn .anticon {
+            margin-right: 0 !important;
+          }
+        }
+        @media (max-width: 576px) {
+          .pdf-container {
+            height: 400px;
+          }
+        }
+      `}</style>
     </div>
   );
 };

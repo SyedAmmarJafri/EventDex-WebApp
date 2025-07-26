@@ -52,7 +52,7 @@ const currencySymbol = authData?.currencySettings?.currencySymbol || '$';
 
 const ReportsSales = () => {
   const [loading, setLoading] = useState(false);
-  const [period, setPeriod] = useState('last7days');
+  const [period, setPeriod] = useState('last30days');
   const [dateRange, setDateRange] = useState([moment().subtract(7, 'days'), moment()]);
   const [analyticsData, setAnalyticsData] = useState(null);
 
@@ -343,13 +343,14 @@ const ReportsSales = () => {
       </div>
 
       <Card
+        className="card bg-white text-light"
         style={{ marginBottom: '24px', borderRadius: '12px' }}
         bodyStyle={{ padding: '16px 24px' }}
       >
         <Row gutter={[24, 16]}>
           <Col xs={24} md={8}>
             <div style={{ marginBottom: '16px' }}>
-              <Text strong style={{ display: 'block', marginBottom: '8px' }}>Period</Text>
+              <Text strong style={{ display: 'block', marginBottom: '8px' }} className="text-dark">Period</Text>
               <Select
                 style={{ width: '100%' }}
                 value={period}
@@ -367,11 +368,18 @@ const ReportsSales = () => {
           {period === 'custom' && (
             <Col xs={24} md={8}>
               <div style={{ marginBottom: '16px' }}>
-                <Text strong style={{ display: 'block', marginBottom: '8px' }}>Date Range</Text>
+                <Text strong style={{ display: 'block', marginBottom: '8px' }} className="text-dark">Date Range</Text>
                 <RangePicker
-                  style={{ width: '100%' }}
+                  style={{
+                    width: '100%',
+                    backgroundColor: 'white',
+                  }}
+                  inputStyle={{
+                    color: 'black',
+                    backgroundColor: 'white',
+                  }}
                   onChange={handleDateRangeChange}
-                  disabledDate={(current) => current && current > dayjs().endOf('day')}
+                  disabledDate={disabledDate}
                 />
               </div>
             </Col>
@@ -385,7 +393,7 @@ const ReportsSales = () => {
           padding: '80px 0',
           background: '#fff',
           borderRadius: '12px'
-        }}>
+        }} className="card bg-white text-light">
           <Spin size="large" tip="Loading sales analytics..." />
         </div>
       )}
@@ -395,6 +403,7 @@ const ReportsSales = () => {
           <Row gutter={[24, 24]} style={{ marginBottom: '24px' }}>
             <Col xs={24} sm={12} md={8}>
               <Card
+                className="card bg-white text-light"
                 bordered={false}
                 style={{
                   borderRadius: '12px',
@@ -413,26 +422,27 @@ const ReportsSales = () => {
                     alignItems: 'center',
                     justifyContent: 'center',
                     marginRight: '16px'
-                  }}>
+                  }} className="card bg-white text-light">
                     <DollarOutlined style={{ fontSize: '20px', color: '#0092ff' }} />
                   </div>
                   <div>
-                    <Text>Total Revenue</Text>
+                    <Text className="text-dark">Total Revenue</Text>
                     <Title level={3} style={{ margin: 0 }}>
                       {currencySymbol}{analyticsData.totalRevenue.toFixed(2)}
                     </Title>
                   </div>
                 </div>
-                <Divider style={{ margin: '12px 0' }} />
+                <Divider style={{ margin: '12px 0' }} className="card bg-white text-light" />
                 <div style={{ display: 'flex', alignItems: 'center' }}>
                   <ArrowUpOutlined style={{ color: '#10B981', fontSize: '16px', marginRight: '8px' }} />
-                  <Text>Compared to last period</Text>
+                  <Text className="text-dark">Compared to last period</Text>
                 </div>
               </Card>
             </Col>
 
             <Col xs={24} sm={12} md={8}>
               <Card
+                className="card bg-white text-light"
                 bordered={false}
                 style={{
                   borderRadius: '12px',
@@ -451,26 +461,27 @@ const ReportsSales = () => {
                     alignItems: 'center',
                     justifyContent: 'center',
                     marginRight: '16px'
-                  }}>
+                  }} className="card bg-white text-light">
                     <ShoppingCartOutlined style={{ fontSize: '20px', color: '#0092ff' }} />
                   </div>
                   <div>
-                    <Text>Total Orders</Text>
+                    <Text className="text-dark">Total Orders</Text>
                     <Title level={3} style={{ margin: 0 }}>
                       {analyticsData.totalOrders}
                     </Title>
                   </div>
                 </div>
-                <Divider style={{ margin: '12px 0' }} />
+                <Divider style={{ margin: '12px 0' }} className="card bg-white text-light" />
                 <div style={{ display: 'flex', alignItems: 'center' }}>
                   <ArrowUpOutlined style={{ color: '#10B981', fontSize: '16px', marginRight: '8px' }} />
-                  <Text>Compared to last period</Text>
+                  <Text className="text-dark">Compared to last period</Text>
                 </div>
               </Card>
             </Col>
 
             <Col xs={24} sm={12} md={8}>
               <Card
+                className="card bg-white text-light"
                 bordered={false}
                 style={{
                   borderRadius: '12px',
@@ -489,20 +500,20 @@ const ReportsSales = () => {
                     alignItems: 'center',
                     justifyContent: 'center',
                     marginRight: '16px'
-                  }}>
+                  }} className="card bg-white text-light">
                     <CreditCardOutlined style={{ fontSize: '20px', color: '#0092ff' }} />
                   </div>
                   <div>
-                    <Text>Avg. Order Value</Text>
+                    <Text className="text-dark">Avg. Order Value</Text>
                     <Title level={3} style={{ margin: 0 }}>
                       {currencySymbol}{analyticsData.averageOrderValue.toFixed(2)}
                     </Title>
                   </div>
                 </div>
-                <Divider style={{ margin: '12px 0' }} />
+                <Divider style={{ margin: '12px 0' }} className="card bg-white text-light" />
                 <div style={{ display: 'flex', alignItems: 'center' }}>
                   <ArrowUpOutlined style={{ color: '#10B981', fontSize: '16px', marginRight: '8px' }} />
-                  <Text>Compared to last period</Text>
+                  <Text className="text-dark">Compared to last period</Text>
                 </div>
               </Card>
             </Col>
@@ -511,7 +522,8 @@ const ReportsSales = () => {
           <Row gutter={[24, 24]} style={{ marginBottom: '24px' }}>
             <Col xs={24} lg={12}>
               <Card
-                title={<Text strong style={{ fontSize: '16px' }}>Daily Sales</Text>}
+                className="card bg-white text-light"
+                title={<Text strong style={{ fontSize: '16px' }} className="text-dark">Daily Sales</Text>}
                 bordered={false}
                 style={{
                   borderRadius: '12px',
@@ -554,7 +566,8 @@ const ReportsSales = () => {
 
             <Col xs={24} lg={12}>
               <Card
-                title={<Text strong style={{ fontSize: '16px' }}>Sales by Payment Method</Text>}
+                className="card bg-white text-light"
+                title={<Text strong style={{ fontSize: '16px' }} className="text-dark">Sales by Payment Method</Text>}
                 bordered={false}
                 style={{
                   borderRadius: '12px',
@@ -606,7 +619,8 @@ const ReportsSales = () => {
           <Row gutter={[24, 24]} style={{ marginBottom: '24px' }}>
             <Col xs={24} lg={12}>
               <Card
-                title={<Text strong style={{ fontSize: '16px' }}>Sales by Order Type</Text>}
+                className="card bg-white text-light"
+                title={<Text strong style={{ fontSize: '16px' }} className="text-dark">Sales by Order Type</Text>}
                 bordered={false}
                 style={{
                   borderRadius: '12px',
@@ -655,7 +669,8 @@ const ReportsSales = () => {
 
             <Col xs={24} lg={12}>
               <Card
-                title={<Text strong style={{ fontSize: '16px' }}>Hourly Sales Pattern</Text>}
+                className="card bg-white text-light"
+                title={<Text strong style={{ fontSize: '16px' }} className="text-dark">Hourly Sales Pattern</Text>}
                 bordered={false}
                 style={{
                   borderRadius: '12px',
@@ -708,7 +723,8 @@ const ReportsSales = () => {
           <Row gutter={[24, 24]}>
             <Col xs={24}>
               <Card
-                title={<Text strong style={{ fontSize: '16px' }}>Daily Sales Breakdown</Text>}
+                className="card bg-white text-light"
+                title={<Text strong style={{ fontSize: '16px' }} className="text-dark">Daily Sales Breakdown</Text>}
                 bordered={false}
                 style={{
                   borderRadius: '12px',

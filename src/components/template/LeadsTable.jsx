@@ -11,28 +11,28 @@ import Modal from 'react-bootstrap/Modal';
 
 // Initialize IndexedDB
 const initIndexedDB = () => {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open('MarketingDB', 2);
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open('MarketingDB', 2);
 
-    request.onerror = (event) => {
-      console.error('IndexedDB error:', event.target.error);
-      reject('Failed to open IndexedDB');
-    };
+        request.onerror = (event) => {
+            console.error('IndexedDB error:', event.target.error);
+            reject('Failed to open IndexedDB');
+        };
 
-    request.onsuccess = (event) => {
-      resolve(event.target.result);
-    };
+        request.onsuccess = (event) => {
+            resolve(event.target.result);
+        };
 
-    request.onupgradeneeded = (event) => {
-      const db = event.target.result;
-      if (!db.objectStoreNames.contains('templates')) {
-        db.createObjectStore('templates', { keyPath: 'id' });
-      }
-      if (!db.objectStoreNames.contains('emailConfig')) {
-        db.createObjectStore('emailConfig', { keyPath: 'id' });
-      }
-    };
-  });
+        request.onupgradeneeded = (event) => {
+            const db = event.target.result;
+            if (!db.objectStoreNames.contains('templates')) {
+                db.createObjectStore('templates', { keyPath: 'id' });
+            }
+            if (!db.objectStoreNames.contains('emailConfig')) {
+                db.createObjectStore('emailConfig', { keyPath: 'id' });
+            }
+        };
+    });
 };
 
 const TemplatesTable = () => {
@@ -87,12 +87,12 @@ const TemplatesTable = () => {
     const loadInitialData = async (database) => {
         try {
             setLoading(true);
-            
+
             // Check if we have cached templates
             const cachedTemplates = await getFromIndexedDB(database, 'templates');
             if (cachedTemplates && cachedTemplates.length > 0) {
                 setTemplates(cachedTemplates);
-                
+
                 // Check if data is stale (older than 1 hour)
                 const lastSync = localStorage.getItem('templatesLastSync') || 0;
                 if (Date.now() - lastSync > 3600000) {
@@ -101,7 +101,7 @@ const TemplatesTable = () => {
             } else {
                 await fetchTemplatesFromAPI(database);
             }
-            
+
             // Load email config
             const cachedConfig = await getFromIndexedDB(database, 'emailConfig', 'config');
             if (cachedConfig) {
@@ -125,13 +125,13 @@ const TemplatesTable = () => {
         return new Promise((resolve) => {
             const transaction = database.transaction([storeName], 'readonly');
             const store = transaction.objectStore(storeName);
-            
+
             const request = key ? store.get(key) : store.getAll();
-            
+
             request.onsuccess = () => {
                 resolve(request.result);
             };
-            
+
             request.onerror = () => {
                 resolve(null);
             };
@@ -143,7 +143,7 @@ const TemplatesTable = () => {
         return new Promise((resolve) => {
             const transaction = database.transaction([storeName], 'readwrite');
             const store = transaction.objectStore(storeName);
-            
+
             if (key) {
                 store.put({ ...data, id: key });
             } else {
@@ -151,11 +151,11 @@ const TemplatesTable = () => {
                 store.clear();
                 data.forEach(item => store.put(item));
             }
-            
+
             transaction.oncomplete = () => {
                 resolve(true);
             };
-            
+
             transaction.onerror = () => {
                 resolve(false);
             };
@@ -222,7 +222,7 @@ const TemplatesTable = () => {
                 fromEmail: data.fromEmail,
                 appPassword: ''
             });
-            
+
             if (database) {
                 await saveToIndexedDB(database, 'emailConfig', data, 'config');
             }
@@ -402,14 +402,14 @@ const TemplatesTable = () => {
             }
 
             toast.success('Email configuration updated successfully');
-            
+
             // Update local state and IndexedDB
             const newConfig = { fromEmail: emailConfig.fromEmail };
             setEmailConfig(prev => ({ ...prev, appPassword: '' }));
             if (db) {
                 await saveToIndexedDB(db, 'emailConfig', newConfig, 'config');
             }
-            
+
             setIsConfigModalOpen(false);
         } catch (err) {
             toast.error(err.message);
@@ -438,14 +438,14 @@ const TemplatesTable = () => {
             }
 
             toast.success('Template created successfully');
-            
+
             // Update local state and IndexedDB
             const updatedTemplates = [...templates, data];
             setTemplates(updatedTemplates);
             if (db) {
                 await saveToIndexedDB(db, 'templates', updatedTemplates);
             }
-            
+
             setIsModalOpen(false);
             setNewTemplate({
                 name: '',
@@ -484,16 +484,16 @@ const TemplatesTable = () => {
             }
 
             toast.success('Template updated successfully');
-            
+
             // Update local state and IndexedDB
-            const updatedTemplates = templates.map(t => 
+            const updatedTemplates = templates.map(t =>
                 t.id === editTemplate.id ? data : t
             );
             setTemplates(updatedTemplates);
             if (db) {
                 await saveToIndexedDB(db, 'templates', updatedTemplates);
             }
-            
+
             setIsEditModalOpen(false);
             setEditActiveTab('edit');
         } catch (err) {
@@ -524,7 +524,7 @@ const TemplatesTable = () => {
     const handleDeleteTemplate = async () => {
         try {
             const authData = JSON.parse(localStorage.getItem("authData"));
-            
+
             // Optimistically update the UI
             const updatedTemplates = templates.filter(t => t.id !== templateToDelete.id);
             setTemplates(updatedTemplates);
@@ -656,13 +656,13 @@ const TemplatesTable = () => {
                 theme="colored"
             />
 
-            <div className="d-flex justify-content-between align-items-center mb-4">
-                <h4>Marketing Templates</h4>
-                <div className="d-flex gap-2">
+            <div className="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4 gap-3">
+                <h4 className="mb-0 me-md-3">Marketing Templates</h4>
+                <div className="ms-auto d-flex flex-column flex-sm-row gap-2">
                     <Button
                         variant="contained"
                         onClick={handleOpenConfigModal}
-                        className="d-flex align-items-center gap-2"
+                        className="d-flex align-items-center gap-2 justify-content-center"
                         style={{ backgroundColor: '#0092ff', color: 'white' }}
                     >
                         <FiMail /> Email Configure
@@ -672,7 +672,7 @@ const TemplatesTable = () => {
                         href="https://www.google.com"
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="d-flex align-items-center gap-2"
+                        className="d-flex align-items-center gap-2 justify-content-center"
                         style={{ backgroundColor: '#0092ff', color: 'white' }}
                     >
                         <FiBook /> Template Library
@@ -680,7 +680,7 @@ const TemplatesTable = () => {
                     <Button
                         variant="contained"
                         onClick={() => setIsModalOpen(true)}
-                        className="d-flex align-items-center gap-2"
+                        className="d-flex align-items-center gap-2 justify-content-center"
                         style={{ backgroundColor: '#0092ff', color: 'white' }}
                     >
                         <FiPlus /> Add Template
@@ -738,13 +738,9 @@ const TemplatesTable = () => {
                         </div>
                         <div className="mb-3">
                             <label htmlFor="content" className="form-label">Content</label>
-                            <h8 className="form-text mb-2">
-                                HTML code is supported. Switch between tabs to edit and preview.
-                            </h8>
-                            
                             <ul className="nav nav-tabs mb-3">
                                 <li className="nav-item">
-                                    <button 
+                                    <button
                                         className={`nav-link ${activeTab === 'edit' ? 'active' : ''}`}
                                         onClick={handleTabChange('edit')}
                                         type="button"
@@ -753,7 +749,7 @@ const TemplatesTable = () => {
                                     </button>
                                 </li>
                                 <li className="nav-item">
-                                    <button 
+                                    <button
                                         className={`nav-link ${activeTab === 'preview' ? 'active' : ''}`}
                                         onClick={handleTabChange('preview')}
                                         type="button"
@@ -762,7 +758,7 @@ const TemplatesTable = () => {
                                     </button>
                                 </li>
                             </ul>
-                            
+
                             {activeTab === 'edit' ? (
                                 <textarea
                                     className={`form-control ${formErrors.content ? 'is-invalid' : ''}`}
@@ -770,11 +766,11 @@ const TemplatesTable = () => {
                                     name="content"
                                     value={newTemplate.content}
                                     onChange={handleInputChange}
-                                    rows="10"
+                                    rows="7"
                                 />
                             ) : (
-                                <div 
-                                    className="border p-3 bg-light" 
+                                <div
+                                    className="border p-3 bg-light"
                                     style={{ minHeight: '200px' }}
                                     dangerouslySetInnerHTML={{ __html: newTemplate.content }}
                                 />
@@ -782,6 +778,9 @@ const TemplatesTable = () => {
                             {formErrors.content && <div className="invalid-feedback">{formErrors.content}</div>}
                         </div>
                     </form>
+                    <h8 className="form-text mb-2">
+                        HTML code is supported. Switch between tabs to edit and preview.
+                    </h8>
                 </Modal.Body>
                 <Modal.Footer>
                     <Button
@@ -831,13 +830,9 @@ const TemplatesTable = () => {
                         </div>
                         <div className="mb-3">
                             <label htmlFor="edit-content" className="form-label">Content</label>
-                            <h8 className="form-text mb-2">
-                                HTML code is supported. Switch between tabs to edit and preview.
-                            </h8>
-                            
                             <ul className="nav nav-tabs mb-3">
                                 <li className="nav-item">
-                                    <button 
+                                    <button
                                         className={`nav-link ${editActiveTab === 'edit' ? 'active' : ''}`}
                                         onClick={handleEditTabChange('edit')}
                                         type="button"
@@ -846,7 +841,7 @@ const TemplatesTable = () => {
                                     </button>
                                 </li>
                                 <li className="nav-item">
-                                    <button 
+                                    <button
                                         className={`nav-link ${editActiveTab === 'preview' ? 'active' : ''}`}
                                         onClick={handleEditTabChange('preview')}
                                         type="button"
@@ -855,7 +850,7 @@ const TemplatesTable = () => {
                                     </button>
                                 </li>
                             </ul>
-                            
+
                             {editActiveTab === 'edit' ? (
                                 <textarea
                                     className={`form-control ${editFormErrors.content ? 'is-invalid' : ''}`}
@@ -863,11 +858,11 @@ const TemplatesTable = () => {
                                     name="content"
                                     value={editTemplate.content}
                                     onChange={handleEditInputChange}
-                                    rows="10"
+                                    rows="7"
                                 />
                             ) : (
-                                <div 
-                                    className="border p-3 bg-light" 
+                                <div
+                                    className="border p-3 bg-light"
                                     style={{ minHeight: '200px' }}
                                     dangerouslySetInnerHTML={{ __html: editTemplate.content }}
                                 />
@@ -875,6 +870,9 @@ const TemplatesTable = () => {
                             {editFormErrors.content && <div className="invalid-feedback">{editFormErrors.content}</div>}
                         </div>
                     </form>
+                    <h8 className="form-text mb-2">
+                        HTML code is supported. Switch between tabs to edit and preview.
+                    </h8>
                 </Modal.Body>
                 <Modal.Footer>
                     <Button
@@ -905,8 +903,8 @@ const TemplatesTable = () => {
                             </div>
                             <div className="mb-4">
                                 <h5>Content</h5>
-                                <div 
-                                    className="border p-3 bg-light" 
+                                <div
+                                    className="border p-3 bg-light"
                                     style={{ minHeight: '200px' }}
                                     dangerouslySetInnerHTML={{ __html: selectedTemplate.content }}
                                 />

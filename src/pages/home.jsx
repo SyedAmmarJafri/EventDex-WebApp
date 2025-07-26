@@ -228,12 +228,13 @@ const Dashboard = () => {
     };
 
     const orderStatusColors = {
-        CREATED: 'blue',
-        COMPLETED: 'green',
-        DELIVERED: 'cyan',
-        ACCEPTED: 'purple',
-        ASSIGNED: 'orange',
-        PENDING: 'gold'
+        CREATED: '#000000ff',
+        COMPLETED: '#0abe00ff',
+        DELIVERED: '#10b981',
+        ACCEPTED: '#0092ff',
+        ASSIGNED: '#e802cdff',
+        PENDING: '#6a6a6aff',
+        REJECTED: '#b10101ff'
     };
 
     const recentOrdersColumns = [
@@ -359,7 +360,7 @@ const Dashboard = () => {
                     fontWeight: 600,
                     color: '#111827'
                 }}>
-                    Dashboard Overview
+                    Dashboard
                 </Title>
                 <Button
                     type="primary"
@@ -390,42 +391,42 @@ const Dashboard = () => {
 
             {dashboardData && (
                 <>
-                    <Row gutter={[24, 24]} style={{ marginBottom: '24px' }}>
+                    <Row gutter={[16, 16]} style={{ marginBottom: '16px' }}>
                         <Col xs={24} sm={12} md={8} lg={6}>
                             <Card
                                 className="card bg-white text-light"
                                 bordered={false}
                                 style={{
-                                    borderRadius: '12px',
-                                    boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                                    borderRadius: '8px',
+                                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
                                     height: '100%'
                                 }}
-                                bodyStyle={{ padding: '20px' }}
+                                bodyStyle={{ padding: '12px' }}
                             >
-                                <div style={{ display: 'flex', alignItems: 'center', marginBottom: '16px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
                                     <div style={{
-                                        width: '48px',
-                                        height: '48px',
+                                        width: '36px',
+                                        height: '36px',
                                         background: '#ECFDF5',
-                                        borderRadius: '12px',
+                                        borderRadius: '8px',
                                         display: 'flex',
                                         alignItems: 'center',
                                         justifyContent: 'center',
-                                        marginRight: '16px'
+                                        marginRight: '12px'
                                     }} className="card bg-white text-light">
-                                        <DollarOutlined style={{ fontSize: '20px', color: '#0092ff' }} />
+                                        <DollarOutlined style={{ fontSize: '16px', color: '#0092ff' }} />
                                     </div>
                                     <div>
-                                        <Text className="text-dark">Today's Revenue</Text>
-                                        <Title level={3} style={{ margin: 0 }}>
+                                        <Text className="text-dark" style={{ fontSize: '12px' }}>Today's Revenue</Text>
+                                        <Title level={4} style={{ margin: 0, fontSize: '18px' }}>
                                             {currencySymbol}{dashboardData.todayRevenue.toFixed(2)}
                                         </Title>
                                     </div>
                                 </div>
-                                <Divider style={{ margin: '12px 0' }} className="card bg-white text-light" />
+                                <Divider style={{ margin: '8px 0' }} className="card bg-white text-light" />
                                 <div style={{ display: 'flex', alignItems: 'center' }}>
-                                    <ArrowUpOutlined style={{ color: '#10B981', fontSize: '16px', marginRight: '8px' }} />
-                                    <Text className="text-dark">Total: {currencySymbol}{dashboardData.totalRevenue.toFixed(2)}</Text>
+                                    <ArrowUpOutlined style={{ color: '#10B981', fontSize: '12px', marginRight: '6px' }} />
+                                    <Text className="text-dark" style={{ fontSize: '12px' }}>Total: {currencySymbol}{dashboardData.totalRevenue.toFixed(2)}</Text>
                                 </div>
                             </Card>
                         </Col>
@@ -435,36 +436,36 @@ const Dashboard = () => {
                                 className="card bg-white text-light"
                                 bordered={false}
                                 style={{
-                                    borderRadius: '12px',
-                                    boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                                    borderRadius: '8px',
+                                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
                                     height: '100%'
                                 }}
-                                bodyStyle={{ padding: '20px' }}
+                                bodyStyle={{ padding: '12px' }}
                             >
-                                <div style={{ display: 'flex', alignItems: 'center', marginBottom: '16px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
                                     <div style={{
-                                        width: '48px',
-                                        height: '48px',
+                                        width: '36px',
+                                        height: '36px',
                                         background: '#ECFDF5',
-                                        borderRadius: '12px',
+                                        borderRadius: '8px',
                                         display: 'flex',
                                         alignItems: 'center',
                                         justifyContent: 'center',
-                                        marginRight: '16px'
+                                        marginRight: '12px'
                                     }} className="card bg-white text-light">
-                                        <ShoppingCartOutlined style={{ fontSize: '20px', color: '#0092ff' }} />
+                                        <ShoppingCartOutlined style={{ fontSize: '16px', color: '#0092ff' }} />
                                     </div>
                                     <div>
-                                        <Text className="text-dark">Today's Orders</Text>
-                                        <Title level={3} style={{ margin: 0 }}>
+                                        <Text className="text-dark" style={{ fontSize: '12px' }}>Today's Orders</Text>
+                                        <Title level={4} style={{ margin: 0, fontSize: '18px' }}>
                                             {dashboardData.todayOrders}
                                         </Title>
                                     </div>
                                 </div>
-                                <Divider style={{ margin: '12px 0' }} className="card bg-white text-light" />
+                                <Divider style={{ margin: '8px 0' }} className="card bg-white text-light" />
                                 <div style={{ display: 'flex', alignItems: 'center' }}>
-                                    <ArrowUpOutlined style={{ color: '#10B981', fontSize: '16px', marginRight: '8px' }} />
-                                    <Text className="text-dark">Total: {dashboardData.totalOrders}</Text>
+                                    <ArrowUpOutlined style={{ color: '#10B981', fontSize: '12px', marginRight: '6px' }} />
+                                    <Text className="text-dark" style={{ fontSize: '12px' }}>Total: {dashboardData.totalOrders}</Text>
                                 </div>
                             </Card>
                         </Col>
@@ -474,36 +475,36 @@ const Dashboard = () => {
                                 className="card bg-white text-light"
                                 bordered={false}
                                 style={{
-                                    borderRadius: '12px',
-                                    boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                                    borderRadius: '8px',
+                                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
                                     height: '100%'
                                 }}
-                                bodyStyle={{ padding: '20px' }}
+                                bodyStyle={{ padding: '12px' }}
                             >
-                                <div style={{ display: 'flex', alignItems: 'center', marginBottom: '16px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
                                     <div style={{
-                                        width: '48px',
-                                        height: '48px',
+                                        width: '36px',
+                                        height: '36px',
                                         background: '#ECFDF5',
-                                        borderRadius: '12px',
+                                        borderRadius: '8px',
                                         display: 'flex',
                                         alignItems: 'center',
                                         justifyContent: 'center',
-                                        marginRight: '16px'
+                                        marginRight: '12px'
                                     }} className="card bg-white text-light">
-                                        <UserOutlined style={{ fontSize: '20px', color: '#0092ff' }} />
+                                        <UserOutlined style={{ fontSize: '16px', color: '#0092ff' }} />
                                     </div>
                                     <div>
-                                        <Text className="text-dark">Today's Customers</Text>
-                                        <Title level={3} style={{ margin: 0 }}>
+                                        <Text className="text-dark" style={{ fontSize: '12px' }}>Today's Customers</Text>
+                                        <Title level={4} style={{ margin: 0, fontSize: '18px' }}>
                                             {dashboardData.todayCustomers}
                                         </Title>
                                     </div>
                                 </div>
-                                <Divider style={{ margin: '12px 0' }} className="card bg-white text-light" />
+                                <Divider style={{ margin: '8px 0' }} className="card bg-white text-light" />
                                 <div style={{ display: 'flex', alignItems: 'center' }}>
-                                    <ArrowUpOutlined style={{ color: '#10B981', fontSize: '16px', marginRight: '8px' }} />
-                                    <Text className="text-dark">Total: {dashboardData.totalCustomers}</Text>
+                                    <ArrowUpOutlined style={{ color: '#10B981', fontSize: '12px', marginRight: '6px' }} />
+                                    <Text className="text-dark" style={{ fontSize: '12px' }}>Total: {dashboardData.totalCustomers}</Text>
                                 </div>
                             </Card>
                         </Col>
@@ -513,66 +514,66 @@ const Dashboard = () => {
                                 className="card bg-white text-light"
                                 bordered={false}
                                 style={{
-                                    borderRadius: '12px',
-                                    boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                                    borderRadius: '8px',
+                                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
                                     height: '100%'
                                 }}
-                                bodyStyle={{ padding: '20px' }}
+                                bodyStyle={{ padding: '12px' }}
                             >
-                                <div style={{ display: 'flex', alignItems: 'center', marginBottom: '16px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
                                     <div style={{
-                                        width: '48px',
-                                        height: '48px',
+                                        width: '36px',
+                                        height: '36px',
                                         background: '#ECFDF5',
-                                        borderRadius: '12px',
+                                        borderRadius: '8px',
                                         display: 'flex',
                                         alignItems: 'center',
                                         justifyContent: 'center',
-                                        marginRight: '16px'
+                                        marginRight: '12px'
                                     }} className="card bg-white text-light">
-                                        <DollarOutlined style={{ fontSize: '20px', color: '#0092ff' }} />
+                                        <DollarOutlined style={{ fontSize: '16px', color: '#0092ff' }} />
                                     </div>
                                     <div>
-                                        <Text className="text-dark">Avg. Order Value</Text>
-                                        <Title level={3} style={{ margin: 0 }}>
+                                        <Text className="text-dark" style={{ fontSize: '12px' }}>Avg. Order Value</Text>
+                                        <Title level={4} style={{ margin: 0, fontSize: '18px' }}>
                                             {currencySymbol}{dashboardData.averageOrderValue.toFixed(2)}
                                         </Title>
                                     </div>
                                 </div>
-                                <Divider style={{ margin: '12px 0' }} className="card bg-white text-light" />
+                                <Divider style={{ margin: '8px 0' }} className="card bg-white text-light" />
                                 <div style={{ display: 'flex', alignItems: 'center' }}>
-                                    <ArrowUpOutlined style={{ color: '#10B981', fontSize: '16px', marginRight: '8px' }} />
-                                    <Text className="text-dark">Products: {dashboardData.activeProducts}</Text>
+                                    <ArrowUpOutlined style={{ color: '#10B981', fontSize: '12px', marginRight: '6px' }} />
+                                    <Text className="text-dark" style={{ fontSize: '12px' }}>Products: {dashboardData.activeProducts}</Text>
                                 </div>
                             </Card>
                         </Col>
                     </Row>
 
-                    <Row gutter={[24, 24]} style={{ marginBottom: '24px' }}>
+                    <Row gutter={[16, 16]} style={{ marginBottom: '16px' }}>
                         <Col xs={24} lg={12}>
                             <Card
                                 className="card bg-white text-light"
-                                title={<Text strong style={{ fontSize: '16px' }} className="text-dark">Order Status Distribution</Text>}
+                                title={<Text strong style={{ fontSize: '14px' }} className="text-dark">Order Status Distribution</Text>}
                                 bordered={false}
                                 style={{
-                                    borderRadius: '12px',
-                                    boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+                                    borderRadius: '8px',
+                                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
                                 }}
-                                bodyStyle={{ padding: '16px 0' }}
+                                bodyStyle={{ padding: '12px 0' }}
                                 extra={
-                                    <Tag color="#0092ff">
+                                    <Tag color="#0092ff" style={{ fontSize: '12px' }}>
                                         {moment().format('MMM D, YYYY')}
                                     </Tag>
                                 }
                             >
-                                <ResponsiveContainer width="100%" height={350}>
+                                <ResponsiveContainer width="100%" height={280}>
                                     <PieChart>
                                         <Pie
                                             data={formatOrderStatusData()}
                                             cx="50%"
                                             cy="50%"
-                                            innerRadius={60}
-                                            outerRadius={90}
+                                            innerRadius={50}
+                                            outerRadius={80}
                                             paddingAngle={2}
                                             dataKey="value"
                                             nameKey="name"
@@ -587,7 +588,8 @@ const Dashboard = () => {
                                             align="right"
                                             verticalAlign="middle"
                                             iconType="circle"
-                                            iconSize={10}
+                                            iconSize={8}
+                                            wrapperStyle={{ fontSize: '12px' }}
                                         />
                                     </PieChart>
                                 </ResponsiveContainer>
@@ -597,16 +599,16 @@ const Dashboard = () => {
                         <Col xs={24} lg={12}>
                             <Card
                                 className="card bg-white text-light"
-                                title={<Text strong style={{ fontSize: '16px' }} className="text-dark">Recent Orders</Text>}
+                                title={<Text strong style={{ fontSize: '14px' }} className="text-dark">Recent Orders</Text>}
                                 bordered={false}
                                 style={{
-                                    borderRadius: '12px',
-                                    boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                                    borderRadius: '8px',
+                                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
                                     height: '100%'
                                 }}
-                                bodyStyle={{ padding: '16px 0' }}
+                                bodyStyle={{ padding: '12px 0' }}
                                 extra={
-                                    <Tag color="#0092ff">
+                                    <Tag color="#0092ff" style={{ fontSize: '12px' }}>
                                         Last 10 Orders
                                     </Tag>
                                 }
@@ -614,24 +616,26 @@ const Dashboard = () => {
                                 <CustomTable
                                     columns={recentOrdersColumns}
                                     data={dashboardData.recentOrders}
+                                    scroll={{ y: 240 }}
+                                    size="small"
                                 />
                             </Card>
                         </Col>
                     </Row>
 
-                    <Row gutter={[24, 24]}>
+                    <Row gutter={[16, 16]}>
                         <Col xs={24} lg={12}>
                             <Card
                                 className="card bg-white text-light"
-                                title={<Text strong style={{ fontSize: '16px' }} className="text-dark">Top Selling Items</Text>}
+                                title={<Text strong style={{ fontSize: '14px' }} className="text-dark">Top Selling Items</Text>}
                                 bordered={false}
                                 style={{
-                                    borderRadius: '12px',
-                                    boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+                                    borderRadius: '8px',
+                                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
                                 }}
-                                bodyStyle={{ padding: '16px 0' }}
+                                bodyStyle={{ padding: '12px 0' }}
                                 extra={
-                                    <Tag color="#0abe00ff" icon={<FireOutlined />}>
+                                    <Tag color="#0abe00ff" icon={<FireOutlined style={{ fontSize: '12px' }} />} style={{ fontSize: '12px' }}>
                                         Best Sellers
                                     </Tag>
                                 }
@@ -639,6 +643,9 @@ const Dashboard = () => {
                                 <CustomTable
                                     columns={topSellingColumns}
                                     data={dashboardData.topSellingItems}
+                                    size="small"
+                                    scroll={{ y: 240 }}
+                                    pagination={false}
                                 />
                             </Card>
                         </Col>
@@ -646,15 +653,15 @@ const Dashboard = () => {
                         <Col xs={24} lg={12}>
                             <Card
                                 className="card bg-white text-light"
-                                title={<Text strong style={{ fontSize: '16px' }} className="text-dark">Low Stock Items</Text>}
+                                title={<Text strong style={{ fontSize: '14px' }} className="text-dark">Low Stock Items</Text>}
                                 bordered={false}
                                 style={{
-                                    borderRadius: '12px',
-                                    boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+                                    borderRadius: '8px',
+                                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
                                 }}
-                                bodyStyle={{ padding: '16px 0' }}
+                                bodyStyle={{ padding: '12px 0' }}
                                 extra={
-                                    <Tag color="#c30000ff" icon={<WarningOutlined />}>
+                                    <Tag color="#c30000ff" icon={<WarningOutlined style={{ fontSize: '12px' }} />} style={{ fontSize: '12px' }}>
                                         Needs Restocking
                                     </Tag>
                                 }
@@ -662,6 +669,9 @@ const Dashboard = () => {
                                 <CustomTable
                                     columns={lowStockColumns}
                                     data={dashboardData.lowStockItems}
+                                    size="small"
+                                    scroll={{ y: 240 }}
+                                    pagination={false}
                                 />
                             </Card>
                         </Col>

@@ -8,6 +8,7 @@ import 'react-loading-skeleton/dist/skeleton.css';
 import Button from 'react-bootstrap/Button';
 import Form from 'react-bootstrap/Form';
 import Spinner from 'react-bootstrap/Spinner';
+import { Card } from 'react-bootstrap';
 
 const MarketingTable = () => {
     const [customers, setCustomers] = useState([]);
@@ -499,59 +500,74 @@ const MarketingTable = () => {
                 theme="colored"
             />
 
-            <div className="d-flex justify-content-between align-items-center mb-4">
-                <h4>Marketing</h4>
+            <div className="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4 gap-3">
+                <h4 className="mb-0">Marketing</h4>
                 {selectedRows.length > 0 && (
-                    <div className="d-flex align-items-center gap-3">
-                        <span className="text-muted">{selectedRows.length} selected</span>
-                        <Form.Select
-                            size="sm"
-                            style={{ width: '200px' }}
-                            value={selectedTemplate}
-                            onChange={handleTemplateChange}
-                            disabled={isSending}
-                        >
-                            <option value="">Select Template</option>
-                            {templates.map(template => (
-                                <option key={template.id} value={template.id}>
-                                    {template.name}
-                                </option>
-                            ))}
-                        </Form.Select>
-                        <Button
-                            variant="primary"
-                            size="sm"
-                            onClick={handleSendCampaign}
-                            disabled={!selectedTemplate || isSending}
-                        >
-                            {isSending ? (
-                                <>
-                                    <Spinner
-                                        as="span"
-                                        animation="border"
+                    <Card className="mb-4 w-100" style={{ maxWidth: '800px' }}>
+                        <Card.Body className="p-2 p-sm-3">
+                            <div className="d-flex flex-column flex-sm-row align-items-stretch align-items-sm-center gap-2 w-100">
+                                <span className="text-muted text-center text-sm-start">
+                                    {selectedRows.length} selected
+                                </span>
+
+                                <div className="d-flex flex-column flex-md-row gap-2 flex-grow-1">
+                                    <Form.Select
                                         size="sm"
-                                        role="status"
-                                        aria-hidden="true"
-                                        className="me-2"
-                                    />
-                                    Sending...
-                                </>
-                            ) : (
-                                'Send Campaign'
-                            )}
-                        </Button>
-                        <Button
-                            variant="outline-secondary"
-                            size="sm"
-                            onClick={() => setSelectedRows([])}
-                            disabled={isSending}
-                        >
-                            Clear Selection
-                        </Button>
-                    </div>
+                                        className="flex-grow-1"
+                                        style={{ minWidth: '150px' }}
+                                        value={selectedTemplate}
+                                        onChange={handleTemplateChange}
+                                        disabled={isSending}
+                                    >
+                                        <option value="">Select Template</option>
+                                        {templates.map(template => (
+                                            <option key={template.id} value={template.id}>
+                                                {template.name}
+                                            </option>
+                                        ))}
+                                    </Form.Select>
+
+                                    <div className="d-flex gap-2">
+                                        <Button
+                                            variant="primary"
+                                            size="sm"
+                                            onClick={handleSendCampaign}
+                                            disabled={!selectedTemplate || isSending}
+                                            className="flex-grow-1 flex-md-grow-0"
+                                        >
+                                            {isSending ? (
+                                                <>
+                                                    <Spinner
+                                                        as="span"
+                                                        animation="border"
+                                                        size="sm"
+                                                        role="status"
+                                                        aria-hidden="true"
+                                                        className="me-2"
+                                                    />
+                                                    Sending...
+                                                </>
+                                            ) : (
+                                                'Send Campaign'
+                                            )}
+                                        </Button>
+
+                                        <Button
+                                            variant="outline-secondary"
+                                            size="sm"
+                                            onClick={() => setSelectedRows([])}
+                                            disabled={isSending}
+                                            className="flex-grow-1 flex-md-grow-0"
+                                        >
+                                            Clear Selection
+                                        </Button>
+                                    </div>
+                                </div>
+                            </div>
+                        </Card.Body>
+                    </Card>
                 )}
             </div>
-
             {loading ? (
                 <SkeletonLoader />
             ) : customers.length === 0 ? (

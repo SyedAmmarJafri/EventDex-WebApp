@@ -11,7 +11,8 @@ import {
   Button,
   Tag,
   Divider,
-  Badge
+  Badge,
+  Select
 } from 'antd';
 import {
   BarChart,
@@ -41,6 +42,7 @@ import {
 import { BASE_URL } from '/src/constants.js';
 
 const { RangePicker } = DatePicker;
+const { Option } = Select;
 const { Title, Text } = Typography;
 
 const COLORS = ['#005ece', '#0092ff', '#EC4899', '#F43F5E', '#F59E0B', '#10B981'];
@@ -160,12 +162,13 @@ const CustomTable = ({ data, columns, summary }) => {
 
 const ReportsFinancial = () => {
   const [loading, setLoading] = useState(false);
+  const [period, setPeriod] = useState('last30days');
   const [dateRange, setDateRange] = useState([moment().startOf('month'), moment().endOf('month')]);
   const [analyticsData, setAnalyticsData] = useState(null);
 
   useEffect(() => {
     fetchAnalyticsData();
-  }, []);
+  }, [period, dateRange]);
 
   const fetchAnalyticsData = async () => {
     try {
@@ -177,12 +180,16 @@ const ReportsFinancial = () => {
         return;
       }
 
-      const [startDate, endDate] = dateRange;
-      const params = {
-        period: 'custom',
-        startDate: startDate.format('YYYY-MM-DD'),
-        endDate: endDate.format('YYYY-MM-DD')
-      };
+      let params = { period };
+
+      if (period === 'custom') {
+        const [startDate, endDate] = dateRange;
+        params = {
+          ...params,
+          startDate: startDate.format('YYYY-MM-DD'),
+          endDate: endDate.format('YYYY-MM-DD')
+        };
+      }
 
       const response = await axios.get(`${BASE_URL}/api/client-admin/analytics/financial`, {
         params,
@@ -200,11 +207,41 @@ const ReportsFinancial = () => {
     }
   };
 
-  const handleDateChange = (dates) => {
+  const handlePeriodChange = (value) => {
+    setPeriod(value);
+    // Set default date ranges for each period
+    switch (value) {
+      case 'today':
+        setDateRange([moment(), moment()]);
+        break;
+      case 'yesterday':
+        setDateRange([moment().subtract(1, 'days'), moment().subtract(1, 'days')]);
+        break;
+      case 'last7days':
+        setDateRange([moment().subtract(7, 'days'), moment()]);
+        break;
+      case 'last30days':
+        setDateRange([moment().subtract(30, 'days'), moment()]);
+        break;
+      case 'thismonth':
+        setDateRange([moment().startOf('month'), moment().endOf('month')]);
+        break;
+      case 'lastmonth':
+        setDateRange([moment().subtract(1, 'month').startOf('month'), moment().subtract(1, 'month').endOf('month')]);
+        break;
+      default:
+        // For custom, keep the existing range
+        break;
+    }
+  };
+
+  const handleDateRangeChange = (dates) => {
     if (dates) {
       setDateRange(dates);
+      setPeriod('custom');
     } else {
       setDateRange([moment().startOf('month'), moment().endOf('month')]);
+      setPeriod('thismonth');
     }
   };
 
@@ -392,37 +429,67 @@ const ReportsFinancial = () => {
         }}>
           Financial Analytics
         </Title>
-        <Space>
-          <RangePicker
-            value={dateRange}
-            onChange={handleDateChange}
-            disabledDate={disabledDate}
-            size="middle"
-            style={{ width: '280px' }}
-            allowClear={false}
-            ranges={{
-              'Today': [moment(), moment()],
-              'This Week': [moment().startOf('week'), moment().endOf('week')],
-              'This Month': [moment().startOf('month'), moment().endOf('month')],
-              'Last Month': [moment().subtract(1, 'month').startOf('month'), moment().subtract(1, 'month').endOf('month')],
-            }}
-          />
-          <Button
-            type="primary"
-            onClick={fetchAnalyticsData}
-            loading={loading}
-            icon={<SyncOutlined spin={loading} />}
-            style={{
-              fontWeight: '500',
-              background: '#0092ff',
-              border: 'none',
-              boxShadow: '0 1px 3px rgba(0, 146, 255, 0.3)',
-            }}
-          >
-            {loading ? 'Refreshing...' : 'Refresh'}
-          </Button>
-        </Space>
+        <Button
+          type="primary"
+          onClick={fetchAnalyticsData}
+          loading={loading}
+          icon={<SyncOutlined spin={loading} />}
+          style={{
+            fontWeight: '500',
+            background: '#0092ff',
+            border: 'none',
+            boxShadow: '0 1px 3px rgba(0, 146, 255, 0.3)',
+          }}
+        >
+          {loading ? 'Refreshing...' : 'Refresh'}
+        </Button>
       </div>
+
+      {/* Period Selection Card */}
+      <Card
+        className="card bg-white text-light"
+        style={{ marginBottom: '24px', borderRadius: '12px' }}
+        bodyStyle={{ padding: '16px 24px' }}
+      >
+        <Row gutter={[24, 16]}>
+          <Col xs={24} md={8}>
+            <div style={{ marginBottom: '16px' }}>
+              <Text strong style={{ display: 'block', marginBottom: '8px' }} className="text-dark">Period</Text>
+              <Select
+                style={{ width: '100%' }}
+                value={period}
+                onChange={handlePeriodChange}
+              >
+                <Option value="today">Today</Option>
+                <Option value="yesterday">Yesterday</Option>
+                <Option value="last7days">Last 7 Days</Option>
+                <Option value="last30days">Last 30 Days</Option>
+                <Option value="custom">Custom Range</Option>
+              </Select>
+            </div>
+          </Col>
+
+          {period === 'custom' && (
+            <Col xs={24} md={8}>
+              <div style={{ marginBottom: '16px' }}>
+                <Text strong style={{ display: 'block', marginBottom: '8px' }} className="text-dark">Date Range</Text>
+                <RangePicker
+                  style={{
+                    width: '100%',
+                    backgroundColor: 'white',
+                  }}
+                  inputStyle={{
+                    color: 'black',
+                    backgroundColor: 'white',
+                  }}
+                  onChange={handleDateRangeChange}
+                  disabledDate={disabledDate}
+                />
+              </div>
+            </Col>
+          )}
+        </Row>
+      </Card>
 
       {loading && (
         <div style={{
@@ -471,8 +538,7 @@ const ReportsFinancial = () => {
                 </div>
                 <Divider style={{ margin: '12px 0' }} className="card bg-white text-light" />
                 <div style={{ display: 'flex', alignItems: 'center' }}>
-                  <ArrowUpOutlined style={{ color: '#10B981', fontSize: '16px', marginRight: '8px' }} />
-                  <Text className="text-dark">Compared to last period</Text>
+                  <Text className="text-dark">Total Expenses</Text>
                 </div>
               </Card>
             </Col>
@@ -492,7 +558,7 @@ const ReportsFinancial = () => {
                   <div style={{
                     width: '48px',
                     height: '48px',
-                    background: '#ECFDF5',
+                    background: '#FEE2E2',
                     borderRadius: '12px',
                     display: 'flex',
                     alignItems: 'center',
@@ -510,8 +576,7 @@ const ReportsFinancial = () => {
                 </div>
                 <Divider style={{ margin: '12px 0' }} className="card bg-white text-light" />
                 <div style={{ display: 'flex', alignItems: 'center' }}>
-                  <ArrowDownOutlined style={{ color: '#F43F5E', fontSize: '16px', marginRight: '8px' }} />
-                  <Text className="text-dark">Compared to last period</Text>
+                  <Text className="text-dark">Total Expenses</Text>
                 </div>
               </Card>
             </Col>
@@ -531,7 +596,7 @@ const ReportsFinancial = () => {
                   <div style={{
                     width: '48px',
                     height: '48px',
-                    background: '#ECFDF5',
+                    background: '#EFF6FF',
                     borderRadius: '12px',
                     display: 'flex',
                     alignItems: 'center',
@@ -543,7 +608,7 @@ const ReportsFinancial = () => {
                   <div>
                     <Text className="text-dark">Net Profit</Text>
                     <Title level={3} style={{ margin: 0 }}>
-                      {currencySymbol}{analyticsData.netProfit.toFixed(2)}
+                        {currencySymbol}{analyticsData.netProfit.toFixed(2)}
                     </Title>
                   </div>
                 </div>
@@ -595,12 +660,8 @@ const ReportsFinancial = () => {
                         <stop offset="95%" stopColor="#F43F5E" stopOpacity={0} />
                       </linearGradient>
                       <linearGradient id="colorWithdrawals" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#dc02c2ff" stopOpacity={0.8} />
-                        <stop offset="95%" stopColor="#dc02c2ff" stopOpacity={0} />
-                      </linearGradient>
-                      <linearGradient id="colorNetProfit" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#0092ff" stopOpacity={0.8} />
-                        <stop offset="95%" stopColor="#0092ff" stopOpacity={0} />
+                        <stop offset="5%" stopColor="#8B5CF6" stopOpacity={0.8} />
+                        <stop offset="95%" stopColor="#8B5CF6" stopOpacity={0} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
@@ -633,18 +694,10 @@ const ReportsFinancial = () => {
                     <Area
                       type="monotone"
                       dataKey="withdrawals"
-                      stroke="#dc02c2ff"
+                      stroke="#8B5CF6"
                       fillOpacity={1}
                       fill="url(#colorWithdrawals)"
                       name="Withdrawals"
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="netProfit"
-                      stroke="#0092ff"
-                      fillOpacity={1}
-                      fill="url(#colorNetProfit)"
-                      name="Net Profit"
                     />
                     <Legend />
                   </AreaChart>

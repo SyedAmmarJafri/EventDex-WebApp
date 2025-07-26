@@ -541,7 +541,7 @@ const ReportsProducts = () => {
           padding: '80px 0',
           background: '#fff',
           borderRadius: '12px'
-        }}>
+        }} className="card bg-white text-light">
           <Spin size="large" tip="Loading product analytics..." />
         </div>
       )}
