@@ -227,6 +227,17 @@ const ReportsProducts = () => {
     }
   };
 
+  const getTopCategoryByUnits = () => {
+    if (!analyticsData?.categoryPerformance) return null;
+
+    // Sort by totalQuantitySold in descending order
+    const sorted = [...analyticsData.categoryPerformance].sort(
+      (a, b) => b.totalQuantitySold - a.totalQuantitySold
+    );
+
+    return sorted[0] || null;
+  };
+
   const handleDateRangeChange = (dates) => {
     if (dates) {
       setDateRange(dates);
@@ -678,20 +689,20 @@ const ReportsProducts = () => {
                   <div>
                     <Text className="text-dark">Top Category</Text>
                     <Title level={3} style={{ margin: 0 }}>
-                      {analyticsData.categoryPerformance[0]?.categoryName || 'N/A'}
+                      {getTopCategoryByUnits()?.categoryName || 'N/A'}
                     </Title>
                   </div>
                 </div>
                 <Divider style={{ margin: '12px 0' }} className="card bg-white text-light" />
                 <div>
-                  <Text className="text-dark">Total Revenue</Text>
+                  <Text className="text-dark">Total Units Sold</Text>
                   <div style={{
                     fontWeight: 600,
                     fontSize: '20px',
                     color: '#0092ff',
                     marginTop: '4px'
                   }}>
-                    {currencySymbol}{analyticsData.categoryPerformance[0]?.totalRevenue.toFixed(2) || '0.00'}
+                    {getTopCategoryByUnits()?.totalQuantitySold || 0}
                   </div>
                 </div>
               </Card>

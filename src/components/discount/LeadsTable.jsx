@@ -9,29 +9,7 @@ import Skeleton from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
 import Switch from '@mui/material/Switch';
 import Modal from 'react-bootstrap/Modal';
-
-// Initialize IndexedDB
-const initIndexedDB = () => {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open('DiscountsDB', 1);
-
-    request.onerror = (event) => {
-      console.error('IndexedDB error:', event.target.error);
-      reject('Failed to open IndexedDB');
-    };
-
-    request.onsuccess = (event) => {
-      resolve(event.target.result);
-    };
-
-    request.onupgradeneeded = (event) => {
-      const db = event.target.result;
-      if (!db.objectStoreNames.contains('discounts')) {
-        db.createObjectStore('discounts', { keyPath: 'id' });
-      }
-    };
-  });
-};
+import Select from 'react-select';
 
 const DiscountsTable = () => {
     const [discounts, setDiscounts] = useState([]);
@@ -42,6 +20,8 @@ const DiscountsTable = () => {
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [selectedDiscount, setSelectedDiscount] = useState(null);
     const [discountToDelete, setDiscountToDelete] = useState(null);
+    const [customers, setCustomers] = useState([]);
+    const [loadingCustomers, setLoadingCustomers] = useState(false);
     const [newDiscount, setNewDiscount] = useState({
         code: '',
         type: 'GENERAL',
@@ -52,7 +32,8 @@ const DiscountsTable = () => {
         minimumOrderAmount: 0,
         description: '',
         active: true,
-        firstOrderOnly: false
+        firstOrderOnly: false,
+        customerIds: []
     });
     const [editDiscount, setEditDiscount] = useState({
         id: '',
@@ -65,150 +46,20 @@ const DiscountsTable = () => {
         minimumOrderAmount: 0,
         description: '',
         active: true,
-        firstOrderOnly: false
+        firstOrderOnly: false,
+        customerIds: []
     });
     const [formErrors, setFormErrors] = useState({});
     const [editFormErrors, setEditFormErrors] = useState({});
-    const [db, setDb] = useState(null);
     const skinTheme = localStorage.getItem('skinTheme') || 'light';
     const isDarkMode = skinTheme === 'dark';
 
-    // Initialize IndexedDB on component mount
-    useEffect(() => {
-        initIndexedDB().then(database => {
-            setDb(database);
-            // Check if we need to sync with server
-            checkAndSyncData(database);
-        }).catch(error => {
-            console.error('IndexedDB initialization failed:', error);
-            // Fallback to regular API calls
-            fetchDiscountsFromAPI();
-        });
-    }, []);
-
-    // Check if we need to sync with server (once per hour)
-    const checkAndSyncData = useCallback(async (database) => {
-        const now = Date.now();
-        const lastSync = localStorage.getItem('discountsLastSync') || 0;
-        
-        // If more than 1 hour since last sync or no data in IndexedDB
-        if (now - lastSync > 3600000 || !(await hasDataInIndexedDB(database))) {
-            await fetchDiscountsFromAPI(database);
-            localStorage.setItem('discountsLastSync', now);
-        } else {
-            // Load from IndexedDB
-            loadDiscountsFromIndexedDB(database);
-        }
-    }, []);
-
-    const hasDataInIndexedDB = async (database) => {
-        return new Promise((resolve) => {
-            const transaction = database.transaction(['discounts'], 'readonly');
-            const store = transaction.objectStore('discounts');
-            const request = store.count();
-            
-            request.onsuccess = () => {
-                resolve(request.result > 0);
-            };
-            
-            request.onerror = () => {
-                resolve(false);
-            };
-        });
-    };
-
-    const loadDiscountsFromIndexedDB = async (database) => {
-        return new Promise((resolve) => {
-            const transaction = database.transaction(['discounts'], 'readonly');
-            const store = transaction.objectStore('discounts');
-            const request = store.getAll();
-            
-            request.onsuccess = () => {
-                setDiscounts(request.result);
-                setLoading(false);
-                resolve(request.result);
-            };
-            
-            request.onerror = () => {
-                setLoading(false);
-                resolve([]);
-            };
-        });
-    };
-
-    const saveDiscountsToIndexedDB = async (discounts, database) => {
-        return new Promise((resolve) => {
-            const transaction = database.transaction(['discounts'], 'readwrite');
-            const store = transaction.objectStore('discounts');
-            
-            // Clear existing data
-            store.clear();
-            
-            // Add all new discounts
-            discounts.forEach(discount => {
-                store.put(discount);
-            });
-            
-            transaction.oncomplete = () => {
-                resolve();
-            };
-            
-            transaction.onerror = () => {
-                resolve();
-            };
-        });
-    };
-
-    const fetchDiscountsFromAPI = useCallback(async (database = db) => {
-        try {
-            setLoading(true);
-            const authData = JSON.parse(localStorage.getItem("authData"));
-            if (!authData?.token) {
-                throw new Error("No authentication token found");
-            }
-
-            const response = await fetch(`${BASE_URL}/api/admin/coupons`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${authData.token}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || 'Failed to fetch discounts');
-            }
-
-            const data = await response.json();
-
-            if (Array.isArray(data)) {
-                setDiscounts(data);
-                if (database) {
-                    await saveDiscountsToIndexedDB(data, database);
-                }
-            } else {
-                throw new Error('Invalid data format received from server');
-            }
-        } catch (err) {
-            toast.error(err.message);
-            // Try to load from IndexedDB if API fails
-            if (database) {
-                await loadDiscountsFromIndexedDB(database);
-            }
-        } finally {
-            setLoading(false);
-        }
-    }, [db]);
-
-    // Utility function to check if a date is expired
     const isDateExpired = (dateString) => {
         const date = new Date(dateString);
         const today = new Date();
         return date < today;
     };
 
-    // Get currency settings from localStorage
     const authData = JSON.parse(localStorage.getItem("authData"));
     const currencySymbol = authData?.currencySettings?.currencySymbol || '$';
 
@@ -341,6 +192,77 @@ const DiscountsTable = () => {
         );
     };
 
+    const fetchDiscounts = useCallback(async () => {
+        try {
+            setLoading(true);
+            const authData = JSON.parse(localStorage.getItem("authData"));
+            if (!authData?.token) {
+                throw new Error("No authentication token found");
+            }
+
+            const response = await fetch(`${BASE_URL}/api/admin/coupons`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${authData.token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to fetch discounts');
+            }
+
+            const data = await response.json();
+
+            if (Array.isArray(data)) {
+                setDiscounts(data);
+            } else {
+                throw new Error('Invalid data format received from server');
+            }
+        } catch (err) {
+            toast.error(err.message);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    const fetchCustomers = useCallback(async () => {
+        try {
+            setLoadingCustomers(true);
+            const authData = JSON.parse(localStorage.getItem("authData"));
+            if (!authData?.token) {
+                throw new Error("No authentication token found");
+            }
+
+            const response = await fetch(`${BASE_URL}/api/admin/customers`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${authData.token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to fetch customers');
+            }
+
+            const data = await response.json();
+            if (data?.data?.content) {
+                const customerOptions = data.data.content.map(customer => ({
+                    value: customer.id,
+                    label: `${customer.name} (${customer.email})`
+                }));
+                setCustomers(customerOptions);
+            }
+        } catch (err) {
+            toast.error(err.message);
+        } finally {
+            setLoadingCustomers(false);
+        }
+    }, []);
+
     const handleInputChange = (e) => {
         const { name, value, type, checked } = e.target;
         setNewDiscount(prev => ({
@@ -363,6 +285,20 @@ const DiscountsTable = () => {
         }
     };
 
+    const handleCustomerSelectChange = (selectedOptions) => {
+        setNewDiscount(prev => ({
+            ...prev,
+            customerIds: selectedOptions ? selectedOptions.map(option => option.value) : []
+        }));
+    };
+
+    const handleEditCustomerSelectChange = (selectedOptions) => {
+        setEditDiscount(prev => ({
+            ...prev,
+            customerIds: selectedOptions ? selectedOptions.map(option => option.value) : []
+        }));
+    };
+
     const validateForm = (formData, setErrors) => {
         const errors = {};
         if (!formData.code.trim()) errors.code = 'Code is required';
@@ -370,6 +306,9 @@ const DiscountsTable = () => {
         if (!formData.validFrom) errors.validFrom = 'Valid from date is required';
         if (!formData.validTo) errors.validTo = 'Valid to date is required';
         if (new Date(formData.validTo) < new Date(formData.validFrom)) errors.validTo = 'Valid to must be after valid from';
+        if (formData.type === 'CUSTOMER_SPECIFIC' && (!formData.customerIds || formData.customerIds.length === 0)) {
+            errors.customerIds = 'At least one customer must be selected';
+        }
         setErrors(errors);
         return Object.keys(errors).length === 0;
     };
@@ -381,13 +320,29 @@ const DiscountsTable = () => {
         try {
             const authData = JSON.parse(localStorage.getItem("authData"));
 
+            const discountData = {
+                code: newDiscount.code,
+                type: newDiscount.type,
+                discountValue: parseFloat(newDiscount.discountValue),
+                discountType: newDiscount.discountType,
+                validFrom: newDiscount.validFrom,
+                validTo: newDiscount.validTo,
+                minimumOrderAmount: parseFloat(newDiscount.minimumOrderAmount),
+                description: newDiscount.description,
+                active: newDiscount.active,
+                firstOrderOnly: newDiscount.firstOrderOnly,
+                ...(newDiscount.type === 'CUSTOMER_SPECIFIC' && {
+                    customerIds: newDiscount.customerIds
+                })
+            };
+
             const response = await fetch(`${BASE_URL}/api/admin/coupons`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${authData.token}`,
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify(newDiscount)
+                body: JSON.stringify(discountData)
             });
 
             const data = await response.json();
@@ -396,14 +351,7 @@ const DiscountsTable = () => {
             }
 
             toast.success('Discount created successfully');
-            
-            // Update local state and IndexedDB
-            const updatedDiscounts = [...discounts, data];
-            setDiscounts(updatedDiscounts);
-            if (db) {
-                await saveDiscountsToIndexedDB(updatedDiscounts, db);
-            }
-            
+            await fetchDiscounts();
             setIsModalOpen(false);
             setNewDiscount({
                 code: '',
@@ -415,7 +363,8 @@ const DiscountsTable = () => {
                 minimumOrderAmount: 0,
                 description: '',
                 active: true,
-                firstOrderOnly: false
+                firstOrderOnly: false,
+                customerIds: []
             });
         } catch (err) {
             toast.error(err.message);
@@ -429,13 +378,29 @@ const DiscountsTable = () => {
         try {
             const authData = JSON.parse(localStorage.getItem("authData"));
 
+            const discountData = {
+                code: editDiscount.code,
+                type: editDiscount.type,
+                discountValue: parseFloat(editDiscount.discountValue),
+                discountType: editDiscount.discountType,
+                validFrom: editDiscount.validFrom,
+                validTo: editDiscount.validTo,
+                minimumOrderAmount: parseFloat(editDiscount.minimumOrderAmount),
+                description: editDiscount.description,
+                active: editDiscount.active,
+                firstOrderOnly: editDiscount.firstOrderOnly,
+                ...(editDiscount.type === 'CUSTOMER_SPECIFIC' && {
+                    customerIds: editDiscount.customerIds
+                })
+            };
+
             const response = await fetch(`${BASE_URL}/api/admin/coupons/${editDiscount.id}`, {
                 method: 'PUT',
                 headers: {
                     'Authorization': `Bearer ${authData.token}`,
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify(editDiscount)
+                body: JSON.stringify(discountData)
             });
 
             const data = await response.json();
@@ -444,16 +409,7 @@ const DiscountsTable = () => {
             }
 
             toast.success('Discount updated successfully');
-            
-            // Update local state and IndexedDB
-            const updatedDiscounts = discounts.map(d => 
-                d.id === editDiscount.id ? data : d
-            );
-            setDiscounts(updatedDiscounts);
-            if (db) {
-                await saveDiscountsToIndexedDB(updatedDiscounts, db);
-            }
-            
+            await fetchDiscounts();
             setIsEditModalOpen(false);
         } catch (err) {
             toast.error(err.message);
@@ -465,14 +421,9 @@ const DiscountsTable = () => {
             const authData = JSON.parse(localStorage.getItem("authData"));
             const newStatus = !discount.active;
 
-            // Optimistically update the UI
-            const updatedDiscounts = discounts.map(d =>
+            setDiscounts(prev => prev.map(d =>
                 d.id === discount.id ? { ...d, active: newStatus } : d
-            );
-            setDiscounts(updatedDiscounts);
-            if (db) {
-                await saveDiscountsToIndexedDB(updatedDiscounts, db);
-            }
+            ));
 
             const updatedDiscount = {
                 ...discount,
@@ -493,39 +444,13 @@ const DiscountsTable = () => {
                 throw new Error(errorData.message || 'Failed to update discount status');
             }
 
-            toast.success(`Discount ${newStatus ? 'activated' : 'deactivated'} successfully`, {
-                position: "bottom-center",
-                autoClose: 5000,
-                hideProgressBar: false,
-                closeOnClick: true,
-                pauseOnHover: true,
-                draggable: true,
-                progress: undefined,
-                theme: "colored",
-            });
-
-            // Refresh the data to ensure consistency
-            await fetchDiscountsFromAPI();
+            toast.success(`Discount ${newStatus ? 'activated' : 'deactivated'} successfully`);
+            await fetchDiscounts();
         } catch (err) {
-            // Revert the UI change if the API call fails
-            const revertedDiscounts = discounts.map(d =>
+            setDiscounts(prev => prev.map(d =>
                 d.id === discount.id ? { ...d, active: discount.active } : d
-            );
-            setDiscounts(revertedDiscounts);
-            if (db) {
-                await saveDiscountsToIndexedDB(revertedDiscounts, db);
-            }
-
-            toast.error(err.message, {
-                position: "bottom-center",
-                autoClose: 5000,
-                hideProgressBar: false,
-                closeOnClick: true,
-                pauseOnHover: true,
-                draggable: true,
-                progress: undefined,
-                theme: "colored",
-            });
+            ));
+            toast.error(err.message);
         }
     };
 
@@ -546,7 +471,8 @@ const DiscountsTable = () => {
             minimumOrderAmount: discount.minimumOrderAmount,
             description: discount.description,
             active: discount.active,
-            firstOrderOnly: discount.firstOrderOnly
+            firstOrderOnly: discount.firstOrderOnly,
+            customerIds: discount.customerIds || []
         });
         setIsEditModalOpen(true);
     };
@@ -559,14 +485,6 @@ const DiscountsTable = () => {
     const handleDeleteDiscount = async () => {
         try {
             const authData = JSON.parse(localStorage.getItem("authData"));
-            
-            // Optimistically update the UI
-            const updatedDiscounts = discounts.filter(d => d.id !== discountToDelete.id);
-            setDiscounts(updatedDiscounts);
-            if (db) {
-                await saveDiscountsToIndexedDB(updatedDiscounts, db);
-            }
-
             const response = await fetch(`${BASE_URL}/api/admin/coupons/${discountToDelete.id}`, {
                 method: 'DELETE',
                 headers: {
@@ -580,38 +498,11 @@ const DiscountsTable = () => {
                 throw new Error(errorData.message || 'Failed to delete discount');
             }
 
-            toast.success('Discount deleted successfully', {
-                position: "bottom-center",
-                autoClose: 5000,
-                hideProgressBar: false,
-                closeOnClick: true,
-                pauseOnHover: true,
-                draggable: true,
-                progress: undefined,
-                theme: "colored",
-            });
-
+            toast.success('Discount deleted successfully');
+            await fetchDiscounts();
             setIsDeleteModalOpen(false);
-            
-            // Refresh data from server to ensure consistency
-            await fetchDiscountsFromAPI();
         } catch (err) {
-            // Revert the UI change if the API call fails
-            setDiscounts(discounts);
-            if (db) {
-                await saveDiscountsToIndexedDB(discounts, db);
-            }
-
-            toast.error(err.message, {
-                position: "bottom-center",
-                autoClose: 5000,
-                hideProgressBar: false,
-                closeOnClick: true,
-                pauseOnHover: true,
-                draggable: true,
-                progress: undefined,
-                theme: "colored",
-            });
+            toast.error(err.message);
         }
     };
 
@@ -643,7 +534,7 @@ const DiscountsTable = () => {
         {
             accessorKey: 'type',
             header: 'Type',
-            cell: (info) => info.getValue()
+            cell: (info) => info.getValue().replace('_', ' ')
         },
         {
             accessorKey: 'discountValue',
@@ -713,7 +604,12 @@ const DiscountsTable = () => {
             ),
             meta: { headerClassName: 'text-end' }
         },
-    ], [currencySymbol]);
+    ], []);
+
+    useEffect(() => {
+        fetchDiscounts();
+        fetchCustomers();
+    }, [fetchDiscounts, fetchCustomers]);
 
     return (
         <>
@@ -775,7 +671,8 @@ const DiscountsTable = () => {
                     minimumOrderAmount: 0,
                     description: '',
                     active: true,
-                    firstOrderOnly: false
+                    firstOrderOnly: false,
+                    customerIds: []
                 });
                 setFormErrors({});
             }} centered size="lg">
@@ -808,10 +705,31 @@ const DiscountsTable = () => {
                                 >
                                     <option value="GENERAL">General</option>
                                     <option value="FIRST_ORDER">First Order</option>
-                                    <option value="SPECIFIC_CUSTOMERS">Specific Customers</option>
+                                    <option value="CUSTOMER_SPECIFIC">Specific Customers</option>
                                 </select>
                             </div>
                         </div>
+
+                        {newDiscount.type === 'CUSTOMER_SPECIFIC' && (
+                            <div className="mb-3">
+                                <label className="form-label">Select Customers *</label>
+                                <Select
+                                    isMulti
+                                    options={customers}
+                                    isLoading={loadingCustomers}
+                                    onChange={handleCustomerSelectChange}
+                                    value={customers.filter(customer =>
+                                        newDiscount.customerIds.includes(customer.value)
+                                    )}
+                                    className={`basic-multi-select ${formErrors.customerIds ? 'is-invalid' : ''}`}
+                                    classNamePrefix="select"
+                                />
+                                {formErrors.customerIds && (
+                                    <div className="text-danger small mt-1">{formErrors.customerIds}</div>
+                                )}
+                            </div>
+                        )}
+
                         <div className="row">
                             <div className="col-md-6 mb-3">
                                 <label htmlFor="discountValue" className="form-label">Discount Value *</label>
@@ -967,10 +885,31 @@ const DiscountsTable = () => {
                                 >
                                     <option value="GENERAL">General</option>
                                     <option value="FIRST_ORDER">First Order</option>
-                                    <option value="SPECIFIC_CUSTOMERS">Specific Customers</option>
+                                    <option value="CUSTOMER_SPECIFIC">Specific Customers</option>
                                 </select>
                             </div>
                         </div>
+
+                        {editDiscount.type === 'CUSTOMER_SPECIFIC' && (
+                            <div className="mb-3">
+                                <label className="form-label">Select Customers *</label>
+                                <Select
+                                    isMulti
+                                    options={customers}
+                                    isLoading={loadingCustomers}
+                                    onChange={handleEditCustomerSelectChange}
+                                    value={customers.filter(customer =>
+                                        editDiscount.customerIds.includes(customer.value)
+                                    )}
+                                    className={`basic-multi-select ${editFormErrors.customerIds ? 'is-invalid' : ''}`}
+                                    classNamePrefix="select"
+                                />
+                                {editFormErrors.customerIds && (
+                                    <div className="text-danger small mt-1">{editFormErrors.customerIds}</div>
+                                )}
+                            </div>
+                        )}
+
                         <div className="row">
                             <div className="col-md-6 mb-3">
                                 <label htmlFor="edit-discountValue" className="form-label">Discount Value *</label>
@@ -1135,6 +1074,21 @@ const DiscountsTable = () => {
                                     </h8>
                                 </div>
                             </div>
+                            {selectedDiscount.type === 'CUSTOMER_SPECIFIC' && selectedDiscount.customerIds?.length > 0 && (
+                                <div className="mb-3">
+                                    <h5>Applicable Customers</h5>
+                                    <div className="mt-2">
+                                        {selectedDiscount.customerIds.map(customerId => {
+                                            const customer = customers.find(c => c.value === customerId);
+                                            return (
+                                                <div key={customerId} className="badge bg-primary me-2 mb-2">
+                                                    {customer ? customer.label : customerId}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
                             <div className="row mb-3">
                                 <div className="col-md-6">
                                     <h5>Status</h5>
@@ -1162,7 +1116,7 @@ const DiscountsTable = () => {
                 <Modal.Body>
                     {discountToDelete && (
                         <>
-                            <h8>Are you sure you want to delete the discount <strong>{discountToDelete.code}</strong>? </h8>
+                            <h8>Are you sure you want to delete the discount <strong>{discountToDelete.code}</strong>?</h8><br />
                             <h8>This action cannot be undone.</h8>
                         </>
                     )}

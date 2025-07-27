@@ -159,12 +159,30 @@ const CategoriesTable = () => {
         if (!file) return;
 
         if (!file.type.match('image.*')) {
-            toast.error('Please select an image file');
+            toast.error('Please select an image file', {
+                position: "bottom-center",
+                autoClose: 5000,
+                hideProgressBar: false,
+                closeOnClick: true,
+                pauseOnHover: true,
+                draggable: true,
+                progress: undefined,
+                theme: "colored",
+            });
             return;
         }
 
         if (file.size > 5 * 1024 * 1024) {
-            toast.error('File size should be less than 5MB');
+            toast.error('File size should be less than 5MB', {
+                position: "bottom-center",
+                autoClose: 5000,
+                hideProgressBar: false,
+                closeOnClick: true,
+                pauseOnHover: true,
+                draggable: true,
+                progress: undefined,
+                theme: "colored",
+            });
             return;
         }
 
@@ -194,7 +212,8 @@ const CategoriesTable = () => {
 
             const data = await response.json();
             if (!response.ok) {
-                throw new Error(data.message || 'Failed to delete image');
+                const errorMessage = data.error || data.message || 'Failed to delete image';
+                throw new Error(errorMessage);
             }
 
             toast.success('Image deleted successfully', {
@@ -241,7 +260,16 @@ const CategoriesTable = () => {
             setLoading(true);
             const authData = JSON.parse(localStorage.getItem("authData"));
             if (!authData?.token) {
-                toast.error("Authentication token not found");
+                toast.error("Authentication token not found", {
+                    position: "bottom-center",
+                    autoClose: 5000,
+                    hideProgressBar: false,
+                    closeOnClick: true,
+                    pauseOnHover: true,
+                    draggable: true,
+                    progress: undefined,
+                    theme: "colored",
+                });
                 return;
             }
 
@@ -253,12 +281,12 @@ const CategoriesTable = () => {
                 }
             });
 
+            const data = await response.json();
             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || 'Failed to fetch categories');
+                const errorMessage = data.error || data.message || 'Failed to fetch categories';
+                throw new Error(errorMessage);
             }
 
-            const data = await response.json();
             if (data.status === 200 && data.data) {
                 const categoriesWithImages = data.data.map(category => ({
                     ...category,
@@ -267,10 +295,20 @@ const CategoriesTable = () => {
                 }));
                 setCategories(categoriesWithImages);
             } else {
-                throw new Error(data.message || 'Failed to fetch categories');
+                const errorMessage = data.message || 'Failed to fetch categories';
+                throw new Error(errorMessage);
             }
         } catch (err) {
-            toast.error(err.message);
+            toast.error(err.message, {
+                position: "bottom-center",
+                autoClose: 5000,
+                hideProgressBar: false,
+                closeOnClick: true,
+                pauseOnHover: true,
+                draggable: true,
+                progress: undefined,
+                theme: "colored",
+            });
         } finally {
             setLoading(false);
         }
@@ -295,7 +333,6 @@ const CategoriesTable = () => {
     const validateForm = (formData, setErrors) => {
         const errors = {};
         if (!formData.name.trim()) errors.name = 'Name is required';
-        if (!formData.description.trim()) errors.description = 'Description is required';
         setErrors(errors);
         return Object.keys(errors).length === 0;
     };
@@ -319,7 +356,8 @@ const CategoriesTable = () => {
 
             const data = await response.json();
             if (!response.ok) {
-                throw new Error(data.message || 'Failed to create category');
+                const errorMessage = data.error || data.message || 'Failed to create category';
+                throw new Error(errorMessage);
             }
 
             if (selectedFile) {
@@ -341,7 +379,16 @@ const CategoriesTable = () => {
                 }
             }
 
-            toast.success('Category created successfully');
+            toast.success('Category created successfully', {
+                position: "bottom-center",
+                autoClose: 5000,
+                hideProgressBar: false,
+                closeOnClick: true,
+                pauseOnHover: true,
+                draggable: true,
+                progress: undefined,
+                theme: "colored",
+            });
             await fetchCategories();
             setIsModalOpen(false);
             setNewCategory({
@@ -352,7 +399,16 @@ const CategoriesTable = () => {
             setSelectedFile(null);
             setImagePreview('');
         } catch (err) {
-            toast.error(err.message);
+            toast.error(err.message, {
+                position: "bottom-center",
+                autoClose: 5000,
+                hideProgressBar: false,
+                closeOnClick: true,
+                pauseOnHover: true,
+                draggable: true,
+                progress: undefined,
+                theme: "colored",
+            });
             setIsModalOpen(false);
         } finally {
             setUploadingImage(false);
@@ -404,16 +460,36 @@ const CategoriesTable = () => {
 
             const data = await response.json();
             if (!response.ok) {
-                throw new Error(data.message || 'Failed to update category');
+                const errorMessage = data.error || data.message || 'Failed to update category';
+                throw new Error(errorMessage);
             }
 
-            toast.success('Category updated successfully');
+            toast.success('Category updated successfully', {
+                position: "bottom-center",
+                autoClose: 5000,
+                hideProgressBar: false,
+                closeOnClick: true,
+                pauseOnHover: true,
+                draggable: true,
+                progress: undefined,
+                theme: "colored",
+            });
             await fetchCategories();
             setIsEditModalOpen(false);
             setSelectedFile(null);
             setImagePreview('');
         } catch (err) {
-            toast.error(err.message);
+            toast.error(err.message, {
+                position: "bottom-center",
+                autoClose: 5000,
+                hideProgressBar: false,
+                closeOnClick: true,
+                pauseOnHover: true,
+                draggable: true,
+                progress: undefined,
+                theme: "colored",
+            });
+            setIsEditModalOpen(false);
         } finally {
             setUploadingImage(false);
         }
@@ -439,7 +515,8 @@ const CategoriesTable = () => {
 
             const data = await response.json();
             if (!response.ok) {
-                throw new Error(data.message || 'Failed to update category status');
+                const errorMessage = data.error || data.message || 'Failed to update category status';
+                throw new Error(errorMessage);
             }
 
             toast.success(`Category ${newStatus ? 'activated' : 'deactivated'} successfully`, {
@@ -508,7 +585,6 @@ const CategoriesTable = () => {
 
             const data = await response.json();
             if (!response.ok) {
-                // Show the actual error message from the API response
                 const errorMessage = data.error || data.message || 'Failed to delete category';
                 throw new Error(errorMessage);
             }
@@ -569,7 +645,7 @@ const CategoriesTable = () => {
         {
             accessorKey: 'description',
             header: 'Description',
-            cell: (info) => info.getValue()
+            cell: (info) => info.getValue() || '-'
         },
         {
             accessorKey: 'itemCount',
@@ -614,7 +690,7 @@ const CategoriesTable = () => {
             ),
             meta: { headerClassName: 'text-end' }
         },
-    ],);
+    ], []);
 
     useEffect(() => {
         fetchCategories();
@@ -904,7 +980,7 @@ const CategoriesTable = () => {
                             </div>
                             <div className="mb-3">
                                 <h5>Description</h5>
-                                <h8>{selectedCategory.description}</h8>
+                                <h8>{selectedCategory.description || '-'}</h8>
                             </div>
                             <div className="mb-3">
                                 <h5>Status</h5>

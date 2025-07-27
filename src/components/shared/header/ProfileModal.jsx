@@ -1,4 +1,4 @@
-import { Fragment, useState } from 'react'
+import { Fragment, useState, useEffect } from 'react'
 import { FiBell, FiDollarSign, FiLogOut, FiSettings, FiUser, FiX } from "react-icons/fi"
 import { useNavigate } from 'react-router-dom'
 import Button from '@mui/material/Button'
@@ -9,10 +9,44 @@ const ProfileModal = () => {
     const navigate = useNavigate()
     const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false)
     const [notification, setNotification] = useState(null)
+    const [profilePicture, setProfilePicture] = useState('')
 
     // Get theme from localStorage
     const skinTheme = localStorage.getItem('skinTheme') || 'light'
     const isDarkMode = skinTheme === 'dark'
+
+    useEffect(() => {
+        const fetchProfilePicture = async () => {
+            try {
+                const authData = JSON.parse(localStorage.getItem('authData'))
+                
+                if (!authData?.token) {
+                    throw new Error('No authentication token found')
+                }
+
+                const response = await fetch(`${BASE_URL}/api/client-admin/profile/picture`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${authData.token}`,
+                        'Content-Type': 'application/json'
+                    }
+                })
+
+                const data = await response.json()
+
+                if (!response.ok) {
+                    throw new Error(data.message || 'Failed to fetch profile picture')
+                }
+
+                setProfilePicture(data.data)
+            } catch (error) {
+                console.error('Error fetching profile picture:', error)
+                // Fallback to default avatar will be handled in getAvatar()
+            }
+        }
+
+        fetchProfilePicture()
+    }, [])
 
     const showNotification = (message, type) => {
         setNotification({ message, type });
@@ -63,7 +97,7 @@ const ProfileModal = () => {
     }
 
     const authData = JSON.parse(localStorage.getItem('authData')) || {}
-    const { username = '', clientType = '', name = '', profilePicture = '' } = authData
+    const { username = '', clientType = '', name = '' } = authData
 
     // Default avatar if profilePicture is not available
     const getAvatar = () => {

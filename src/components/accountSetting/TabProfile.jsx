@@ -236,6 +236,11 @@ const TabProfile = () => {
             }
 
             toast.success('Profile updated successfully');
+
+            // Reload the page after a short delay to show the success message
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
         } catch (error) {
             toast.error(error.response?.data?.message || 'Failed to update profile');
             console.error('Error:', error);
@@ -440,12 +445,12 @@ const TabProfile = () => {
             {/* Confirmation Modal */}
             <Modal
                 show={showConfirmModal}
-                onHide={() => setShowConfirmModal(false)}
+                onHide={() => !updating && setShowConfirmModal(false)} // Prevent closing when updating
                 centered
-                backdrop="static"
-                keyboard={false}
+                backdrop={updating ? 'static' : true} // Force static backdrop when updating
+                keyboard={!updating} // Only allow keyboard dismiss when not updating
             >
-                <Modal.Header closeButton className="border-0 pb-0">
+                <Modal.Header closeButton={!updating} className="border-0 pb-0">
                     <Modal.Title className="w-100 text-center">
                         <h5 className="fw-bold">Confirm Update</h5>
                     </Modal.Title>
@@ -453,7 +458,15 @@ const TabProfile = () => {
                 <Modal.Body className="text-center py-4">
                     <h8 className="mb-4">Are you sure you want to update your profile information?</h8>
                 </Modal.Body>
-                <Modal.Footer>
+                <Modal.Footer className="justify-content-center">
+                    <Button
+                        variant="danger"
+                        onClick={() => setShowConfirmModal(false)}
+                        className="px-4"
+                        disabled={updating}
+                    >
+                        Cancel
+                    </Button>
                     <Button
                         variant="primary"
                         onClick={handleSubmit}
@@ -468,8 +481,9 @@ const TabProfile = () => {
                                     size="sm"
                                     role="status"
                                     aria-hidden="true"
+                                    className="me-2"
                                 />
-                                <span className="ms-2">Updating...</span>
+                                Updating...
                             </>
                         ) : 'Confirm Update'}
                     </Button>

@@ -13,7 +13,7 @@ import Select from 'react-select';
 
 const DealsTable = () => {
     const [deals, setDeals] = useState([]);
-    const [items, setItems] = useState([]); // State to store all items
+    const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
@@ -43,13 +43,11 @@ const DealsTable = () => {
     const [imagePreview, setImagePreview] = useState('');
     const skinTheme = localStorage.getItem('skinTheme') || 'light';
     const isDarkMode = skinTheme === 'dark';
-    const [selectedItems, setSelectedItems] = useState([]); // For the multi-select dropdown
+    const [selectedItems, setSelectedItems] = useState([]);
 
-    // Get currency settings from localStorage
     const authData = JSON.parse(localStorage.getItem("authData"));
     const currencySymbol = authData?.currencySettings?.currencySymbol || '$';
 
-    // Fetch all items for the dropdown
     const fetchItems = useCallback(async () => {
         try {
             const authData = JSON.parse(localStorage.getItem("authData"));
@@ -68,14 +66,14 @@ const DealsTable = () => {
 
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.message || 'Failed to fetch items');
+                throw new Error(errorData.error || errorData.message || 'Failed to fetch items');
             }
 
             const data = await response.json();
             if (data.status === 200 && data.data) {
                 setItems(data.data);
             } else {
-                throw new Error(data.message || 'Failed to fetch items');
+                throw new Error(data.error || data.message || 'Failed to fetch items');
             }
         } catch (err) {
             toast.error(err.message);
@@ -247,14 +245,14 @@ const DealsTable = () => {
 
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.message || 'Failed to fetch deals');
+                throw new Error(errorData.error || errorData.message || 'Failed to fetch deals');
             }
 
             const data = await response.json();
             if (data.status === 200 && data.data) {
                 setDeals(data.data);
             } else {
-                throw new Error(data.message || 'Failed to fetch deals');
+                throw new Error(data.error || data.message || 'Failed to fetch deals');
             }
         } catch (err) {
             toast.error(err.message);
@@ -263,24 +261,21 @@ const DealsTable = () => {
         }
     }, []);
 
-    // Get item name by ID
     const getItemNameById = (itemId) => {
         const item = items.find(item => item.id === itemId);
         return item ? item.name : `Item (ID: ${itemId})`;
     };
 
-    // Get item details by ID
     const getItemDetailsById = (itemId) => {
         const item = items.find(item => item.id === itemId);
         return item || null;
     };
 
-    // Handle item selection in the dropdown
     const handleItemSelection = (selectedOptions, action) => {
         if (action.action === 'select-option' || action.action === 'remove-value' || action.action === 'pop-value') {
             const selectedItemsWithQuantity = selectedOptions.map(option => ({
                 itemId: option.value,
-                quantity: 1 // Default quantity, can be made editable
+                quantity: 1
             }));
             setNewDeal(prev => ({
                 ...prev,
@@ -290,7 +285,6 @@ const DealsTable = () => {
         }
     };
 
-    // Handle edit item selection
     const handleEditItemSelection = (selectedOptions, action) => {
         if (action.action === 'select-option' || action.action === 'remove-value' || action.action === 'pop-value') {
             const selectedItemsWithQuantity = selectedOptions.map(option => ({
@@ -304,7 +298,6 @@ const DealsTable = () => {
         }
     };
 
-    // Handle quantity change for a specific item
     const handleQuantityChange = (itemId, quantity) => {
         setNewDeal(prev => ({
             ...prev,
@@ -314,7 +307,6 @@ const DealsTable = () => {
         }));
     };
 
-    // Handle edit quantity change for a specific item
     const handleEditQuantityChange = (itemId, quantity) => {
         setEditDeal(prev => ({
             ...prev,
@@ -343,7 +335,6 @@ const DealsTable = () => {
     const validateForm = (formData, setErrors) => {
         const errors = {};
         if (!formData.name.trim()) errors.name = 'Name is required';
-        if (!formData.description.trim()) errors.description = 'Description is required';
         if (formData.price <= 0) errors.price = 'Price must be greater than 0';
         if (formData.items.length === 0) errors.items = 'At least one item is required';
         setErrors(errors);
@@ -358,7 +349,6 @@ const DealsTable = () => {
             setUploadingImage(true);
             const authData = JSON.parse(localStorage.getItem("authData"));
 
-            // First create the deal
             const response = await fetch(`${BASE_URL}/api/client-admin/deals`, {
                 method: 'POST',
                 headers: {
@@ -375,10 +365,10 @@ const DealsTable = () => {
 
             const data = await response.json();
             if (!response.ok) {
-                throw new Error(data.message || 'Failed to create deal');
+                const errorMsg = data.error || data.message || 'Failed to create deal';
+                throw new Error(errorMsg);
             }
 
-            // Then upload image if selected
             if (selectedFile) {
                 const formData = new FormData();
                 formData.append('file', selectedFile);
@@ -393,7 +383,7 @@ const DealsTable = () => {
 
                 if (!uploadResponse.ok) {
                     const uploadError = await uploadResponse.json();
-                    throw new Error(uploadError.message || 'Failed to upload image');
+                    throw new Error(uploadError.error || uploadError.message || 'Failed to upload image');
                 }
             }
 
@@ -412,6 +402,7 @@ const DealsTable = () => {
             setSelectedItems([]);
         } catch (err) {
             toast.error(err.message);
+            setIsModalOpen(false);
         } finally {
             setUploadingImage(false);
         }
@@ -425,7 +416,6 @@ const DealsTable = () => {
             setUploadingImage(true);
             const authData = JSON.parse(localStorage.getItem("authData"));
 
-            // First update the deal
             const response = await fetch(`${BASE_URL}/api/client-admin/deals/${editDeal.id}`, {
                 method: 'PUT',
                 headers: {
@@ -442,10 +432,10 @@ const DealsTable = () => {
 
             const data = await response.json();
             if (!response.ok) {
-                throw new Error(data.message || 'Failed to update deal');
+                const errorMsg = data.error || data.message || 'Failed to update deal';
+                throw new Error(errorMsg);
             }
 
-            // Then upload new image if selected
             if (selectedFile) {
                 const formData = new FormData();
                 formData.append('file', selectedFile);
@@ -460,7 +450,7 @@ const DealsTable = () => {
 
                 if (!uploadResponse.ok) {
                     const uploadError = await uploadResponse.json();
-                    throw new Error(uploadError.message || 'Failed to upload image');
+                    throw new Error(uploadError.error || uploadError.message || 'Failed to upload image');
                 }
             }
 
@@ -471,6 +461,7 @@ const DealsTable = () => {
             setImagePreview('');
         } catch (err) {
             toast.error(err.message);
+            setIsModalOpen(false);
         } finally {
             setUploadingImage(false);
         }
@@ -496,33 +487,13 @@ const DealsTable = () => {
 
             const data = await response.json();
             if (!response.ok) {
-                throw new Error(data.message || 'Failed to update deal status');
+                throw new Error(data.error || data.message || 'Failed to update deal status');
             }
 
-            toast.success(`Deal ${newStatus ? 'activated' : 'deactivated'} successfully`, {
-                position: "bottom-center",
-                autoClose: 5000,
-                hideProgressBar: false,
-                closeOnClick: true,
-                pauseOnHover: true,
-                draggable: true,
-                progress: undefined,
-                theme: "colored",
-            });
-
+            toast.success(`Deal ${newStatus ? 'activated' : 'deactivated'} successfully`);
             await fetchDeals();
         } catch (err) {
-            toast.error(err.message, {
-                position: "bottom-center",
-                autoClose: 5000,
-                hideProgressBar: false,
-                closeOnClick: true,
-                pauseOnHover: true,
-                draggable: true,
-                progress: undefined,
-                theme: "colored",
-            });
-
+            toast.error(err.message);
             setDeals(prev => prev.map(d =>
                 d.id === deal.id ? { ...d, active: deal.active } : d
             ));
@@ -566,33 +537,15 @@ const DealsTable = () => {
 
             const data = await response.json();
             if (!response.ok) {
-                throw new Error(data.message || 'Failed to delete deal');
+                const errorMsg = data.error || data.message || 'Failed to delete deal';
+                throw new Error(errorMsg);
             }
 
-            toast.success('Deal deleted successfully', {
-                position: "bottom-center",
-                autoClose: 5000,
-                hideProgressBar: false,
-                closeOnClick: true,
-                pauseOnHover: true,
-                draggable: true,
-                progress: undefined,
-                theme: "colored",
-            });
-
+            toast.success('Deal deleted successfully');
             await fetchDeals();
             setIsDeleteModalOpen(false);
         } catch (err) {
-            toast.error(err.message, {
-                position: "bottom-center",
-                autoClose: 5000,
-                hideProgressBar: false,
-                closeOnClick: true,
-                pauseOnHover: true,
-                draggable: true,
-                progress: undefined,
-                theme: "colored",
-            });
+            toast.error(err.message);
         }
     };
 
@@ -619,11 +572,6 @@ const DealsTable = () => {
         {
             accessorKey: 'name',
             header: 'Name',
-            cell: (info) => info.getValue()
-        },
-        {
-            accessorKey: 'description',
-            header: 'Description',
             cell: (info) => info.getValue()
         },
         {
@@ -686,17 +634,15 @@ const DealsTable = () => {
 
     useEffect(() => {
         fetchDeals();
-        fetchItems(); // Fetch items when component mounts
+        fetchItems();
     }, [fetchDeals, fetchItems]);
 
-    // Prepare options for the Select dropdown
     const itemOptions = items.map(item => ({
         value: item.id,
         label: item.name,
         price: item.price
     }));
 
-    // Prepare selected items for edit modal
     const editSelectedItems = editDeal.items.map(item => ({
         value: item.itemId,
         label: getItemNameById(item.itemId),
@@ -771,14 +717,13 @@ const DealsTable = () => {
                         <div className="mb-3">
                             <label htmlFor="description" className="form-label">Description</label>
                             <textarea
-                                className={`form-control ${formErrors.description ? 'is-invalid' : ''}`}
+                                className="form-control"
                                 id="description"
                                 name="description"
                                 value={newDeal.description}
                                 onChange={handleInputChange}
                                 rows="3"
                             />
-                            {formErrors.description && <div className="invalid-feedback">{formErrors.description}</div>}
                         </div>
                         <div className="mb-3">
                             <label htmlFor="price" className="form-label">Price</label>
@@ -807,7 +752,6 @@ const DealsTable = () => {
                             />
                             {formErrors.items && <div className="invalid-feedback d-block">{formErrors.items}</div>}
 
-                            {/* Display selected items with quantity inputs */}
                             {newDeal.items.length > 0 && (
                                 <div className="mt-3">
                                     <h6>Selected Items:</h6>
@@ -816,13 +760,9 @@ const DealsTable = () => {
                                         return (
                                             <div key={index} className="d-flex align-items-center mb-2">
                                                 <div className="flex-grow-1">
-                                                    {itemDetails ? (
-                                                        <>
-                                                            <h8>{itemDetails.name}</h8>
-                                                            <div className="text-muted small">{currencySymbol}{itemDetails.price.toFixed(2)} each</div>
-                                                        </>
-                                                    ) : (
-                                                        <span>Item ID: {item.itemId}</span>
+                                                    <h8>{itemDetails ? itemDetails.name : `Item ID: ${item.itemId}`}</h8>
+                                                    {itemDetails && (
+                                                        <div className="text-muted small">{currencySymbol}{itemDetails.price.toFixed(2)} each</div>
                                                     )}
                                                 </div>
                                                 <div className="d-flex align-items-center">
@@ -929,14 +869,13 @@ const DealsTable = () => {
                         <div className="mb-3">
                             <label htmlFor="edit-description" className="form-label">Description</label>
                             <textarea
-                                className={`form-control ${editFormErrors.description ? 'is-invalid' : ''}`}
+                                className="form-control"
                                 id="edit-description"
                                 name="description"
                                 value={editDeal.description}
                                 onChange={handleEditInputChange}
                                 rows="3"
                             />
-                            {editFormErrors.description && <div className="invalid-feedback">{editFormErrors.description}</div>}
                         </div>
                         <div className="mb-3">
                             <label htmlFor="edit-price" className="form-label">Price</label>
@@ -965,7 +904,6 @@ const DealsTable = () => {
                             />
                             {editFormErrors.items && <div className="invalid-feedback d-block">{editFormErrors.items}</div>}
 
-                            {/* Display selected items with quantity inputs */}
                             {editDeal.items.length > 0 && (
                                 <div className="mt-3">
                                     <h6>Selected Items:</h6>
@@ -974,13 +912,9 @@ const DealsTable = () => {
                                         return (
                                             <div key={index} className="d-flex align-items-center mb-2">
                                                 <div className="flex-grow-1">
-                                                    {itemDetails ? (
-                                                        <>
-                                                            <h8>{itemDetails.name}</h8>
-                                                            <div className="text-muted small">{currencySymbol}{itemDetails.price.toFixed(2)} each</div>
-                                                        </>
-                                                    ) : (
-                                                        <span>Item ID: {item.itemId}</span>
+                                                    <h8>{itemDetails ? itemDetails.name : `Item ID: ${item.itemId}`}</h8>
+                                                    {itemDetails && (
+                                                        <div className="text-muted small">{currencySymbol}{itemDetails.price.toFixed(2)} each</div>
                                                     )}
                                                 </div>
                                                 <div className="d-flex align-items-center">
@@ -1087,7 +1021,7 @@ const DealsTable = () => {
                             </div>
                             <div className="mb-3">
                                 <h5>Description</h5>
-                                <h8>{selectedDeal.description}</h8>
+                                <h8>{selectedDeal.description || '-'}</h8>
                             </div>
                             <div className="mb-3">
                                 <h5>Price</h5>

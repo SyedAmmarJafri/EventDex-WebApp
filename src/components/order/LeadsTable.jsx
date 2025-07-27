@@ -43,18 +43,18 @@ const OrderTable = () => {
     const [activeFilter, setActiveFilter] = useState('all');
     const [mapScriptLoaded, setMapScriptLoaded] = useState(false);
     const [map, setMap] = useState(null);
-    
+
     // WebSocket states
     const [wsConnected, setWsConnected] = useState(false);
     const [wsError, setWsError] = useState(null);
     const [reconnectAttempts, setReconnectAttempts] = useState(0);
     const [componentError, setComponentError] = useState(null);
-    
+
     // Refs for cleanup and connection management
     const stompClientRef = useRef(null);
     const reconnectTimeoutRef = useRef(null);
     const isUnmountedRef = useRef(false);
-    
+
     const skinTheme = localStorage.getItem('skinTheme') || 'light';
     const isDarkMode = skinTheme === 'dark';
 
@@ -139,7 +139,7 @@ const OrderTable = () => {
             debugLog('Fetching orders via API');
             setLoading(true);
             setComponentError(null);
-            
+
             const token = getAuthToken();
             if (!token) {
                 throw new Error("No authentication token found");
@@ -161,7 +161,7 @@ const OrderTable = () => {
             const data = await response.json();
             if (data.status === 200 && data.data) {
                 debugLog('API orders fetched', data.data.length + ' orders');
-                
+
                 // Only update orders if WebSocket is not connected to avoid conflicts
                 if (!wsConnected) {
                     setOrders(data.data);
@@ -290,7 +290,7 @@ const OrderTable = () => {
                                     const deletedOrderId = JSON.parse(message.body);
                                     debugLog('🗑️ Order deletion received via WebSocket', deletedOrderId);
 
-                                    setOrders(prevOrders => 
+                                    setOrders(prevOrders =>
                                         prevOrders.filter(order => order.id !== deletedOrderId)
                                     );
                                 } catch (parseError) {
@@ -310,16 +310,16 @@ const OrderTable = () => {
                     try {
                         clearTimeout(connectionTimeout);
                         errorLog('❌ WebSocket connection error', error);
-                        
+
                         setWsConnected(false);
                         setWsError(error?.toString() || 'Connection failed');
                         setLoading(false);
-                        
+
                         if (reconnectAttempts < WS_CONFIG.maxReconnectAttempts) {
                             const newAttempts = reconnectAttempts + 1;
                             setReconnectAttempts(newAttempts);
                             debugLog(`Attempting to reconnect (${newAttempts}/${WS_CONFIG.maxReconnectAttempts})...`);
-                            
+
                             reconnectTimeoutRef.current = setTimeout(() => {
                                 if (!isUnmountedRef.current) {
                                     connectWebSocket();
@@ -328,7 +328,7 @@ const OrderTable = () => {
                         } else {
                             debugLog('Max reconnection attempts reached, falling back to API polling');
                             fetchOrdersAPI();
-                            
+
                             // Set up periodic API polling as final fallback
                             setInterval(() => {
                                 if (!isUnmountedRef.current && !wsConnected) {
@@ -367,7 +367,7 @@ const OrderTable = () => {
                 stompClientRef.current.disconnect();
                 stompClientRef.current = null;
             }
-            
+
             setWsConnected(false);
         } catch (error) {
             errorLog('Error disconnecting WebSocket', error);
@@ -390,7 +390,7 @@ const OrderTable = () => {
         debugLog('Component mounting, initializing connection');
         isUnmountedRef.current = false;
         setComponentError(null);
-        
+
         // Start with API call first, then try WebSocket
         fetchOrdersAPI().then(() => {
             debugLog('Initial API call completed, attempting WebSocket connection');
@@ -404,7 +404,7 @@ const OrderTable = () => {
             errorLog('Initial API call failed', error);
             handleComponentError(error, 'Initial API call');
         });
-        
+
         return () => {
             debugLog('Component unmounting, cleaning up connections');
             isUnmountedRef.current = true;
@@ -449,7 +449,7 @@ const OrderTable = () => {
 
         const deliveryLat = parseFloat(selectedOrder.deliveryLatitude);
         const deliveryLng = parseFloat(selectedOrder.deliveryLongitude);
-        
+
         const mapOptions = {
             center: { lat: deliveryLat, lng: deliveryLng },
             zoom: 15,
@@ -462,30 +462,81 @@ const OrderTable = () => {
         const mapInstance = new window.google.maps.Map(document.getElementById("google-map"), mapOptions);
         setMap(mapInstance);
 
-        new window.google.maps.Marker({
+        // Create custom marker icon
+        const markerIcon = {
+            url: '/images/home_marker.png', // Path to your marker image
+            scaledSize: new window.google.maps.Size(40, 40), // Adjust size as needed
+            origin: new window.google.maps.Point(0, 0),
+            anchor: new window.google.maps.Point(20, 40) // Anchor point (center bottom of image)
+        };
+
+        // Create marker with custom icon
+        const marker = new window.google.maps.Marker({
             position: { lat: deliveryLat, lng: deliveryLng },
             map: mapInstance,
             title: `Order #${selectedOrder.orderNumber}`,
+            icon: markerIcon
         });
 
         // Add info window
         const infoWindow = new window.google.maps.InfoWindow({
             content: `
-                <div style="color: ${isDarkMode ? 'white' : 'black'}">
-                    <strong>Order #${selectedOrder.orderNumber}</strong><br />
-                    Customer: ${selectedOrder.customerName || 'Walk-in Customer'}<br />
-                    Status: ${selectedOrder.status}<br />
-                    Total: ${currencySymbol}${selectedOrder.totalAmount?.toFixed(2)}<br />
-                    Address: ${selectedOrder.deliveryAddress}<br />
-                </div>
-            `,
+    <div style="
+        color: ${isDarkMode ? '#f0f0f0' : '#333'};
+        font-family: 'Roboto', Arial, sans-serif;
+        min-width: 250px;
+        padding: 12px;
+        background: ${isDarkMode ? '#2d2d2d' : '#fff'};
+        border-radius: 8px;
+        box-shadow: 0 2px 7px rgba(0,0,0,0.3);
+    ">
+        <div style="
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: ${isDarkMode ? '#fff' : '#1a73e8'};
+            border-bottom: 1px solid ${isDarkMode ? '#444' : '#eee'};
+            padding-bottom: 6px;
+        ">
+            Order #${selectedOrder.orderNumber}
+        </div>
+        
+        <div style="margin-bottom: 10px;">
+            <div style="display: flex; margin-bottom: 4px;">
+                <span style="flex: 1; font-weight: 500; color: ${isDarkMode ? '#bbb' : '#666'}">Customer:</span>
+                <span style="flex: 1">${selectedOrder.customerName || 'Walk-in Customer'}</span>
+            </div>
+            <div style="display: flex; margin-bottom: 4px;">
+                <span style="flex: 1; font-weight: 500; color: ${isDarkMode ? '#bbb' : '#666'}">Status:</span>
+                <span style="flex: 1; color: ${selectedOrder.status === 'Completed' ? '#0f9d58' :
+                    selectedOrder.status === 'Pending' ? '#f4b400' :
+                        selectedOrder.status === 'Cancelled' ? '#db4437' :
+                            isDarkMode ? '#fff' : '#333'
+                }">
+                    ${selectedOrder.status}
+                </span>
+            </div>
+            <div style="display: flex; margin-bottom: 4px;">
+                <span style="flex: 1; font-weight: 500; color: ${isDarkMode ? '#bbb' : '#666'}">Total:</span>
+                <span style="flex: 1; font-weight: 600">${currencySymbol}${selectedOrder.totalAmount?.toFixed(2)}</span>
+            </div>
+        </div>
+        
+        <div style="
+            background: ${isDarkMode ? '#383838' : '#f8f9fa'};
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 14px;
+        ">
+            <div style="font-weight: 500; margin-bottom: 4px; color: ${isDarkMode ? '#bbb' : '#666'}">Delivery Address:</div>
+            <div>${selectedOrder.deliveryAddress}</div>
+        </div>
+    </div>
+    `,
         });
 
         // Open info window by default
-        infoWindow.open(mapInstance, new window.google.maps.Marker({
-            position: { lat: deliveryLat, lng: deliveryLng },
-            map: mapInstance,
-        }));
+        infoWindow.open(mapInstance, marker);
     };
 
     const darkMapStyles = [
@@ -592,7 +643,7 @@ const OrderTable = () => {
                 <h5 className="mb-2">No Orders Found</h5>
                 <p className="text-muted mb-4">Your order list is currently empty. New orders will appear here.</p>
                 <small className="text-muted">
-                    Connection: {wsConnected ? 'WebSocket (Real-time)' : 'API'} 
+                    Connection: {wsConnected ? 'WebSocket (Real-time)' : 'API'}
                     {wsError && ' (WebSocket failed)'}
                 </small>
             </div>
@@ -601,7 +652,7 @@ const OrderTable = () => {
 
     // Connection Status Component
     const ConnectionStatus = ({ wsConnected, wsError }) => (
-        <span 
+        <span
             className={`ms-2 ${wsConnected ? 'text-primary' : 'text-warning'}`}
             title={wsConnected ? 'Connected' : wsError || 'Disconnected'}
         >
@@ -817,7 +868,7 @@ const OrderTable = () => {
             const data = await response.json();
             if (data.status === 200) {
                 showSuccessToast('Order status updated successfully');
-                
+
                 // If WebSocket is not connected, refresh via API
                 if (!wsConnected) {
                     fetchOrdersAPI();
@@ -857,7 +908,7 @@ const OrderTable = () => {
             }
 
             showSuccessToast('Rider assigned successfully');
-            
+
             // If WebSocket is not connected, refresh via API
             if (!wsConnected) {
                 fetchOrdersAPI();
@@ -1101,7 +1152,7 @@ const OrderTable = () => {
                 <div className="alert alert-danger">
                     <h4>Component Error</h4>
                     <p>{componentError}</p>
-                    <button 
+                    <button
                         className="btn btn-primary"
                         onClick={() => {
                             setComponentError(null);
@@ -1137,14 +1188,14 @@ const OrderTable = () => {
             cell: (info) => getFulfillmentBadge(info.getValue() || 'In House')
         },
         {
-         
-    accessorKey: 'totalAmount',
-    header: 'Total',
-    cell: (info) => {
-        const value = info.getValue();
-        return `${currencySymbol}${value ? value.toFixed(2) : '0.00'}`;
-    }
-},
+
+            accessorKey: 'totalAmount',
+            header: 'Total',
+            cell: (info) => {
+                const value = info.getValue();
+                return `${currencySymbol}${value ? value.toFixed(2) : '0.00'}`;
+            }
+        },
         {
             accessorKey: 'paymentMethod',
             header: 'Payment',
@@ -1823,10 +1874,10 @@ const OrderTable = () => {
                     </Modal.Header>
                     <Modal.Body style={{ padding: 0, height: '500px' }}>
                         {selectedOrder && hasDeliveryLocation(selectedOrder) && (
-                            <div 
-                                id="google-map" 
-                                style={{ 
-                                    height: '100%', 
+                            <div
+                                id="google-map"
+                                style={{
+                                    height: '100%',
                                     width: '100%',
                                     backgroundColor: isDarkMode ? '#1e293b' : '#f8f9fa'
                                 }}
@@ -1938,7 +1989,7 @@ const OrderTable = () => {
                 <div className="alert alert-danger">
                     <h4>Render Error</h4>
                     <p>There was an error rendering the orders table. Please refresh the page.</p>
-                    <button 
+                    <button
                         className="btn btn-primary"
                         onClick={() => window.location.reload()}
                     >

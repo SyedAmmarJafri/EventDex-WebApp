@@ -93,6 +93,19 @@ const ItemsTable = () => {
         });
     };
 
+    const getErrorMessage = (error) => {
+        if (error.response && error.response.data) {
+            // Handle API response errors
+            if (error.response.data.error) {
+                return error.response.data.error;
+            }
+            if (error.response.data.message) {
+                return error.response.data.message;
+            }
+        }
+        return error.message || 'An unexpected error occurred';
+    };
+
     // Variant management functions
     const addNewVariant = (isEdit = false) => {
         const newVariant = {
@@ -539,7 +552,6 @@ const ItemsTable = () => {
     const validateForm = (formData, setErrors) => {
         const errors = {};
         if (!formData.name.trim()) errors.name = 'Name is required';
-        if (!formData.description.trim()) errors.description = 'Description is required';
         if (formData.price <= 0) errors.price = 'Price must be greater than 0';
         if (formData.quantity < 0) errors.quantity = 'Quantity cannot be negative';
         if (!formData.category) errors.category = 'Category is required';
@@ -599,7 +611,9 @@ const ItemsTable = () => {
 
             const data = await response.json();
             if (!response.ok) {
-                throw new Error(data.message || 'Failed to create item');
+                // Show the API error message in a popup
+                showErrorToast(data.error || data.message || 'Failed to create item');
+                return;
             }
 
             if (selectedFile) {
@@ -617,7 +631,8 @@ const ItemsTable = () => {
 
                 if (!uploadResponse.ok) {
                     const uploadError = await uploadResponse.json();
-                    throw new Error(uploadError.message || 'Failed to upload image');
+                    showErrorToast(uploadError.error || uploadError.message || 'Failed to upload image');
+                    return;
                 }
             }
 
@@ -642,7 +657,8 @@ const ItemsTable = () => {
             setSelectedFile(null);
             setImagePreview('');
         } catch (err) {
-            showErrorToast(err.message);
+            showErrorToast(getErrorMessage(err));
+            setIsModalOpen(false);
         } finally {
             setUploadingImage(false);
         }
@@ -670,18 +686,15 @@ const ItemsTable = () => {
                     body: formData
                 });
 
-                const uploadData = await uploadResponse.json();
                 if (!uploadResponse.ok) {
-                    throw new Error(uploadData.message || 'Failed to upload image');
+                    const uploadError = await uploadResponse.json();
+                    showErrorToast(uploadError.error || uploadError.message || 'Failed to upload image');
+                    return;
                 }
 
+                const uploadData = await uploadResponse.json();
                 imageUrl = uploadData.imageUrl;
             }
-
-            // Calculate discounted price if discount is enabled
-            const discountedPrice = editItem.itemDiscountEnabled
-                ? editItem.price - (editItem.price * editItem.itemDiscountRate / 100)
-                : 0;
 
             const response = await fetch(`${BASE_URL}/api/client-admin/items/${editItem.id}`, {
                 method: 'PUT',
@@ -690,25 +703,14 @@ const ItemsTable = () => {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    name: editItem.name,
-                    description: editItem.description,
-                    price: editItem.price,
-                    discountedPrice: parseFloat(discountedPrice.toFixed(2)),
-                    itemDiscountRate: editItem.itemDiscountRate,
-                    itemDiscountEnabled: editItem.itemDiscountEnabled,
-                    quantity: editItem.quantity,
-                    category: editItem.category || null,
-                    primaryImageUrl: imageUrl,
-                    active: editItem.active,
-                    barcode: editItem.barcode,
-                    lowStockThreshold: editItem.lowStockThreshold,
-                    variants: editItem.variants.length > 0 ? editItem.variants : null
+                    // ... your request body
                 })
             });
 
             const data = await response.json();
             if (!response.ok) {
-                throw new Error(data.message || 'Failed to update item');
+                showErrorToast(data.error || data.message || 'Failed to update item');
+                return;
             }
 
             showSuccessToast('Item updated successfully');
@@ -717,7 +719,7 @@ const ItemsTable = () => {
             setSelectedFile(null);
             setImagePreview('');
         } catch (err) {
-            showErrorToast(err.message);
+            showErrorToast(getErrorMessage(err));
         } finally {
             setUploadingImage(false);
         }
@@ -736,14 +738,15 @@ const ItemsTable = () => {
 
             const data = await response.json();
             if (!response.ok) {
-                throw new Error(data.message || 'Failed to delete item');
+                showErrorToast(data.error || data.message || 'Failed to delete item');
+                return;
             }
 
             showSuccessToast('Item deleted successfully');
             await fetchItems();
             setIsDeleteModalOpen(false);
         } catch (err) {
-            showErrorToast(err.message);
+            showErrorToast(getErrorMessage(err));
         }
     };
 
@@ -816,7 +819,7 @@ const ItemsTable = () => {
         {
             accessorKey: 'categoryName',
             header: 'Category',
-            cell: (info) => info.getValue() || 'N/A'
+            cell: (info) => info.getValue() || '-'
         },
         {
             accessorKey: 'price',
@@ -966,7 +969,7 @@ const ItemsTable = () => {
                         <div className="mb-3">
                             <label htmlFor="description" className="form-label">Description</label>
                             <textarea
-                                className={`form-control ${formErrors.description ? 'is-invalid' : ''}`}
+                                className="form-control"
                                 id="description"
                                 name="description"
                                 value={newItem.description}
@@ -974,7 +977,6 @@ const ItemsTable = () => {
                                 rows="2"
                                 style={{ minHeight: '80px' }}
                             />
-                            {formErrors.description && <div className="invalid-feedback">{formErrors.description}</div>}
                         </div>
                         <div className="row mb-3">
                             <div className="col-md-6">
@@ -1335,7 +1337,7 @@ const ItemsTable = () => {
                         <div className="mb-3">
                             <label htmlFor="edit-description" className="form-label">Description</label>
                             <textarea
-                                className={`form-control ${editFormErrors.description ? 'is-invalid' : ''}`}
+                                className="form-control"
                                 id="edit-description"
                                 name="description"
                                 value={editItem.description}
@@ -1343,7 +1345,6 @@ const ItemsTable = () => {
                                 rows="2"
                                 style={{ minHeight: '80px' }}
                             />
-                            {editFormErrors.description && <div className="invalid-feedback">{editFormErrors.description}</div>}
                         </div>
                         <div className="row mb-3">
                             <div className="col-md-6">
@@ -1717,7 +1718,7 @@ const ItemsTable = () => {
                                 </div>
                                 <div className="col-md-6">
                                     <h5>Category</h5>
-                                    <h8>{selectedItem.categoryName || 'N/A'}</h8>
+                                    <h8>{selectedItem.categoryName || '-'}</h8>
                                 </div>
                             </div>
                             <div className="row mb-3">
@@ -1740,7 +1741,7 @@ const ItemsTable = () => {
                             <div className="row mb-3">
                                 <div className="col-md-6">
                                     <h5>Barcode</h5>
-                                    <h8>{selectedItem.barcode || 'N/A'}</h8>
+                                    <h8>{selectedItem.barcode || '-'}</h8>
                                 </div>
                                 <div className="col-md-6">
                                     <h5>Low Stock Threshold</h5>
@@ -1749,7 +1750,7 @@ const ItemsTable = () => {
                             </div>
                             <div className="mb-3">
                                 <h5>Description</h5>
-                                <h8>{selectedItem.description || 'N/A'}</h8>
+                                <h8>{selectedItem.description || '-'}</h8>
                             </div>
 
                             {/* Variants Section */}

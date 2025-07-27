@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Card, ListGroup, Badge } from 'react-bootstrap';
+import { Card, ListGroup, Badge, Button, ButtonGroup } from 'react-bootstrap';
+import { Maximize, Minimize, Map, Satellite, Users } from 'lucide-react';
 import { BASE_URL } from '/src/constants.js';
 
 const RidersAndMapView = () => {
@@ -10,12 +11,17 @@ const RidersAndMapView = () => {
   const [wsError, setWsError] = useState(null);
   const [reconnectAttempts, setReconnectAttempts] = useState(0);
   const [mapLoaded, setMapLoaded] = useState(false);
+  const [selectedRiderId, setSelectedRiderId] = useState(null);
+  const [viewMode, setViewMode] = useState('seeAll'); // 'seeAll' or 'focused'
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [mapType, setMapType] = useState('roadmap'); // 'roadmap' or 'satellite'
   
   const mapRef = useRef(null);
   const markersRef = useRef({});
   const stompClientRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
   const isUnmountedRef = useRef(false);
+  const mapContainerRef = useRef(null);
 
   const WS_CONFIG = {
     maxReconnectAttempts: 5,
@@ -90,8 +96,101 @@ const RidersAndMapView = () => {
     }
   };
 
+  const getStatusBadgeClass = (status) => {
+    switch (status) {
+      case 'IDLE': return 'bg-success';
+      case 'ON_JOB': return 'bg-warning';
+      case 'OFFLINE': return 'bg-secondary';
+      case 'ON_BREAK': return 'bg-info';
+      case 'ASSIGNED': return 'bg-primary';
+      case 'DISPATCHED': return 'bg-danger';
+      default: return 'bg-dark';
+    }
+  };
+
+  const toggleFullscreen = useCallback(() => {
+    const container = mapContainerRef.current;
+    if (!container) return;
+
+    if (!isFullscreen) {
+      if (container.requestFullscreen) {
+        container.requestFullscreen();
+      } else if (container.webkitRequestFullscreen) {
+        container.webkitRequestFullscreen();
+      } else if (container.mozRequestFullScreen) {
+        container.mozRequestFullScreen();
+      } else if (container.msRequestFullscreen) {
+        container.msRequestFullscreen();
+      }
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      } else if (document.webkitExitFullscreen) {
+        document.webkitExitFullscreen();
+      } else if (document.mozCancelFullScreen) {
+        document.mozCancelFullScreen();
+      } else if (document.msExitFullscreen) {
+        document.msExitFullscreen();
+      }
+    }
+  }, [isFullscreen]);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
+    };
+  }, []);
+
+  const handleSeeAll = useCallback(() => {
+    if (!mapRef.current || riders.length === 0) return;
+    
+    setSelectedRiderId(null);
+    setViewMode('seeAll');
+    
+    // Reset all markers to normal size
+    Object.keys(markersRef.current).forEach(id => {
+      const marker = markersRef.current[id];
+      marker.setIcon({
+        url: '/images/rider_marker.png',
+        scaledSize: new google.maps.Size(40, 40),
+        anchor: new google.maps.Point(20, 40)
+      });
+    });
+    
+    // Fit bounds to show all markers
+    const bounds = new google.maps.LatLngBounds();
+    riders.forEach(rider => {
+      if (rider.latitude && rider.longitude) {
+        bounds.extend(new google.maps.LatLng(rider.latitude, rider.longitude));
+      }
+    });
+    
+    if (!bounds.isEmpty()) {
+      const currentZoom = mapRef.current.getZoom();
+      mapRef.current.fitBounds(bounds, { 
+        padding: 50,
+        maxZoom: Math.max(currentZoom, 12) // Don't zoom in more than zoom level 12
+      });
+    }
+  }, [riders]);
+
   const handleRiderClick = useCallback((rider) => {
     if (!mapRef.current || !rider.latitude || !rider.longitude) return;
+    
+    setSelectedRiderId(rider.riderId);
+    setViewMode('focused');
     
     const marker = markersRef.current[rider.riderId];
     if (marker) {
@@ -99,28 +198,38 @@ const RidersAndMapView = () => {
         marker.infoWindow.open(mapRef.current, marker);
       }
       
+      // Set center and slightly zoomed in level
       mapRef.current.setCenter(new google.maps.LatLng(rider.latitude, rider.longitude));
-      mapRef.current.setZoom(16);
+      mapRef.current.setZoom(16); // Increased from 14 to 16 for a closer view
       
       // Larger size for selected marker
       marker.setIcon({
         url: '/images/rider_marker.png',
-        scaledSize: new google.maps.Size(50, 50), // Increased from 42
+        scaledSize: new google.maps.Size(50, 50),
         anchor: new google.maps.Point(25, 50)
       });
       
+      // Reset other markers to normal size
       Object.keys(markersRef.current).forEach(id => {
         if (id !== rider.riderId) {
           const otherMarker = markersRef.current[id];
           otherMarker.setIcon({
             url: '/images/rider_marker.png',
-            scaledSize: new google.maps.Size(40, 40), // Increased from 36
+            scaledSize: new google.maps.Size(40, 40),
             anchor: new google.maps.Point(20, 40)
           });
         }
       });
     }
   }, []);
+
+  const toggleMapType = useCallback(() => {
+    if (!mapRef.current) return;
+    
+    const newMapType = mapType === 'roadmap' ? 'satellite' : 'roadmap';
+    setMapType(newMapType);
+    mapRef.current.setMapTypeId(newMapType);
+  }, [mapType]);
 
   const fetchLiveRiderLocations = useCallback(async () => {
     try {
@@ -163,18 +272,40 @@ const RidersAndMapView = () => {
 
     const defaultLat = riders.length > 0 ? riders[0].latitude : 24.8607;
     const defaultLng = riders.length > 0 ? riders[0].longitude : 67.0011;
-    const defaultZoom = riders.length > 0 ? 13 : 12;
+    const defaultZoom = riders.length > 0 ? 12 : 10;
 
     mapRef.current = new google.maps.Map(document.getElementById('map-container'), {
       center: { lat: defaultLat, lng: defaultLng },
       zoom: defaultZoom,
+      mapTypeId: mapType,
       streetViewControl: false,
       mapTypeControl: false,
-      fullscreenControl: false
+      fullscreenControl: false,
+      zoomControl: true,
+      scaleControl: true
     });
     
-    if (riders.length > 0) updateMapMarkers(riders);
-  }, [riders, mapLoaded]);
+    if (riders.length > 0) {
+      updateMapMarkers(riders);
+      // Set to see all by default after map is initialized
+      setTimeout(() => {
+        if (mapRef.current && riders.length > 0) {
+          const bounds = new google.maps.LatLngBounds();
+          riders.forEach(rider => {
+            if (rider.latitude && rider.longitude) {
+              bounds.extend(new google.maps.LatLng(rider.latitude, rider.longitude));
+            }
+          });
+          if (!bounds.isEmpty()) {
+            mapRef.current.fitBounds(bounds, { 
+              padding: 50,
+              maxZoom: 12
+            });
+          }
+        }
+      }, 100);
+    }
+  }, [riders, mapLoaded, mapType]);
 
   const updateMapMarkers = useCallback((riderData) => {
     if (!mapRef.current) return;
@@ -193,6 +324,12 @@ const RidersAndMapView = () => {
         const newPosition = new google.maps.LatLng(lat, lng);
         if (!marker.getPosition().equals(newPosition)) {
           marker.setPosition(newPosition);
+          
+          // Only pan to rider if in focused mode, don't change zoom
+          if (selectedRiderId === riderId && viewMode === 'focused') {
+            mapRef.current.panTo(newPosition);
+            mapRef.current.setZoom(16); // Maintain the zoom level
+          }
         }
       } else {
         const marker = new google.maps.Marker({
@@ -200,7 +337,7 @@ const RidersAndMapView = () => {
           map: mapRef.current,
           icon: {
             url: '/images/rider_marker.png',
-            scaledSize: new google.maps.Size(40, 40), // Increased from 36
+            scaledSize: new google.maps.Size(40, 40),
             anchor: new google.maps.Point(20, 40)
           },
           title: rider.riderName
@@ -209,7 +346,7 @@ const RidersAndMapView = () => {
         const infoWindow = new google.maps.InfoWindow({
           content: `
             <div class="rider-popup">
-              <h6>${rider.riderName}</h6>
+              <p><b>${rider.riderName}</b></p>
               <p>Phone: ${rider.riderPhone}</p>
               <p>Status: <span class="status-badge" style="background-color: ${getStatusColor(rider.status)}">
                 ${rider.status.replace('_', ' ')}
@@ -228,20 +365,16 @@ const RidersAndMapView = () => {
       }
     });
     
+    // Remove markers for riders that no longer exist
     Object.keys(markersRef.current).forEach(riderId => {
       if (!riderData.find(r => r.riderId === riderId)) {
         markersRef.current[riderId].setMap(null);
+        delete markersRef.current[riderId];
       }
     });
     
     markersRef.current = { ...markersRef.current, ...newMarkers };
-    
-    if (riderData.length > 0) {
-      const bounds = new google.maps.LatLngBounds();
-      riderData.forEach(r => bounds.extend(new google.maps.LatLng(r.latitude, r.longitude)));
-      mapRef.current.fitBounds(bounds, { padding: 50 });
-    }
-  }, []);
+  }, [selectedRiderId, viewMode]);
 
   const connectWebSocket = useCallback(async () => {
     if (isUnmountedRef.current) return;
@@ -294,9 +427,21 @@ const RidersAndMapView = () => {
                 );
                 
                 if (mapRef.current) {
-                  updateMapMarkers(
-                    updatedRiders.filter(r => r.riderId === locationUpdate.riderId)
-                  );
+                  // Update only the marker position without affecting camera
+                  const marker = markersRef.current[locationUpdate.riderId];
+                  if (marker) {
+                    const newPosition = new google.maps.LatLng(
+                      locationUpdate.latitude, 
+                      locationUpdate.longitude
+                    );
+                    marker.setPosition(newPosition);
+                    
+                    // Only pan to rider if in focused mode, don't change zoom
+                    if (selectedRiderId === locationUpdate.riderId && viewMode === 'focused') {
+                      mapRef.current.panTo(newPosition);
+                      mapRef.current.setZoom(16); // Maintain the zoom level
+                    }
+                  }
                 }
                 return updatedRiders;
               });
@@ -325,7 +470,7 @@ const RidersAndMapView = () => {
       setWsError(error?.toString() || 'Setup failed');
       setWsConnected(false);
     }
-  }, [getClientId, reconnectAttempts]);
+  }, [getClientId, reconnectAttempts, selectedRiderId, viewMode]);
 
   const disconnectWebSocket = useCallback(() => {
     if (reconnectTimeoutRef.current) {
@@ -362,6 +507,13 @@ const RidersAndMapView = () => {
     }
   }, [riders, initializeMap, mapLoaded]);
 
+  // Update map type when changed
+  useEffect(() => {
+    if (mapRef.current) {
+      mapRef.current.setMapTypeId(mapType);
+    }
+  }, [mapType]);
+
   const availableRidersCount = riders.filter(r => r.status === 'IDLE').length;
   const busyRidersCount = riders.filter(r => r.status === 'ON_JOB').length;
 
@@ -375,9 +527,35 @@ const RidersAndMapView = () => {
           .rider-popup h6 { margin-bottom: 8px; color: #333; font-size: 16px; }
           .rider-popup p { margin-bottom: 6px; color: #666; font-size: 14px; }
           .rider-popup small { color: #999; font-size: 12px; }
-          #map-container { width: 100%; height: 500px; min-height: 500px; background: #f5f5f5; }
+          #map-container { 
+            width: 100%; 
+            height: ${isFullscreen ? '100vh' : '500px'}; 
+            min-height: ${isFullscreen ? '100vh' : '500px'}; 
+            background: #f5f5f5; 
+            position: relative;
+          }
           .gm-style .gm-style-iw-c { padding: 0 !important; border-radius: 8px !important; }
           .gm-style .gm-style-iw-d { padding: 0 !important; overflow: hidden !important; }
+          
+          .map-controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+          }
+          
+          .map-control-group {
+            display: flex;
+            gap: 4px;
+          }
+          
+          .selected-rider {
+            background-color: #e3f2fd !important;
+            border-left: 4px solid #2196f3 !important;
+          }
           
           /* Status badge styles */
           .badge-status {
@@ -387,13 +565,6 @@ const RidersAndMapView = () => {
             min-width: 80px;
             text-align: center;
           }
-          .badge-idle { background-color: #28a745; }
-          .badge-on-job { background-color: #fd7e14; }
-          .badge-offline { background-color: #6c757d; }
-          .badge-on-break { background-color: #17a2b8; }
-          .badge-assigned { background-color: #007bff; }
-          .badge-dispatched { background-color: #dc3545; }
-          .badge-other { background-color: #343a40; }
           
           /* Status in popup */
           .status-badge {
@@ -408,17 +579,26 @@ const RidersAndMapView = () => {
             border-radius: 0.25rem;
             color: white;
           }
+          
+          /* Fullscreen container */
+          .fullscreen-map-container {
+            position: ${isFullscreen ? 'fixed' : 'relative'};
+            top: ${isFullscreen ? '0' : 'auto'};
+            left: ${isFullscreen ? '0' : 'auto'};
+            width: ${isFullscreen ? '100vw' : 'auto'};
+            height: ${isFullscreen ? '100vh' : 'auto'};
+            z-index: ${isFullscreen ? '9999' : 'auto'};
+            background: white;
+          }
         `}
       </style>
       
       <div className="d-flex justify-content-between align-items-center mb-4">
         <h4>Live Tracking</h4>
-        <div>
-        </div>
       </div>
       
       <div className="row">
-        <div className="col-lg-3 col-md-5 mb-4">
+        <div className={`col-lg-3 col-md-5 mb-4 ${isFullscreen ? 'd-none' : ''}`}>
           <Card className="h-100">
             <Card.Header className="d-flex justify-content-between align-items-center">
               <h5 className="mb-0">Available Riders</h5>
@@ -439,7 +619,9 @@ const RidersAndMapView = () => {
                   {riders.map(rider => (
                     <ListGroup.Item
                       key={rider.riderId}
-                      className="d-flex justify-content-between align-items-center"
+                      className={`d-flex justify-content-between align-items-center ${
+                        selectedRiderId === rider.riderId ? 'selected-rider' : ''
+                      }`}
                       action
                       onClick={() => handleRiderClick(rider)}
                     >
@@ -450,9 +632,8 @@ const RidersAndMapView = () => {
                         </small>
                       </div>
                       <Badge 
-                        className={`badge-status badge-${rider.status.toLowerCase().replace('_', '-')}`} 
+                        className={`${getStatusBadgeClass(rider.status)}`} 
                         pill
-                        style={{ backgroundColor: getStatusColor(rider.status) }}
                       >
                         {rider.status.replace('_', ' ')}
                       </Badge>
@@ -464,24 +645,54 @@ const RidersAndMapView = () => {
           </Card>
         </div>
 
-        <div className="col-lg-9 col-md-7 mb-4">
+        <div className={`col-lg-9 col-md-7 mb-4 ${isFullscreen ? 'col-12' : ''}`}>
           <Card className="h-100">
             <Card.Header className="d-flex justify-content-between align-items-center">
-           
               <div>
                 <span className="badge bg-success me-2">Available: {availableRidersCount}</span>
                 <span className="badge bg-warning">On Job: {busyRidersCount}</span>
               </div>
+              <div className="d-flex gap-2">
+                <Button
+                  variant={viewMode === 'seeAll' ? 'primary' : 'outline-primary'}
+                  size="sm"
+                  onClick={handleSeeAll}
+                  disabled={riders.length === 0}
+                >
+                  <Users size={16} className="me-1" />
+                  See All
+                </Button>
+                <Button
+                  variant={mapType === 'satellite' ? 'success' : 'outline-secondary'}
+                  size="sm"
+                  onClick={toggleMapType}
+                >
+                  {mapType === 'satellite' ? <Satellite size={16} /> : <Map size={16} />}
+                </Button>
+                <Button
+                  variant="outline-secondary"
+                  size="sm"
+                  onClick={toggleFullscreen}
+                >
+                  {isFullscreen ? <Minimize size={16} /> : <Maximize size={16} />}
+                </Button>
+              </div>
             </Card.Header>
             <Card.Body className="p-0">
-              <div id="map-container"></div>
+              <div 
+                ref={mapContainerRef}
+                className="fullscreen-map-container"
+              >
+                <div id="map-container"></div>
+              </div>
             </Card.Body>
-            <Card.Footer className="text-muted">
-              <small>
-                {wsConnected ? 'Real-time tracking' : 'Connection lost - attempting to reconnect'} | 
-                Last refreshed: {new Date().toLocaleTimeString()}
-              </small>
-            </Card.Footer>
+            {!isFullscreen && (
+              <Card.Footer className="text-muted">
+                <small>
+                  Last refreshed: {new Date().toLocaleTimeString()}
+                </small>
+              </Card.Footer>
+            )}
           </Card>
         </div>
       </div>
