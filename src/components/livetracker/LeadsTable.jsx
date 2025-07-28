@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Card, ListGroup, Badge, Button, ButtonGroup } from 'react-bootstrap';
-import { Maximize, Minimize, Map, Satellite, Users } from 'lucide-react';
+import { Map, Satellite, Users } from 'lucide-react';
 import { BASE_URL } from '/src/constants.js';
 
 const RidersAndMapView = () => {
@@ -13,15 +13,13 @@ const RidersAndMapView = () => {
   const [mapLoaded, setMapLoaded] = useState(false);
   const [selectedRiderId, setSelectedRiderId] = useState(null);
   const [viewMode, setViewMode] = useState('seeAll'); // 'seeAll' or 'focused'
-  const [isFullscreen, setIsFullscreen] = useState(false);
   const [mapType, setMapType] = useState('roadmap'); // 'roadmap' or 'satellite'
-  
+
   const mapRef = useRef(null);
   const markersRef = useRef({});
   const stompClientRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
   const isUnmountedRef = useRef(false);
-  const mapContainerRef = useRef(null);
 
   const WS_CONFIG = {
     maxReconnectAttempts: 5,
@@ -40,7 +38,7 @@ const RidersAndMapView = () => {
     script.src = 'https://maps.gomaps.pro/maps/api/js?key=AlzaSyNWmbqBT69lAW7bQ3RKsK37imGf2v6fhcy&libraries=places&callback=initMap';
     script.async = true;
     script.defer = true;
-    
+
     window.initMap = () => {
       setMapLoaded(true);
     };
@@ -108,57 +106,12 @@ const RidersAndMapView = () => {
     }
   };
 
-  const toggleFullscreen = useCallback(() => {
-    const container = mapContainerRef.current;
-    if (!container) return;
-
-    if (!isFullscreen) {
-      if (container.requestFullscreen) {
-        container.requestFullscreen();
-      } else if (container.webkitRequestFullscreen) {
-        container.webkitRequestFullscreen();
-      } else if (container.mozRequestFullScreen) {
-        container.mozRequestFullScreen();
-      } else if (container.msRequestFullscreen) {
-        container.msRequestFullscreen();
-      }
-    } else {
-      if (document.exitFullscreen) {
-        document.exitFullscreen();
-      } else if (document.webkitExitFullscreen) {
-        document.webkitExitFullscreen();
-      } else if (document.mozCancelFullScreen) {
-        document.mozCancelFullScreen();
-      } else if (document.msExitFullscreen) {
-        document.msExitFullscreen();
-      }
-    }
-  }, [isFullscreen]);
-
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
-    };
-
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
-    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
-    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
-
-    return () => {
-      document.removeEventListener('fullscreenchange', handleFullscreenChange);
-      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
-      document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
-      document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
-    };
-  }, []);
-
   const handleSeeAll = useCallback(() => {
     if (!mapRef.current || riders.length === 0) return;
-    
+
     setSelectedRiderId(null);
     setViewMode('seeAll');
-    
+
     // Reset all markers to normal size
     Object.keys(markersRef.current).forEach(id => {
       const marker = markersRef.current[id];
@@ -168,7 +121,7 @@ const RidersAndMapView = () => {
         anchor: new google.maps.Point(20, 40)
       });
     });
-    
+
     // Fit bounds to show all markers
     const bounds = new google.maps.LatLngBounds();
     riders.forEach(rider => {
@@ -176,10 +129,10 @@ const RidersAndMapView = () => {
         bounds.extend(new google.maps.LatLng(rider.latitude, rider.longitude));
       }
     });
-    
+
     if (!bounds.isEmpty()) {
       const currentZoom = mapRef.current.getZoom();
-      mapRef.current.fitBounds(bounds, { 
+      mapRef.current.fitBounds(bounds, {
         padding: 50,
         maxZoom: Math.max(currentZoom, 12) // Don't zoom in more than zoom level 12
       });
@@ -188,27 +141,27 @@ const RidersAndMapView = () => {
 
   const handleRiderClick = useCallback((rider) => {
     if (!mapRef.current || !rider.latitude || !rider.longitude) return;
-    
+
     setSelectedRiderId(rider.riderId);
     setViewMode('focused');
-    
+
     const marker = markersRef.current[rider.riderId];
     if (marker) {
       if (marker.infoWindow) {
         marker.infoWindow.open(mapRef.current, marker);
       }
-      
+
       // Set center and slightly zoomed in level
       mapRef.current.setCenter(new google.maps.LatLng(rider.latitude, rider.longitude));
-      mapRef.current.setZoom(16); // Increased from 14 to 16 for a closer view
-      
+      mapRef.current.setZoom(17); // Increased from 14 to 16 for a closer view
+
       // Larger size for selected marker
       marker.setIcon({
         url: '/images/rider_marker.png',
         scaledSize: new google.maps.Size(50, 50),
         anchor: new google.maps.Point(25, 50)
       });
-      
+
       // Reset other markers to normal size
       Object.keys(markersRef.current).forEach(id => {
         if (id !== rider.riderId) {
@@ -225,7 +178,7 @@ const RidersAndMapView = () => {
 
   const toggleMapType = useCallback(() => {
     if (!mapRef.current) return;
-    
+
     const newMapType = mapType === 'roadmap' ? 'satellite' : 'roadmap';
     setMapType(newMapType);
     mapRef.current.setMapTypeId(newMapType);
@@ -235,29 +188,29 @@ const RidersAndMapView = () => {
     try {
       setLoading(true);
       setError(null);
-      
+
       const clientId = getClientId();
       const token = getAuthToken();
-      
+
       if (!clientId || !token) {
         throw new Error('Authentication error');
       }
-      
+
       const response = await fetch(`${BASE_URL}/api/client-admin/rider-locations/live`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
-      
+
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      
+
       const data = await response.json();
       setRiders(data.map(rider => ({
         ...rider,
         vehicle: 'Motorcycle'
       })));
-      
+
       if (mapRef.current) updateMapMarkers(data);
     } catch (err) {
       console.error('Error fetching rider locations:', err);
@@ -284,7 +237,7 @@ const RidersAndMapView = () => {
       zoomControl: true,
       scaleControl: true
     });
-    
+
     if (riders.length > 0) {
       updateMapMarkers(riders);
       // Set to see all by default after map is initialized
@@ -297,7 +250,7 @@ const RidersAndMapView = () => {
             }
           });
           if (!bounds.isEmpty()) {
-            mapRef.current.fitBounds(bounds, { 
+            mapRef.current.fitBounds(bounds, {
               padding: 50,
               maxZoom: 12
             });
@@ -311,24 +264,24 @@ const RidersAndMapView = () => {
     if (!mapRef.current) return;
 
     const newMarkers = {};
-    
+
     riderData.forEach(rider => {
       const riderId = rider.riderId;
       const lat = rider.latitude;
       const lng = rider.longitude;
-      
+
       if (!lat || !lng) return;
-      
+
       if (markersRef.current[riderId]) {
         const marker = markersRef.current[riderId];
         const newPosition = new google.maps.LatLng(lat, lng);
         if (!marker.getPosition().equals(newPosition)) {
           marker.setPosition(newPosition);
-          
+
           // Only pan to rider if in focused mode, don't change zoom
           if (selectedRiderId === riderId && viewMode === 'focused') {
             mapRef.current.panTo(newPosition);
-            mapRef.current.setZoom(16); // Maintain the zoom level
+            mapRef.current.setZoom(17); // Maintain the zoom level
           }
         }
       } else {
@@ -342,7 +295,7 @@ const RidersAndMapView = () => {
           },
           title: rider.riderName
         });
-        
+
         const infoWindow = new google.maps.InfoWindow({
           content: `
             <div class="rider-popup">
@@ -355,16 +308,16 @@ const RidersAndMapView = () => {
             </div>
           `
         });
-        
+
         marker.addListener('click', () => {
           infoWindow.open(mapRef.current, marker);
         });
-        
+
         marker.infoWindow = infoWindow;
         newMarkers[riderId] = marker;
       }
     });
-    
+
     // Remove markers for riders that no longer exist
     Object.keys(markersRef.current).forEach(riderId => {
       if (!riderData.find(r => r.riderId === riderId)) {
@@ -372,7 +325,7 @@ const RidersAndMapView = () => {
         delete markersRef.current[riderId];
       }
     });
-    
+
     markersRef.current = { ...markersRef.current, ...newMarkers };
   }, [selectedRiderId, viewMode]);
 
@@ -393,7 +346,7 @@ const RidersAndMapView = () => {
 
       const socket = new SockJS(`${BASE_URL}/ws`);
       const stompClient = Stomp.over(socket);
-      stompClient.debug = () => {};
+      stompClient.debug = () => { };
 
       const connectionTimeout = setTimeout(() => {
         if (stompClient && !stompClient.connected) {
@@ -416,30 +369,30 @@ const RidersAndMapView = () => {
             try {
               const locationUpdate = JSON.parse(message.body);
               setRiders(prevRiders => {
-                const updatedRiders = prevRiders.map(rider => 
-                  rider.riderId === locationUpdate.riderId ? { 
-                    ...rider, 
+                const updatedRiders = prevRiders.map(rider =>
+                  rider.riderId === locationUpdate.riderId ? {
+                    ...rider,
                     latitude: locationUpdate.latitude,
                     longitude: locationUpdate.longitude,
                     timestamp: locationUpdate.timestamp,
                     status: locationUpdate.status
                   } : rider
                 );
-                
+
                 if (mapRef.current) {
                   // Update only the marker position without affecting camera
                   const marker = markersRef.current[locationUpdate.riderId];
                   if (marker) {
                     const newPosition = new google.maps.LatLng(
-                      locationUpdate.latitude, 
+                      locationUpdate.latitude,
                       locationUpdate.longitude
                     );
                     marker.setPosition(newPosition);
-                    
+
                     // Only pan to rider if in focused mode, don't change zoom
                     if (selectedRiderId === locationUpdate.riderId && viewMode === 'focused') {
                       mapRef.current.panTo(newPosition);
-                      mapRef.current.setZoom(16); // Maintain the zoom level
+                      mapRef.current.setZoom(17); // Maintain the zoom level
                     }
                   }
                 }
@@ -459,7 +412,7 @@ const RidersAndMapView = () => {
         clearTimeout(connectionTimeout);
         setWsConnected(false);
         setWsError(error?.toString() || 'Connection failed');
-        
+
         if (reconnectAttempts < WS_CONFIG.maxReconnectAttempts) {
           setReconnectAttempts(prev => prev + 1);
           reconnectTimeoutRef.current = setTimeout(connectWebSocket, WS_CONFIG.reconnectDelay);
@@ -529,8 +482,8 @@ const RidersAndMapView = () => {
           .rider-popup small { color: #999; font-size: 12px; }
           #map-container { 
             width: 100%; 
-            height: ${isFullscreen ? '100vh' : '500px'}; 
-            min-height: ${isFullscreen ? '100vh' : '500px'}; 
+            height: 500px; 
+            min-height: 500px; 
             background: #f5f5f5; 
             position: relative;
           }
@@ -579,26 +532,11 @@ const RidersAndMapView = () => {
             border-radius: 0.25rem;
             color: white;
           }
-          
-          /* Fullscreen container */
-          .fullscreen-map-container {
-            position: ${isFullscreen ? 'fixed' : 'relative'};
-            top: ${isFullscreen ? '0' : 'auto'};
-            left: ${isFullscreen ? '0' : 'auto'};
-            width: ${isFullscreen ? '100vw' : 'auto'};
-            height: ${isFullscreen ? '100vh' : 'auto'};
-            z-index: ${isFullscreen ? '9999' : 'auto'};
-            background: white;
-          }
         `}
       </style>
-      
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        <h4>Live Tracking</h4>
-      </div>
-      
+
       <div className="row">
-        <div className={`col-lg-3 col-md-5 mb-4 ${isFullscreen ? 'd-none' : ''}`}>
+        <div className="col-lg-3 col-md-5 mb-4">
           <Card className="h-100">
             <Card.Header className="d-flex justify-content-between align-items-center">
               <h5 className="mb-0">Available Riders</h5>
@@ -619,9 +557,8 @@ const RidersAndMapView = () => {
                   {riders.map(rider => (
                     <ListGroup.Item
                       key={rider.riderId}
-                      className={`d-flex justify-content-between align-items-center ${
-                        selectedRiderId === rider.riderId ? 'selected-rider' : ''
-                      }`}
+                      className={`d-flex justify-content-between align-items-center ${selectedRiderId === rider.riderId ? 'selected-rider' : ''
+                        }`}
                       action
                       onClick={() => handleRiderClick(rider)}
                     >
@@ -631,8 +568,8 @@ const RidersAndMapView = () => {
                           {rider.vehicle} • {rider.riderPhone}
                         </small>
                       </div>
-                      <Badge 
-                        className={`${getStatusBadgeClass(rider.status)}`} 
+                      <Badge
+                        className={`${getStatusBadgeClass(rider.status)}`}
                         pill
                       >
                         {rider.status.replace('_', ' ')}
@@ -645,16 +582,17 @@ const RidersAndMapView = () => {
           </Card>
         </div>
 
-        <div className={`col-lg-9 col-md-7 mb-4 ${isFullscreen ? 'col-12' : ''}`}>
+        <div className="col-lg-9 col-md-7 mb-4">
           <Card className="h-100">
             <Card.Header className="d-flex justify-content-between align-items-center">
+              <h5 className="mb-0">Live Tracking</h5>
               <div>
                 <span className="badge bg-success me-2">Available: {availableRidersCount}</span>
                 <span className="badge bg-warning">On Job: {busyRidersCount}</span>
               </div>
               <div className="d-flex gap-2">
                 <Button
-                  variant={viewMode === 'seeAll' ? 'primary' : 'outline-primary'}
+                  variant={viewMode === 'seeAll' ? 'primary' : 'primary'}
                   size="sm"
                   onClick={handleSeeAll}
                   disabled={riders.length === 0}
@@ -663,36 +601,22 @@ const RidersAndMapView = () => {
                   See All
                 </Button>
                 <Button
-                  variant={mapType === 'satellite' ? 'success' : 'outline-secondary'}
+                  variant={mapType === 'satellite' ? 'success' : 'success'}
                   size="sm"
                   onClick={toggleMapType}
                 >
                   {mapType === 'satellite' ? <Satellite size={16} /> : <Map size={16} />}
                 </Button>
-                <Button
-                  variant="outline-secondary"
-                  size="sm"
-                  onClick={toggleFullscreen}
-                >
-                  {isFullscreen ? <Minimize size={16} /> : <Maximize size={16} />}
-                </Button>
               </div>
             </Card.Header>
             <Card.Body className="p-0">
-              <div 
-                ref={mapContainerRef}
-                className="fullscreen-map-container"
-              >
-                <div id="map-container"></div>
-              </div>
+              <div id="map-container"></div>
             </Card.Body>
-            {!isFullscreen && (
-              <Card.Footer className="text-muted">
-                <small>
-                  Last refreshed: {new Date().toLocaleTimeString()}
-                </small>
-              </Card.Footer>
-            )}
+            <Card.Footer className="text-muted">
+              <small>
+                Last refreshed: {new Date().toLocaleTimeString()}
+              </small>
+            </Card.Footer>
           </Card>
         </div>
       </div>

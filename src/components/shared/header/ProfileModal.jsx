@@ -19,7 +19,7 @@ const ProfileModal = () => {
         const fetchProfilePicture = async () => {
             try {
                 const authData = JSON.parse(localStorage.getItem('authData'))
-                
+
                 if (!authData?.token) {
                     throw new Error('No authentication token found')
                 }

@@ -12,18 +12,22 @@ const LoginForm = ({ registerPath, resetPath }) => {
     const [loading, setLoading] = useState(false);
     const [notification, setNotification] = useState(null);
     const [showPassword, setShowPassword] = useState(false);
+    const [loginType, setLoginType] = useState('admin'); // 'admin' or 'team'
     const navigate = useNavigate();
 
     // Check for saved credentials on component mount
     useEffect(() => {
         const savedCredentials = localStorage.getItem("savedCredentials");
         if (savedCredentials) {
-            const { username: savedUsername, password: savedPassword } = JSON.parse(savedCredentials);
+            const { username: savedUsername, password: savedPassword, loginType: savedLoginType } = JSON.parse(savedCredentials);
             setFormData({
                 username: savedUsername,
                 password: savedPassword
             });
             setRememberMe(true);
+            if (savedLoginType) {
+                setLoginType(savedLoginType);
+            }
         }
     }, []);
 
@@ -41,6 +45,10 @@ const LoginForm = ({ registerPath, resetPath }) => {
 
     const togglePasswordVisibility = () => {
         setShowPassword(!showPassword);
+    };
+
+    const toggleLoginType = () => {
+        setLoginType(loginType === 'admin' ? 'team' : 'admin');
     };
 
     const showNotification = (message, type) => {
@@ -66,7 +74,11 @@ const LoginForm = ({ registerPath, resetPath }) => {
         setNotification(null);
 
         try {
-            const response = await fetch(`${BASE_URL}/api/auth/client-admin/login`, {
+            const endpoint = loginType === 'admin'
+                ? `${BASE_URL}/api/auth/client-admin/login`
+                : `${BASE_URL}/api/auth/staff/login`;
+
+            const response = await fetch(endpoint, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -83,57 +95,75 @@ const LoginForm = ({ registerPath, resetPath }) => {
                 throw new Error(data.message || 'Login failed');
             }
 
-            const authData = {
-                token: data.token,
-                role: data.role,
-                username: data.username,
-                clientId: data.clientId,
-                clientType: data.clientType,
-                name: data.name,
-                email: data.email,
-                contactNumber: data.contactNumber,
-                address: data.address,
-                country: data.country,
-                state: data.state,
-                city: data.city,
-                businessDetails: {
-                    businessName: data.businessDetails?.businessName
-                },
-                profilePicture: data.profilePicture,
-                subscriptionStartDate: data.subscriptionStartDate,
-                subscriptionEndDate: data.subscriptionEndDate,
-                subscriptionPlan: {
-                    id: data.subscriptionPlan?.id,
-                    name: data.subscriptionPlan?.name,
-                    description: data.subscriptionPlan?.description,
-                    monthlyPrice: data.subscriptionPlan?.monthlyPrice,
-                    yearlyPrice: data.subscriptionPlan?.yearlyPrice,
-                    features: data.subscriptionPlan?.features,
-                    clientTypes: data.subscriptionPlan?.clientTypes,
-                    active: data.subscriptionPlan?.active
-                },
-                currencySettings: {
-                    currency: data.currencySettings?.currency,
-                    currencySymbol: data.currencySettings?.currencySymbol,
-                    currencyCode: data.currencySettings?.currencyCode
-                },
-                taxDetails: {
-                    gstRate: data.taxDetails?.gstRate,
-                    sstRate: data.taxDetails?.sstRate,
-                    gstEnabled: data.taxDetails?.gstEnabled,
-                    sstEnabled: data.taxDetails?.sstEnabled,
-                    discountRate: data.taxDetails?.discountRate,
-                    discountEnabled: data.taxDetails?.discountEnabled
-                }
-            };
-
-            localStorage.setItem("authData", JSON.stringify(authData));
+            if (loginType === 'admin') {
+                const authData = {
+                    token: data.token,
+                    role: data.role,
+                    username: data.username,
+                    clientId: data.clientId,
+                    clientType: data.clientType,
+                    name: data.name,
+                    email: data.email,
+                    contactNumber: data.contactNumber,
+                    address: data.address,
+                    country: data.country,
+                    state: data.state,
+                    city: data.city,
+                    businessDetails: {
+                        businessName: data.businessDetails?.businessName
+                    },
+                    profilePicture: data.profilePicture,
+                    subscriptionStartDate: data.subscriptionStartDate,
+                    subscriptionEndDate: data.subscriptionEndDate,
+                    subscriptionPlan: {
+                        id: data.subscriptionPlan?.id,
+                        name: data.subscriptionPlan?.name,
+                        description: data.subscriptionPlan?.description,
+                        monthlyPrice: data.subscriptionPlan?.monthlyPrice,
+                        yearlyPrice: data.subscriptionPlan?.yearlyPrice,
+                        features: data.subscriptionPlan?.features,
+                        clientTypes: data.subscriptionPlan?.clientTypes,
+                        active: data.subscriptionPlan?.active
+                    },
+                    currencySettings: {
+                        currency: data.currencySettings?.currency,
+                        currencySymbol: data.currencySettings?.currencySymbol,
+                        currencyCode: data.currencySettings?.currencyCode
+                    },
+                    taxDetails: {
+                        gstRate: data.taxDetails?.gstRate,
+                        sstRate: data.taxDetails?.sstRate,
+                        gstEnabled: data.taxDetails?.gstEnabled,
+                        sstEnabled: data.taxDetails?.sstEnabled,
+                        discountRate: data.taxDetails?.discountRate,
+                        discountEnabled: data.taxDetails?.discountEnabled
+                    }
+                };
+                localStorage.setItem("authData", JSON.stringify(authData));
+            } else {
+                // Team login - save the specific fields
+                const teamAuthData = {
+                    token: data.token,
+                    role: data.role,
+                    username: data.username,
+                    clientId: data.clientId,
+                    userId: data.userId,
+                    clientType: data.clientType,
+                    name: data.name,
+                    email: data.email,
+                    contactNumber: data.contactNumber,
+                    profilePicture: data.profilePicture,
+                    permissions: data.permissions || []
+                };
+                localStorage.setItem("authData", JSON.stringify(teamAuthData));
+            }
 
             // Handle remember me functionality
             if (rememberMe) {
                 localStorage.setItem("savedCredentials", JSON.stringify({
                     username: formData.username,
-                    password: formData.password
+                    password: formData.password,
+                    loginType: loginType
                 }));
             } else {
                 localStorage.removeItem("savedCredentials");
@@ -154,6 +184,25 @@ const LoginForm = ({ registerPath, resetPath }) => {
 
     return (
         <>
+            {/* Login type toggle */}
+            <div className="d-flex justify-content-center mb-4">
+                <div className="btn-group" role="group">
+                    <button
+                        type="button"
+                        className={`btn ${loginType === 'admin' ? 'btn-primary' : 'btn-outline-primary'}`}
+                        onClick={toggleLoginType}
+                    >
+                        Admin Login
+                    </button>
+                    <button
+                        type="button"
+                        className={`btn ${loginType === 'team' ? 'btn-primary' : 'btn-outline-primary'}`}
+                        onClick={toggleLoginType}
+                    >
+                        Team Login
+                    </button>
+                </div>
+            </div>
             <h2 className="fs-20 fw-bolder mb-4">Login</h2>
             <h4 className="fs-13 fw-bold mb-2">Login to your account</h4>
             <p className="fs-12 fw-medium text-muted">Thank you for get back <strong>Nelel</strong> web applications, let's access our the best recommendation for you.</p>
@@ -210,9 +259,11 @@ const LoginForm = ({ registerPath, resetPath }) => {
                             <label className="custom-control-label c-pointer" htmlFor="rememberMe">Remember Me</label>
                         </div>
                     </div>
-                    <div>
-                        <Link to={resetPath} className="fs-11 text-primary">Forget password?</Link>
-                    </div>
+                    {loginType === 'admin' && (
+                        <div>
+                            <Link to={resetPath} className="fs-11 text-primary">Forget password?</Link>
+                        </div>
+                    )}
                 </div>
                 <div className="mt-5">
                     <button

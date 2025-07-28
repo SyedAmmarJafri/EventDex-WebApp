@@ -3147,7 +3147,7 @@ const SmartPOS1 = () => {
                 value={paymentMethod}
                 onChange={(e) => setPaymentMethod(e.target.value)}
               >
-                <option value="Cash">Cash</option>
+                <option value="CASH">Cash</option>
                 <option value="Card">Card</option>
                 <option value="Online">Online</option>
               </select>

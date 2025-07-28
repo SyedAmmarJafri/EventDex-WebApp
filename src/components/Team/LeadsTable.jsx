@@ -568,7 +568,7 @@ const TeamTable = () => {
                                 name="password"
                                 value={newTeam.password}
                                 onChange={handleInputChange}
-                                placeholder="Enter password (min 3 characters)"
+                                placeholder="Enter password"
                             />
                             {formErrors.password && <div className="invalid-feedback">{formErrors.password}</div>}
                         </div>
@@ -674,7 +674,7 @@ const TeamTable = () => {
                                 name="password"
                                 value={editTeam.password}
                                 onChange={handleEditInputChange}
-                                placeholder="Enter new password (min 3 characters)"
+                                placeholder="Enter new password"
                             />
                             {editFormErrors.password && <div className="invalid-feedback">{editFormErrors.password}</div>}
                         </div>

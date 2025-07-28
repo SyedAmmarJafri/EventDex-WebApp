@@ -39,61 +39,72 @@ const TabProfile = () => {
                     return;
                 }
 
-                // Try to fetch fresh data from API
+                // Set form data from localStorage first for faster rendering
+                setFormData({
+                    name: authData.name || '',
+                    address: authData.address || '',
+                    contactNumber: authData.contactNumber || '',
+                    country: authData.country || '',
+                    state: authData.state || '',
+                    city: authData.city || '',
+                    businessDetails: {
+                        businessName: authData.businessDetails?.businessName || ''
+                    },
+                    profilePicture: authData.profilePicture || ''
+                });
+
+                // Then fetch fresh profile picture from API
                 try {
-                    const response = await axios.get(`${BASE_URL}/api/client-admin/profile`, {
+                    const pictureResponse = await axios.get(`${BASE_URL}/api/client-admin/profile/picture`, {
                         headers: {
                             Authorization: `Bearer ${authData.token}`
                         }
                     });
 
-                    const profileData = response.data || {};
-                    setFormData({
-                        name: profileData.name || '',
-                        address: profileData.address || '',
-                        contactNumber: profileData.contactNumber || '',
-                        country: profileData.country || '',
-                        state: profileData.state || '',
-                        city: profileData.city || '',
-                        businessDetails: {
-                            businessName: profileData.businessDetails?.businessName || ''
-                        },
-                        profilePicture: profileData.profilePicture || ''
+                    if (pictureResponse.data?.data) {
+                        setProfilePictureUrl(pictureResponse.data.data);
+                    }
+                } catch (pictureError) {
+                    console.warn('Failed to fetch profile picture from API, using localStorage data');
+                    if (authData.profilePicture) {
+                        setProfilePictureUrl(authData.profilePicture);
+                    }
+                }
+
+                // Optionally fetch fresh profile data in background
+                try {
+                    const profileResponse = await axios.get(`${BASE_URL}/api/client-admin/profile`, {
+                        headers: {
+                            Authorization: `Bearer ${authData.token}`
+                        }
                     });
 
-                    if (profileData.profilePicture) {
-                        setProfilePictureUrl(profileData.profilePicture);
-                    }
+                    const profileData = profileResponse.data || {};
+                    setFormData({
+                        name: profileData.name || authData.name || '',
+                        address: profileData.address || authData.address || '',
+                        contactNumber: profileData.contactNumber || authData.contactNumber || '',
+                        country: profileData.country || authData.country || '',
+                        state: profileData.state || authData.state || '',
+                        city: profileData.city || authData.city || '',
+                        businessDetails: {
+                            businessName: profileData.businessDetails?.businessName || authData.businessDetails?.businessName || ''
+                        },
+                        profilePicture: profileData.profilePicture || authData.profilePicture || ''
+                    });
 
-                    // Update localStorage
+                    // Update localStorage with fresh data
                     localStorage.setItem('authData', JSON.stringify({
                         ...authData,
                         ...profileData
                     }));
-                } catch (apiError) {
-                    console.warn('Failed to fetch fresh profile, using localStorage data');
-                    if (authData) {
-                        setFormData({
-                            name: authData.name || '',
-                            address: authData.address || '',
-                            contactNumber: authData.contactNumber || '',
-                            country: authData.country || '',
-                            state: authData.state || '',
-                            city: authData.city || '',
-                            businessDetails: {
-                                businessName: authData.businessDetails?.businessName || ''
-                            },
-                            profilePicture: authData.profilePicture || ''
-                        });
-                        if (authData.profilePicture) {
-                            setProfilePictureUrl(authData.profilePicture);
-                        }
-                    }
+                } catch (profileError) {
+                    console.warn('Failed to fetch fresh profile data, using localStorage data');
                 }
 
             } catch (error) {
+                console.error('Error fetching profile:', error);
                 toast.error('Failed to load profile data');
-                console.error('Error:', error);
             } finally {
                 setLoadingProfile(false);
             }
@@ -102,6 +113,7 @@ const TabProfile = () => {
         fetchProfile();
     }, []);
 
+    // Rest of the component remains exactly the same...
     const handleChange = (e) => {
         const { name, value } = e.target;
 
@@ -287,6 +299,9 @@ const TabProfile = () => {
                                         }}
                                         alt="Profile"
                                         onClick={() => fileInputRef.current.click()}
+                                        onError={(e) => {
+                                            e.target.src = '/images/avatar/1.png'; // Fallback if image fails to load
+                                        }}
                                     />
                                     <div
                                         className="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center"

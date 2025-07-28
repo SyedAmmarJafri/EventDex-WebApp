@@ -226,8 +226,8 @@ const NotificationsModal = () => {
   const reconnectTimeoutRef = useRef(null);
   const isUnmountedRef = useRef(false);
   const receivedNotificationIds = useRef(new Set());
-  const audioContextRef = useRef(null);
-  const gainNodeRef = useRef(null);
+  const audioRef = useRef(null);
+  const prevNotificationCountRef = useRef(0);
 
   const WS_CONFIG = {
     maxReconnectAttempts: 5,
@@ -235,48 +235,34 @@ const NotificationsModal = () => {
     connectionTimeout: 10000,
   };
 
-  const initAudio = useCallback(() => {
-    try {
-      const AudioContext = window.AudioContext || window.webkitAudioContext;
-      audioContextRef.current = new AudioContext();
-      gainNodeRef.current = audioContextRef.current.createGain();
-      gainNodeRef.current.gain.value = 0.2;
-      gainNodeRef.current.connect(audioContextRef.current.destination);
-    } catch (e) {
-      console.error('Audio initialization error:', e);
-    }
-  }, []);
-
   const playNotificationSound = useCallback(() => {
     if (isMuted || !hasInteracted) return;
 
     try {
-      if (!audioContextRef.current) {
-        initAudio();
-        if (!audioContextRef.current) return;
+      // Create audio element if it doesn't exist
+      if (!audioRef.current) {
+        audioRef.current = new Audio('/music/mixkit-correct-answer-tone-2870.mp3');
+        audioRef.current.volume = 0.3; // Set volume to 30%
       }
 
-      const now = audioContextRef.current.currentTime;
-      const oscillator = audioContextRef.current.createOscillator();
-      const gainNode = audioContextRef.current.createGain();
-
-      oscillator.type = 'triangle';
-      oscillator.frequency.setValueAtTime(880, now);
-      oscillator.frequency.exponentialRampToValueAtTime(440, now + 0.2);
-
-      gainNode.gain.setValueAtTime(0, now);
-      gainNode.gain.linearRampToValueAtTime(0.2, now + 0.05);
-      gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
-
-      oscillator.connect(gainNode);
-      gainNode.connect(gainNodeRef.current);
-
-      oscillator.start();
-      oscillator.stop(now + 0.3);
+      // Reset audio to start and play
+      audioRef.current.currentTime = 0;
+      audioRef.current.play().catch(e => {
+        console.error('Audio playback failed:', e);
+      });
     } catch (e) {
       console.error('Sound playback error:', e);
     }
-  }, [isMuted, hasInteracted, initAudio]);
+  }, [isMuted, hasInteracted]);
+
+  useEffect(() => {
+    if (notifications.length > prevNotificationCountRef.current) {
+      // Only play sound when new notifications arrive (count increases)
+      playNotificationSound();
+    }
+    // Update the previous count ref
+    prevNotificationCountRef.current = notifications.length;
+  }, [notifications.length, playNotificationSound]);
 
   const toggleMute = () => {
     const newMutedState = !isMuted;
@@ -364,12 +350,9 @@ const NotificationsModal = () => {
         ...notification
       }, ...prev.slice(0, 49)];
 
-      if (prev.length > 0) {
-        playNotificationSound();
-      }
       return newNotifications;
     });
-  }, [playNotificationSound]);
+  }, []);
 
   const connectWebSocket = useCallback(async () => {
     if (isUnmountedRef.current) return;
@@ -572,6 +555,12 @@ const NotificationsModal = () => {
       isUnmountedRef.current = true;
       disconnectWebSocket();
       receivedNotificationIds.current.clear();
+      
+      // Clean up audio element
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
     };
   }, [connectWebSocket]);
 
@@ -581,7 +570,7 @@ const NotificationsModal = () => {
         <FiBell size={20} className="text-gray-600" />
         {notifications.length > 0 && (
           <span className="badge bg-danger nxl-h-badge">
-            {notifications.length > 9 ? '9+' : notifications.length}
+            {notifications.length}
           </span>
         )}
       </div>

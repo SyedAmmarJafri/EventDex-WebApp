@@ -13,26 +13,40 @@ import Form from 'react-bootstrap/Form';
 
 // Initialize IndexedDB
 const initIndexedDB = () => {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open('RolesDB', 1);
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open('RolesDB', 1);
 
-    request.onerror = (event) => {
-      console.error('IndexedDB error:', event.target.error);
-      reject('Failed to open IndexedDB');
-    };
+        request.onerror = (event) => {
+            console.error('IndexedDB error:', event.target.error);
+            reject('Failed to open IndexedDB');
+        };
 
-    request.onsuccess = (event) => {
-      resolve(event.target.result);
-    };
+        request.onsuccess = (event) => {
+            resolve(event.target.result);
+        };
 
-    request.onupgradeneeded = (event) => {
-      const db = event.target.result;
-      if (!db.objectStoreNames.contains('roles')) {
-        db.createObjectStore('roles', { keyPath: 'id' });
-      }
-    };
-  });
+        request.onupgradeneeded = (event) => {
+            const db = event.target.result;
+            if (!db.objectStoreNames.contains('roles')) {
+                db.createObjectStore('roles', { keyPath: 'id' });
+            }
+        };
+    });
 };
+
+// Common role options
+const COMMON_ROLES = [
+    'ADMIN',
+    'MANAGER',
+    'CASHIER',
+    'RIDER',
+    'ANALYTICS',
+    'SUPPORT',
+    'MARKETING',
+    'ACCOUNTANT',
+    'KITCHEN_STAFF',
+    'OTHER'
+];
 
 const RolesTable = () => {
     const [roles, setRoles] = useState([]);
@@ -47,14 +61,16 @@ const RolesTable = () => {
         name: '',
         description: '',
         permissions: [],
-        active: true
+        active: true,
+        isCustomRole: false
     });
     const [editRole, setEditRole] = useState({
         id: '',
         name: '',
         description: '',
         permissions: [],
-        active: true
+        active: true,
+        isCustomRole: false
     });
     const [formErrors, setFormErrors] = useState({});
     const [editFormErrors, setEditFormErrors] = useState({});
@@ -93,7 +109,23 @@ const RolesTable = () => {
         'ORDER_ACCEPT',
         'ORDER_REJECT',
         'TAX_WRITE',
-        'TAX_UPDATE'
+        'TAX_UPDATE',
+        'ANALYTICS_READ',
+        'FINANCE_READ',
+        'FINANCE_WRITE',
+        'FINANCE_UPDATE',
+        'FINANCE_DELETE',
+        'CURRENCY_READ',
+        'CURRENCY_UPDATE',
+        'RIDER_LOCATION',
+        'PROFILE_READ',
+        'PROFILE_UPDATE',
+        'PROFILE_PICTURE_UPLOAD',
+        'PROFILE_PICTURE_UPDATE',
+        'SETTINGS_MANAGE',
+        'CUSTOMER_READ',
+        'STAFF_MANAGEMENT',
+        'ROLE_MANAGEMENT'
     ];
 
     // Group permissions by resource
@@ -101,11 +133,23 @@ const RolesTable = () => {
         'Category': availablePermissions.filter(p => p.startsWith('CATEGORY_')),
         'Item': availablePermissions.filter(p => p.startsWith('ITEM_')),
         'Deal': availablePermissions.filter(p => p.startsWith('DEAL_')),
-        'Coupon': availablePermissions.filter(p => p.startsWith('COUPON_')),
+        'Order': availablePermissions.filter(p => p.startsWith('ORDER_')),
+        'Discount': availablePermissions.filter(p => p.startsWith('COUPON_')),
         'Template': availablePermissions.filter(p => p.startsWith('TEMPLATE_')),
         'Email Settings': availablePermissions.filter(p => p.startsWith('EMAIL_SETTINGS_')),
-        'Order': availablePermissions.filter(p => p.startsWith('ORDER_')),
-        'Tax': availablePermissions.filter(p => p.startsWith('TAX_'))
+        'Finance': availablePermissions.filter(p => p.startsWith('FINANCE_')),
+        'Settings': [
+            'SETTINGS_MANAGE',
+            'STAFF_MANAGEMENT',
+            'ROLE_MANAGEMENT',
+            'CUSTOMER_READ',
+            'RIDER_LOCATION'
+        ],
+        'Profile': availablePermissions.filter(p => p.startsWith('PROFILE_')),
+        'Analytics': availablePermissions.filter(p => p.startsWith('ANALYTICS_')),
+        'Tax': availablePermissions.filter(p => p.startsWith('TAX_')),
+        'Currency': availablePermissions.filter(p => p.startsWith('CURRENCY_')),
+
     };
 
     // Initialize IndexedDB on component mount
@@ -125,7 +169,7 @@ const RolesTable = () => {
     const checkAndSyncData = useCallback(async (database) => {
         const now = Date.now();
         const lastSync = localStorage.getItem('rolesLastSync') || 0;
-        
+
         // If more than 1 hour since last sync or no data in IndexedDB
         if (now - lastSync > 3600000 || !(await hasDataInIndexedDB(database))) {
             await fetchRolesFromAPI(database);
@@ -141,11 +185,11 @@ const RolesTable = () => {
             const transaction = database.transaction(['roles'], 'readonly');
             const store = transaction.objectStore('roles');
             const request = store.count();
-            
+
             request.onsuccess = () => {
                 resolve(request.result > 0);
             };
-            
+
             request.onerror = () => {
                 resolve(false);
             };
@@ -157,13 +201,13 @@ const RolesTable = () => {
             const transaction = database.transaction(['roles'], 'readonly');
             const store = transaction.objectStore('roles');
             const request = store.getAll();
-            
+
             request.onsuccess = () => {
                 setRoles(request.result);
                 setLoading(false);
                 resolve(request.result);
             };
-            
+
             request.onerror = () => {
                 setLoading(false);
                 resolve([]);
@@ -175,19 +219,19 @@ const RolesTable = () => {
         return new Promise((resolve) => {
             const transaction = database.transaction(['roles'], 'readwrite');
             const store = transaction.objectStore('roles');
-            
+
             // Clear existing data
             store.clear();
-            
+
             // Add all new roles
             roles.forEach(role => {
                 store.put(role);
             });
-            
+
             transaction.oncomplete = () => {
                 resolve();
             };
-            
+
             transaction.onerror = () => {
                 resolve();
             };
@@ -350,6 +394,29 @@ const RolesTable = () => {
         );
     };
 
+    const handleRoleTypeChange = (e) => {
+        const selectedValue = e.target.value;
+        const isCustom = selectedValue === 'OTHER';
+
+        setNewRole(prev => ({
+            ...prev,
+            name: isCustom ? '' : selectedValue,
+            isCustomRole: isCustom
+        }));
+
+        if (formErrors.name) {
+            setFormErrors(prev => ({ ...prev, name: '' }));
+        }
+    };
+
+    const handleCustomRoleNameChange = (e) => {
+        const value = e.target.value.toUpperCase();
+        setNewRole(prev => ({ ...prev, name: value }));
+        if (formErrors.name) {
+            setFormErrors(prev => ({ ...prev, name: '' }));
+        }
+    };
+
     const handleInputChange = (e) => {
         const { name, value } = e.target;
         setNewRole(prev => ({ ...prev, [name]: value }));
@@ -443,20 +510,21 @@ const RolesTable = () => {
             }
 
             toast.success('Role created successfully');
-            
+
             // Update local state and IndexedDB
             const updatedRoles = [...roles, data];
             setRoles(updatedRoles);
             if (db) {
                 await saveRolesToIndexedDB(updatedRoles, db);
             }
-            
+
             setIsModalOpen(false);
             setNewRole({
                 name: '',
                 description: '',
                 permissions: [],
-                active: true
+                active: true,
+                isCustomRole: false
             });
         } catch (err) {
             toast.error(err.message);
@@ -490,16 +558,16 @@ const RolesTable = () => {
             }
 
             toast.success('Role updated successfully');
-            
+
             // Update local state and IndexedDB
-            const updatedRoles = roles.map(r => 
+            const updatedRoles = roles.map(r =>
                 r.id === editRole.id ? data : r
             );
             setRoles(updatedRoles);
             if (db) {
                 await saveRolesToIndexedDB(updatedRoles, db);
             }
-            
+
             setIsEditModalOpen(false);
         } catch (err) {
             toast.error(err.message);
@@ -517,7 +585,8 @@ const RolesTable = () => {
             name: role.name,
             description: role.description,
             permissions: role.permissions || [],
-            active: role.active
+            active: role.active,
+            isCustomRole: !COMMON_ROLES.includes(role.name)
         });
         setIsEditModalOpen(true);
     };
@@ -532,7 +601,7 @@ const RolesTable = () => {
 
         try {
             const authData = JSON.parse(localStorage.getItem("authData"));
-            
+
             // Optimistic update
             const updatedRoles = roles.filter(role => role.id !== roleToDelete.id);
             setRoles(updatedRoles);
@@ -685,7 +754,7 @@ const RolesTable = () => {
             {/* Add Role Modal */}
             <Modal show={isModalOpen} onHide={() => {
                 setIsModalOpen(false);
-                setNewRole({ name: '', description: '', permissions: [], active: true });
+                setNewRole({ name: '', description: '', permissions: [], active: true, isCustomRole: false });
                 setFormErrors({});
             }} centered size="lg">
                 <Modal.Header closeButton>
@@ -694,18 +763,39 @@ const RolesTable = () => {
                 <Modal.Body>
                     <form onSubmit={handleSubmit}>
                         <div className="mb-3">
-                            <label htmlFor="name" className="form-label">Role Name*</label>
-                            <input
-                                type="text"
-                                className={`form-control ${formErrors.name ? 'is-invalid' : ''}`}
-                                id="name"
-                                name="name"
-                                value={newRole.name}
-                                onChange={handleInputChange}
-                                placeholder="Enter role name"
-                            />
+                            <label htmlFor="roleType" className="form-label">Role Type*</label>
+                            <select
+                                className={`form-select ${formErrors.name ? 'is-invalid' : ''}`}
+                                id="roleType"
+                                onChange={handleRoleTypeChange}
+                                value={newRole.isCustomRole ? 'OTHER' : newRole.name || ''}
+                            >
+                                <option value="">Select a role type</option>
+                                {COMMON_ROLES.map(role => (
+                                    <option key={role} value={role}>
+                                        {role.replace(/_/g, ' ')}
+                                    </option>
+                                ))}
+                            </select>
                             {formErrors.name && <div className="invalid-feedback">{formErrors.name}</div>}
                         </div>
+
+                        {newRole.isCustomRole && (
+                            <div className="mb-3">
+                                <label htmlFor="customRoleName" className="form-label">Custom Role Name*</label>
+                                <input
+                                    type="text"
+                                    className={`form-control ${formErrors.name ? 'is-invalid' : ''}`}
+                                    id="customRoleName"
+                                    name="name"
+                                    value={newRole.name}
+                                    onChange={handleCustomRoleNameChange}
+                                    placeholder="Enter custom role name"
+                                />
+                                {formErrors.name && <div className="invalid-feedback">{formErrors.name}</div>}
+                            </div>
+                        )}
+
                         <div className="mb-3">
                             <label htmlFor="description" className="form-label">Description*</label>
                             <textarea
@@ -753,7 +843,7 @@ const RolesTable = () => {
                                                         onChange={(e) => handlePermissionChange(permission, e.target.checked)}
                                                     />
                                                     <h8 className="form-check-label" htmlFor={`perm-${permission}`}>
-                                                        {permission.split('_')[1]}
+                                                        {permission.replace(/_/g, ' ')}
                                                     </h8>
                                                 </div>
                                             ))}
@@ -786,18 +876,56 @@ const RolesTable = () => {
                 <Modal.Body>
                     <form onSubmit={handleEditSubmit}>
                         <div className="mb-3">
-                            <label htmlFor="edit-name" className="form-label">Role Name*</label>
-                            <input
-                                type="text"
-                                className={`form-control ${editFormErrors.name ? 'is-invalid' : ''}`}
-                                id="edit-name"
-                                name="name"
-                                value={editRole.name}
-                                onChange={handleEditInputChange}
-                                placeholder="Enter role name"
-                            />
+                            <label htmlFor="edit-roleType" className="form-label">Role Type*</label>
+                            <select
+                                className={`form-select ${editFormErrors.name ? 'is-invalid' : ''}`}
+                                id="edit-roleType"
+                                onChange={(e) => {
+                                    const selectedValue = e.target.value;
+                                    const isCustom = selectedValue === 'OTHER';
+                                    setEditRole(prev => ({
+                                        ...prev,
+                                        name: isCustom ? '' : selectedValue,
+                                        isCustomRole: isCustom
+                                    }));
+                                    if (editFormErrors.name) {
+                                        setEditFormErrors(prev => ({ ...prev, name: '' }));
+                                    }
+                                }}
+                                value={editRole.isCustomRole ? 'OTHER' : editRole.name || ''}
+                            >
+                                <option value="">Select a role type</option>
+                                {COMMON_ROLES.map(role => (
+                                    <option key={role} value={role}>
+                                        {role.replace(/_/g, ' ')}
+                                    </option>
+                                ))}
+                            </select>
                             {editFormErrors.name && <div className="invalid-feedback">{editFormErrors.name}</div>}
                         </div>
+
+                        {editRole.isCustomRole && (
+                            <div className="mb-3">
+                                <label htmlFor="edit-customRoleName" className="form-label">Custom Role Name*</label>
+                                <input
+                                    type="text"
+                                    className={`form-control ${editFormErrors.name ? 'is-invalid' : ''}`}
+                                    id="edit-customRoleName"
+                                    name="name"
+                                    value={editRole.name}
+                                    onChange={(e) => {
+                                        const value = e.target.value.toUpperCase();
+                                        setEditRole(prev => ({ ...prev, name: value }));
+                                        if (editFormErrors.name) {
+                                            setEditFormErrors(prev => ({ ...prev, name: '' }));
+                                        }
+                                    }}
+                                    placeholder="Enter custom role name (will be converted to uppercase)"
+                                />
+                                {editFormErrors.name && <div className="invalid-feedback">{editFormErrors.name}</div>}
+                            </div>
+                        )}
+
                         <div className="mb-3">
                             <label htmlFor="edit-description" className="form-label">Description*</label>
                             <textarea
@@ -845,7 +973,7 @@ const RolesTable = () => {
                                                         onChange={(e) => handleEditPermissionChange(permission, e.target.checked)}
                                                     />
                                                     <h8 className="form-check-label" htmlFor={`edit-perm-${permission}`}>
-                                                        {permission.split('_')[1]}
+                                                        {permission.replace(/_/g, ' ')}
                                                     </h8>
                                                 </div>
                                             ))}
@@ -904,7 +1032,7 @@ const RolesTable = () => {
                                                 <div className="d-flex flex-wrap gap-2">
                                                     {rolePerms.map((permission, index) => (
                                                         <span key={index} className="badge bg-primary">
-                                                            {permission.split('_')[1]}
+                                                            {permission.replace(/_/g, ' ')}
                                                         </span>
                                                     ))}
                                                 </div>

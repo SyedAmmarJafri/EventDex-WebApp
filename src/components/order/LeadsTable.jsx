@@ -13,18 +13,6 @@ import FormControl from '@mui/material/FormControl';
 import InputLabel from '@mui/material/InputLabel';
 import Modal from 'react-bootstrap/Modal';
 
-// Debug logging helper
-const debugLog = (message, data = null) => {
-    console.log(`[OrderTable] ${message}`, data || '');
-};
-
-// Error logging helper
-const errorLog = (message, error = null) => {
-    console.error(`[OrderTable ERROR] ${message}`, error || '');
-};
-
-window.global ||= window;
-
 const OrderTable = () => {
     const [orders, setOrders] = useState([]);
     const [filteredOrders, setFilteredOrders] = useState([]);
@@ -71,7 +59,7 @@ const OrderTable = () => {
 
     // Component error handler
     const handleComponentError = useCallback((error, context = '') => {
-        errorLog(`Component error in ${context}`, error);
+        console.error(`[OrderTable ERROR] ${context}`, error);
         setComponentError(`Error in ${context}: ${error.message}`);
     }, []);
 
@@ -82,12 +70,10 @@ const OrderTable = () => {
             if (authData) {
                 const parsedData = JSON.parse(authData);
                 const clientId = parsedData.clientId || parsedData.id || parsedData.userId;
-                debugLog('Client ID retrieved', clientId);
                 return clientId;
             }
-            debugLog('No auth data found, using fallback client ID');
         } catch (error) {
-            errorLog('Error getting client ID', error);
+            console.error('Error getting client ID', error);
         }
         return "686faaeda2c5d3eee0137da1"; // Fallback client ID
     }, []);
@@ -101,7 +87,7 @@ const OrderTable = () => {
                 return parsedData.token;
             }
         } catch (error) {
-            errorLog('Error getting auth token', error);
+            console.error('Error getting auth token', error);
         }
         return null;
     }, []);
@@ -136,7 +122,6 @@ const OrderTable = () => {
     // API fetch orders function
     const fetchOrdersAPI = useCallback(async () => {
         try {
-            debugLog('Fetching orders via API');
             setLoading(true);
             setComponentError(null);
 
@@ -160,8 +145,6 @@ const OrderTable = () => {
 
             const data = await response.json();
             if (data.status === 200 && data.data) {
-                debugLog('API orders fetched', data.data.length + ' orders');
-
                 // Only update orders if WebSocket is not connected to avoid conflicts
                 if (!wsConnected) {
                     setOrders(data.data);
@@ -171,7 +154,7 @@ const OrderTable = () => {
                 throw new Error(data.message || 'Failed to fetch orders');
             }
         } catch (err) {
-            errorLog('Error fetching orders', err);
+            console.error('Error fetching orders', err);
             if (!wsConnected) {
                 showErrorToast(err.message);
                 setOrders([]);
@@ -185,22 +168,21 @@ const OrderTable = () => {
     // WebSocket connection with dynamic imports
     const connectWebSocket = useCallback(async () => {
         if (isUnmountedRef.current) {
-            debugLog('Component unmounted, skipping WebSocket connection');
             return;
         }
 
         const clientId = getClientId();
         if (!clientId) {
-            debugLog('No client ID available, falling back to API');
             fetchOrdersAPI();
             return;
         }
 
         // Clear any existing connection first
-        disconnectWebSocket();
+        if (stompClientRef.current && stompClientRef.current.connected) {
+            stompClientRef.current.disconnect();
+        }
 
         try {
-            debugLog('Attempting WebSocket connection', `${BASE_URL.replace('/api', '')}/ws`);
             setWsError(null);
             setLoading(true);
 
@@ -211,19 +193,13 @@ const OrderTable = () => {
             const socket = new SockJS(`${BASE_URL.replace('/api', '')}/ws`);
             const stompClient = Stomp.over(socket);
 
-            // Enable debug for troubleshooting
-            stompClient.debug = (str) => {
-                debugLog('STOMP Debug', str);
-            };
-
             // Connection timeout
             const connectionTimeout = setTimeout(() => {
                 if (stompClient && !stompClient.connected) {
-                    debugLog('WebSocket connection timeout');
                     try {
                         stompClient.disconnect();
                     } catch (e) {
-                        errorLog('Error disconnecting on timeout', e);
+                        console.error('Error disconnecting on timeout', e);
                     }
                     setWsError('Connection timeout');
                     fetchOrdersAPI();
@@ -232,52 +208,55 @@ const OrderTable = () => {
 
             // Connect to WebSocket
             stompClient.connect(
-                {}, // headers
+                {},
                 (frame) => {
                     try {
                         clearTimeout(connectionTimeout);
                         if (isUnmountedRef.current) {
-                            debugLog('Component unmounted during connection, disconnecting');
                             stompClient.disconnect();
                             return;
                         }
 
-                        debugLog('✅ Connected to WebSocket', frame);
                         setWsConnected(true);
                         setWsError(null);
                         setReconnectAttempts(0);
                         setLoading(false);
 
                         // Subscribe to orders topic for all order updates
+                        // In the WebSocket subscription handler, modify the order update logic:
                         const subscription = stompClient.subscribe(
                             `/topic/orders/${clientId}`,
                             (message) => {
                                 try {
-                                    const orderData = JSON.parse(message.body);
-                                    debugLog('📥 Order update received via WebSocket', orderData);
-
+                                    const orderUpdate = JSON.parse(message.body);
                                     setOrders(prevOrders => {
                                         const existingIndex = prevOrders.findIndex(
-                                            order => order.id === orderData.id || order.orderNumber === orderData.orderNumber
+                                            order => order.id === orderUpdate.id || order.orderNumber === orderUpdate.orderNumber
                                         );
 
                                         let updatedOrders;
 
                                         if (existingIndex >= 0) {
-                                            // Update existing order
+                                            // Update existing order while preserving all properties
                                             updatedOrders = [...prevOrders];
-                                            updatedOrders[existingIndex] = orderData;
-                                            debugLog('Updated existing order', orderData);
+                                            updatedOrders[existingIndex] = {
+                                                ...updatedOrders[existingIndex], // Keep existing properties
+                                                ...orderUpdate,                  // Apply updates
+                                                // Ensure critical fields are preserved if not in update
+                                                orderType: orderUpdate.orderType || updatedOrders[existingIndex].orderType,
+                                                fulfillmentType: orderUpdate.fulfillmentType || updatedOrders[existingIndex].fulfillmentType,
+                                                items: orderUpdate.items || updatedOrders[existingIndex].items,
+                                                customerName: orderUpdate.customerName || updatedOrders[existingIndex].customerName
+                                            };
                                         } else {
                                             // Add new order at the beginning
-                                            updatedOrders = [orderData, ...prevOrders];
-                                            debugLog('Added new order', orderData);
+                                            updatedOrders = [orderUpdate, ...prevOrders];
                                         }
 
                                         return updatedOrders;
                                     });
                                 } catch (parseError) {
-                                    errorLog('Error parsing WebSocket message', parseError);
+                                    console.error('Error parsing WebSocket message', parseError);
                                 }
                             }
                         );
@@ -288,28 +267,24 @@ const OrderTable = () => {
                             (message) => {
                                 try {
                                     const deletedOrderId = JSON.parse(message.body);
-                                    debugLog('🗑️ Order deletion received via WebSocket', deletedOrderId);
-
                                     setOrders(prevOrders =>
                                         prevOrders.filter(order => order.id !== deletedOrderId)
                                     );
                                 } catch (parseError) {
-                                    errorLog('Error parsing WebSocket deletion message', parseError);
+                                    console.error('Error parsing WebSocket deletion message', parseError);
                                 }
                             }
                         );
 
                         stompClientRef.current = stompClient;
-                        debugLog('WebSocket setup completed successfully');
                     } catch (connectionError) {
-                        errorLog('Error in connection success handler', connectionError);
                         handleComponentError(connectionError, 'WebSocket connection handler');
                     }
                 },
                 (error) => {
                     try {
                         clearTimeout(connectionTimeout);
-                        errorLog('❌ WebSocket connection error', error);
+                        console.error('WebSocket connection error', error);
 
                         setWsConnected(false);
                         setWsError(error?.toString() || 'Connection failed');
@@ -318,26 +293,21 @@ const OrderTable = () => {
                         if (reconnectAttempts < WS_CONFIG.maxReconnectAttempts) {
                             const newAttempts = reconnectAttempts + 1;
                             setReconnectAttempts(newAttempts);
-                            debugLog(`Attempting to reconnect (${newAttempts}/${WS_CONFIG.maxReconnectAttempts})...`);
-
                             reconnectTimeoutRef.current = setTimeout(() => {
                                 if (!isUnmountedRef.current) {
                                     connectWebSocket();
                                 }
                             }, WS_CONFIG.reconnectDelay);
                         } else {
-                            debugLog('Max reconnection attempts reached, falling back to API polling');
                             fetchOrdersAPI();
-
-                            // Set up periodic API polling as final fallback
                             setInterval(() => {
                                 if (!isUnmountedRef.current && !wsConnected) {
                                     fetchOrdersAPI();
                                 }
-                            }, 30000); // Poll every 30 seconds
+                            }, 30000);
                         }
                     } catch (errorHandlerError) {
-                        errorLog('Error in error handler', errorHandlerError);
+                        console.error('Error in error handler', errorHandlerError);
                         handleComponentError(errorHandlerError, 'WebSocket error handler');
                         fetchOrdersAPI();
                     }
@@ -345,7 +315,7 @@ const OrderTable = () => {
             );
 
         } catch (error) {
-            errorLog('Error creating WebSocket connection', error);
+            console.error('Error creating WebSocket connection', error);
             setWsError(error?.toString() || 'Setup failed');
             setWsConnected(false);
             setLoading(false);
@@ -363,20 +333,18 @@ const OrderTable = () => {
             }
 
             if (stompClientRef.current && stompClientRef.current.connected) {
-                debugLog('Disconnecting WebSocket...');
                 stompClientRef.current.disconnect();
                 stompClientRef.current = null;
             }
 
             setWsConnected(false);
         } catch (error) {
-            errorLog('Error disconnecting WebSocket', error);
+            console.error('Error disconnecting WebSocket', error);
         }
     }, []);
 
     // Manual refresh
     const handleManualRefresh = () => {
-        debugLog('Manual refresh triggered');
         if (wsConnected) {
             disconnectWebSocket();
             setTimeout(() => connectWebSocket(), 1000);
@@ -387,26 +355,20 @@ const OrderTable = () => {
 
     // Initialize connection on mount
     useEffect(() => {
-        debugLog('Component mounting, initializing connection');
         isUnmountedRef.current = false;
         setComponentError(null);
 
-        // Start with API call first, then try WebSocket
         fetchOrdersAPI().then(() => {
-            debugLog('Initial API call completed, attempting WebSocket connection');
-            // Small delay to ensure API data is loaded first
             setTimeout(() => {
                 if (!isUnmountedRef.current) {
                     connectWebSocket();
                 }
             }, 1000);
         }).catch((error) => {
-            errorLog('Initial API call failed', error);
             handleComponentError(error, 'Initial API call');
         });
 
         return () => {
-            debugLog('Component unmounting, cleaning up connections');
             isUnmountedRef.current = true;
             disconnectWebSocket();
         };
@@ -418,7 +380,6 @@ const OrderTable = () => {
 
         const script = document.createElement('script');
         script.src = `https://maps.gomaps.pro/maps/api/js?key=AlzaSyNWmbqBT69lAW7bQ3RKsK37imGf2v6fhcy&libraries=places&callback=initMap`;
-
         script.async = true;
         script.defer = true;
         script.onload = () => setMapScriptLoaded(true);
@@ -438,7 +399,6 @@ const OrderTable = () => {
 
         return () => {
             if (map) {
-                // Clean up map instance when modal closes
                 setMap(null);
             }
         };
@@ -462,15 +422,13 @@ const OrderTable = () => {
         const mapInstance = new window.google.maps.Map(document.getElementById("google-map"), mapOptions);
         setMap(mapInstance);
 
-        // Create custom marker icon
         const markerIcon = {
-            url: '/images/home_marker.png', // Path to your marker image
-            scaledSize: new window.google.maps.Size(40, 40), // Adjust size as needed
+            url: '/images/home_marker.png',
+            scaledSize: new window.google.maps.Size(40, 40),
             origin: new window.google.maps.Point(0, 0),
-            anchor: new window.google.maps.Point(20, 40) // Anchor point (center bottom of image)
+            anchor: new window.google.maps.Point(20, 40)
         };
 
-        // Create marker with custom icon
         const marker = new window.google.maps.Marker({
             position: { lat: deliveryLat, lng: deliveryLng },
             map: mapInstance,
@@ -478,64 +436,60 @@ const OrderTable = () => {
             icon: markerIcon
         });
 
-        // Add info window
         const infoWindow = new window.google.maps.InfoWindow({
             content: `
-    <div style="
-        color: ${isDarkMode ? '#f0f0f0' : '#333'};
-        font-family: 'Roboto', Arial, sans-serif;
-        min-width: 250px;
-        padding: 12px;
-        background: ${isDarkMode ? '#2d2d2d' : '#fff'};
-        border-radius: 8px;
-        box-shadow: 0 2px 7px rgba(0,0,0,0.3);
-    ">
-        <div style="
-            font-size: 18px;
-            font-weight: 600;
-            margin-bottom: 8px;
-            color: ${isDarkMode ? '#fff' : '#1a73e8'};
-            border-bottom: 1px solid ${isDarkMode ? '#444' : '#eee'};
-            padding-bottom: 6px;
-        ">
-            Order #${selectedOrder.orderNumber}
-        </div>
-        
-        <div style="margin-bottom: 10px;">
-            <div style="display: flex; margin-bottom: 4px;">
-                <span style="flex: 1; font-weight: 500; color: ${isDarkMode ? '#bbb' : '#666'}">Customer:</span>
-                <span style="flex: 1">${selectedOrder.customerName || 'Walk-in Customer'}</span>
-            </div>
-            <div style="display: flex; margin-bottom: 4px;">
-                <span style="flex: 1; font-weight: 500; color: ${isDarkMode ? '#bbb' : '#666'}">Status:</span>
-                <span style="flex: 1; color: ${selectedOrder.status === 'Completed' ? '#0f9d58' :
+                <div style="
+                    color: ${isDarkMode ? '#f0f0f0' : '#333'};
+                    font-family: 'Roboto', Arial, sans-serif;
+                    min-width: 250px;
+                    padding: 12px;
+                    background: ${isDarkMode ? '#2d2d2d' : '#fff'};
+                    border-radius: 8px;
+                    box-shadow: 0 2px 7px rgba(0,0,0,0.3);
+                ">
+                    <div style="
+                        font-size: 18px;
+                        font-weight: 600;
+                        margin-bottom: 8px;
+                        color: ${isDarkMode ? '#fff' : '#1a73e8'};
+                        border-bottom: 1px solid ${isDarkMode ? '#444' : '#eee'};
+                        padding-bottom: 6px;
+                    ">
+                        Order #${selectedOrder.orderNumber}
+                    </div>
+                    <div style="margin-bottom: 10px;">
+                        <div style="display: flex; margin-bottom: 4px;">
+                            <span style="flex: 1; font-weight: 500; color: ${isDarkMode ? '#bbb' : '#666'}">Customer:</span>
+                            <span style="flex: 1">${selectedOrder.customerName || 'Walk-in Customer'}</span>
+                        </div>
+                        <div style="display: flex; margin-bottom: 4px;">
+                            <span style="flex: 1; font-weight: 500; color: ${isDarkMode ? '#bbb' : '#666'}">Status:</span>
+                            <span style="flex: 1; color: ${selectedOrder.status === 'Completed' ? '#0f9d58' :
                     selectedOrder.status === 'Pending' ? '#f4b400' :
                         selectedOrder.status === 'Cancelled' ? '#db4437' :
                             isDarkMode ? '#fff' : '#333'
                 }">
-                    ${selectedOrder.status}
-                </span>
-            </div>
-            <div style="display: flex; margin-bottom: 4px;">
-                <span style="flex: 1; font-weight: 500; color: ${isDarkMode ? '#bbb' : '#666'}">Total:</span>
-                <span style="flex: 1; font-weight: 600">${currencySymbol}${selectedOrder.totalAmount?.toFixed(2)}</span>
-            </div>
-        </div>
-        
-        <div style="
-            background: ${isDarkMode ? '#383838' : '#f8f9fa'};
-            padding: 8px;
-            border-radius: 4px;
-            font-size: 14px;
-        ">
-            <div style="font-weight: 500; margin-bottom: 4px; color: ${isDarkMode ? '#bbb' : '#666'}">Delivery Address:</div>
-            <div>${selectedOrder.deliveryAddress}</div>
-        </div>
-    </div>
-    `,
+                                ${selectedOrder.status}
+                            </span>
+                        </div>
+                        <div style="display: flex; margin-bottom: 4px;">
+                            <span style="flex: 1; font-weight: 500; color: ${isDarkMode ? '#bbb' : '#666'}">Total:</span>
+                            <span style="flex: 1; font-weight: 600">${currencySymbol}${selectedOrder.totalAmount?.toFixed(2)}</span>
+                        </div>
+                    </div>
+                    <div style="
+                        background: ${isDarkMode ? '#383838' : '#f8f9fa'};
+                        padding: 8px;
+                        border-radius: 4px;
+                        font-size: 14px;
+                    ">
+                        <div style="font-weight: 500; margin-bottom: 4px; color: ${isDarkMode ? '#bbb' : '#666'}">Delivery Address:</div>
+                        <div>${selectedOrder.deliveryAddress}</div>
+                    </div>
+                </div>
+            `,
         });
 
-        // Open info window by default
         infoWindow.open(mapInstance, marker);
     };
 
@@ -736,7 +690,6 @@ const OrderTable = () => {
 
             const data = await response.json();
             if (Array.isArray(data)) {
-                // Filter only riders (case insensitive check for roleName)
                 const riderRoles = ['rider', 'delivery', 'delivery partner'];
                 const filteredRiders = data.filter(staff =>
                     riderRoles.includes(staff.roleName?.toLowerCase())
@@ -765,7 +718,6 @@ const OrderTable = () => {
     };
 
     const handleEditOrder = (order) => {
-        // Don't allow status updates for POS orders or completed/delivered/rejected/cancelled orders
         if (order.orderType?.toLowerCase().includes('pos') ||
             ['COMPLETED', 'DELIVERED', 'REJECTED', 'CANCELLED'].includes(order.status.toUpperCase())) {
             showErrorToast('Status updates are not available for this order');
@@ -775,69 +727,55 @@ const OrderTable = () => {
         setSelectedOrder(order);
         setSelectedStatus('');
 
-        // Determine next possible statuses based on current status and fulfillment type
+        // Get current status in uppercase
         const currentStatus = order.status.toUpperCase();
-        const fulfillmentType = order.fulfillmentType?.toLowerCase();
+        const isDelivery = order.fulfillmentType?.toLowerCase().includes('delivery');
 
-        let nextOptions = [];
+        // Define status transitions based on fulfillment type
+        let statusFlow = {};
 
-        if (fulfillmentType?.includes('delivery')) {
-            // Delivery workflow
-            switch (currentStatus) {
-                case 'PENDING':
-                    nextOptions = [
-                        { value: 'ACCEPTED', label: 'Accept Order', color: 'bg-info' },
-                        { value: 'REJECTED', label: 'Reject Order', color: 'bg-dark-red' }
-                    ];
-                    break;
-                case 'ACCEPTED':
-                    nextOptions = [{ value: 'PREPARING', label: 'Start Preparing', color: 'bg-primary' }];
-                    break;
-                case 'PREPARING':
-                    nextOptions = [{ value: 'READY', label: 'Mark as Ready', color: 'bg-warning text-dark' }];
-                    break;
-                case 'READY':
-                    nextOptions = [{ value: 'DISPATCHED', label: 'Dispatch for Delivery', color: 'bg-purple' }];
-                    break;
-                case 'DISPATCHED':
-                    nextOptions = [{ value: 'ON_THE_WAY', label: 'On the Way', color: 'bg-indigo' }];
-                    break;
-                case 'ON_THE_WAY':
-                    nextOptions = [{ value: 'DELIVERED', label: 'Mark as Delivered', color: 'bg-success' }];
-                    break;
-                default:
-                    nextOptions = [
-                        { value: 'ACCEPTED', label: 'Accept Order', color: 'bg-info' },
-                        { value: 'REJECTED', label: 'Reject Order', color: 'bg-dark-red' }
-                    ];
-            }
+        if (isDelivery) {
+            // Delivery order status flow
+            statusFlow = {
+                'PENDING': ['ACCEPTED', 'REJECTED'],
+                'ACCEPTED': ['PREPARING', 'REJECTED'],
+                'PREPARING': ['READY', 'REJECTED'],
+                'READY': ['DISPATCHED', 'REJECTED'],
+                'DISPATCHED': ['ON_THE_WAY', 'REJECTED'],
+                'ON_THE_WAY': ['DELIVERED', 'REJECTED'],
+                'DELIVERED': ['COMPLETED'],
+            };
         } else {
-            // Takeaway/Dine-in workflow
-            switch (currentStatus) {
-                case 'PENDING':
-                    nextOptions = [
-                        { value: 'ACCEPTED', label: 'Accept Order', color: 'bg-info' },
-                        { value: 'REJECTED', label: 'Reject Order', color: 'bg-dark-red' }
-                    ];
-                    break;
-                case 'ACCEPTED':
-                    nextOptions = [{ value: 'PREPARING', label: 'Start Preparing', color: 'bg-primary' }];
-                    break;
-                case 'PREPARING':
-                    nextOptions = [{ value: 'READY', label: 'Mark as Ready', color: 'bg-warning text-dark' }];
-                    break;
-                case 'READY':
-                    nextOptions = [{ value: 'COMPLETED', label: 'Complete Order', color: 'bg-success' }];
-                    break;
-                default:
-                    nextOptions = [
-                        { value: 'ACCEPTED', label: 'Accept Order', color: 'bg-info' },
-                        { value: 'REJECTED', label: 'Reject Order', color: 'bg-dark-red' }
-                    ];
-            }
+            // Takeaway order status flow (only PREPARING, READY, COMPLETED)
+            statusFlow = {
+                'PENDING': ['ACCEPTED', 'REJECTED'],
+                'ACCEPTED': ['PREPARING', 'REJECTED'],
+                'PREPARING': ['READY', 'REJECTED'],
+                'READY': ['COMPLETED', 'REJECTED'],
+            };
         }
 
-        setNextStatusOptions(nextOptions);
+        // Get the next possible statuses based on current status
+        const nextStatuses = statusFlow[currentStatus] || [];
+
+        // Map to full status options
+        const statusOptionsMap = {
+            'ACCEPTED': { value: 'ACCEPTED', label: 'Accepted', color: 'bg-blue' },
+            'PREPARING': { value: 'PREPARING', label: 'Preparing', color: 'bg-orange' },
+            'READY': { value: 'READY', label: 'Ready', color: 'bg-yellow' },
+            'DISPATCHED': { value: 'DISPATCHED', label: 'Dispatched', color: 'bg-violet' },
+            'ON_THE_WAY': { value: 'ON_THE_WAY', label: 'On the way', color: 'bg-fuchsia' },
+            'DELIVERED': { value: 'DELIVERED', label: 'Delivered', color: 'bg-emerald' },
+            'COMPLETED': { value: 'COMPLETED', label: 'Completed', color: 'bg-green1' },
+            'REJECTED': { value: 'REJECTED', label: 'Rejected', color: 'bg-dark-red' }
+        };
+
+        // Filter out any undefined statuses and create the options array
+        const nextStatusOptions = nextStatuses
+            .filter(status => statusOptionsMap[status])
+            .map(status => statusOptionsMap[status]);
+
+        setNextStatusOptions(nextStatusOptions);
         setIsEditModalOpen(true);
     };
 
@@ -849,6 +787,24 @@ const OrderTable = () => {
             const authData = JSON.parse(localStorage.getItem("authData"));
             if (!authData?.token) {
                 throw new Error("No authentication token found");
+            }
+
+            // Validate status transition
+            const currentStatus = selectedOrder.status.toUpperCase();
+            const newStatus = selectedStatus.toUpperCase();
+
+            // Prevent invalid transitions
+            if (currentStatus === 'DELIVERED' && newStatus !== 'COMPLETED') {
+                throw new Error("Cannot change status from Delivered");
+            }
+            if (currentStatus === 'COMPLETED') {
+                throw new Error("Cannot change status from Completed");
+            }
+            if (currentStatus === 'CANCELLED') {
+                throw new Error("Cannot change status from Cancelled");
+            }
+            if (currentStatus === 'REJECTED') {
+                throw new Error("Cannot change status from Rejected");
             }
 
             const response = await fetch(`${BASE_URL}/api/client-admin/orders/${selectedOrder.id}/update-status`, {
@@ -928,7 +884,6 @@ const OrderTable = () => {
                 return;
             }
 
-            // Decode the base64 PDF
             const binaryString = atob(order.pdfInvoice);
             const bytes = new Uint8Array(binaryString.length);
             for (let i = 0; i < binaryString.length; i++) {
@@ -938,14 +893,12 @@ const OrderTable = () => {
             const blob = new Blob([bytes], { type: 'application/pdf' });
             const url = URL.createObjectURL(blob);
 
-            // Create a temporary anchor element to trigger the download
             const a = document.createElement('a');
             a.href = url;
             a.download = `Invoice_${order.orderNumber}.pdf`;
             document.body.appendChild(a);
             a.click();
 
-            // Clean up
             setTimeout(() => {
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
@@ -1028,13 +981,11 @@ const OrderTable = () => {
         setActiveFilter(filter);
     };
 
-    // Check if order has delivery coordinates
     const hasDeliveryLocation = (order) => {
         return order.deliveryLatitude && order.deliveryLongitude &&
             parseFloat(order.deliveryLatitude) !== 0 && parseFloat(order.deliveryLongitude) !== 0;
     };
 
-    // Skeleton loader component
     const SkeletonLoader = () => {
         return (
             <div className="table-responsive">
@@ -1145,7 +1096,6 @@ const OrderTable = () => {
         );
     };
 
-    // Component error display
     if (componentError) {
         return (
             <div className="container mt-4">
@@ -1188,7 +1138,6 @@ const OrderTable = () => {
             cell: (info) => getFulfillmentBadge(info.getValue() || 'In House')
         },
         {
-
             accessorKey: 'totalAmount',
             header: 'Total',
             cell: (info) => {
@@ -1201,7 +1150,7 @@ const OrderTable = () => {
             header: 'Payment',
             cell: (info) => {
                 const method = info.getValue();
-                return method ? method.charAt(0).toUpperCase() + method.slice(1).toLowerCase() : 'N/A';
+                return method ? method.charAt(0).toUpperCase() + method.slice(1).toLowerCase() : '-';
             }
         },
         {
@@ -1218,15 +1167,16 @@ const OrderTable = () => {
             accessorKey: 'actions',
             header: "Actions",
             cell: ({ row }) => {
-                const isDeliveryReady =
-                    row.original.fulfillmentType?.toLowerCase().includes('delivery') &&
-                    row.original.status.toUpperCase() === 'READY';
+                const isDeliveryOrder = row.original.fulfillmentType?.toLowerCase().includes('delivery');
+                const currentStatus = row.original.status.toUpperCase();
+                const showAssignRider = isDeliveryOrder &&
+                    ['READY', 'DISPATCHED', 'ON_THE_WAY'].includes(currentStatus);
 
                 return (
                     <div className="hstack gap-2 justify-content-end">
                         {/* Hide edit button for POS orders or completed/delivered/rejected/cancelled orders */}
                         {!row.original.orderType?.toLowerCase().includes('pos') &&
-                            !['COMPLETED', 'DELIVERED', 'REJECTED', 'CANCELLED'].includes(row.original.status.toUpperCase()) && (
+                            !['COMPLETED', 'DELIVERED', 'REJECTED', 'CANCELLED'].includes(currentStatus) && (
                                 <button
                                     className="avatar-text avatar-md"
                                     onClick={() => handleEditOrder(row.original)}
@@ -1236,10 +1186,10 @@ const OrderTable = () => {
                                 </button>
                             )}
 
-                        {/* Assign Rider button for delivery orders that are ready */}
-                        {isDeliveryReady && (
+                        {/* Assign Rider button for delivery orders in READY, DISPATCHED, or ON_THE_WAY status */}
+                        {showAssignRider && (
                             <button
-                                className="avatar-text avatar-md bg-success text-white"
+                                className="avatar-text avatar-md bg-primary text-white"
                                 onClick={() => {
                                     setSelectedOrder(row.original);
                                     setIsRiderModalOpen(true);
@@ -1254,7 +1204,7 @@ const OrderTable = () => {
                         {/* View on Map button for orders with delivery coordinates */}
                         {hasDeliveryLocation(row.original) && (
                             <button
-                                className="avatar-text avatar-md bg-primary text-white"
+                                className="avatar-text avatar-md"
                                 onClick={() => handleViewOnMap(row.original)}
                                 title="View on Map"
                             >
@@ -1909,81 +1859,81 @@ const OrderTable = () => {
 
                 <style>
                     {`/* Custom badge colors */
-    .bg-purple { background-color: #9333ea; color: white; }
-    .bg-teal { background-color: #0d9488; color: white; }
-    .bg-indigo { background-color: #4f46e5; color: white; }
-    .bg-orange { background-color: #f97316; color: white; }
-    .bg-pink { background-color: #ec4899; color: white; }
-    .bg-gray { background-color: #6b7280; color: white; }
-    .bg-blue { background-color: #3b82f6; color: white; }
-    .bg-cyan { background-color: #06b6d4; color: white; }
-    .bg-yellow { background-color:rgb(246, 185, 0); color: white; }
-    .bg-violet { background-color: #7c3aed; color: white; }
-    .bg-fuchsia { background-color: #c026d3; color: white; }
-    .bg-emerald { background-color: #10b981; color: white; }
-    .bg-black { background-color:rgb(0, 0, 0); color: white; }
-    .bg-green1 { background-color:rgb(0, 198, 13); color: white; }
-    .bg-red { background-color: #ef4444; color: white; }
-    .bg-dark-red { background-color: #8B0000; color: white; }
-    .bg-info { background-color: #17a2b8; color: white; }
-    .bg-primary { background-color: #007bff; color: white; }
-    .bg-warning { background-color: #ffc107; color: #212529; }
-    .bg-success { background-color: #28a745; color: white; }
-    .bg-secondary { background-color: #6c757d; color: white; }
+.bg-purple { background-color: #9333ea; color: white; }
+.bg-teal { background-color: #0d9488; color: white; }
+.bg-indigo { background-color: #4f46e5; color: white; }
+.bg-orange { background-color: #f97316; color: white; }
+.bg-pink { background-color: #ec4899; color: white; }
+.bg-gray { background-color: #6b7280; color: white; }
+.bg-blue { background-color: #3b82f6; color: white; }
+.bg-cyan { background-color: #06b6d4; color: white; }
+.bg-yellow { background-color:rgb(246, 185, 0); color: white; }
+.bg-violet { background-color: #7c3aed; color: white; }
+.bg-fuchsia { background-color: #c026d3; color: white; }
+.bg-emerald { background-color: #10b981; color: white; }
+.bg-black { background-color:rgb(0, 0, 0); color: white; }
+.bg-green1 { background-color:rgb(0, 198, 13); color: white; }
+.bg-red { background-color: #ef4444; color: white; }
+.bg-dark-red { background-color: #8B0000; color: white; }
+.bg-info { background-color: #17a2b8; color: white; }
+.bg-primary { background-color: #007bff; color: white; }
+.bg-warning { background-color: #ffc107; color: #212529; }
+.bg-success { background-color: #28a745; color: white; }
+.bg-secondary { background-color: #6c757d; color: white; }
 
-    /* Dark mode modal styles */
-    .dark-modal .modal-content {
-        background-color: #0f172a;
-        color: white;
-    }
+/* Dark mode modal styles */
+.dark-modal .modal-content {
+    background-color: #0f172a;
+    color: white;
+}
 
-    .dark-modal .modal-header,
-    .dark-modal .modal-footer {
-        border-color: #1e293b;
-    }
+.dark-modal .modal-header,
+.dark-modal .modal-footer {
+    border-color: #1e293b;
+}
 
-    .dark-modal .close {
-        color: white;
-    }
+.dark-modal .close {
+    color: white;
+}
 
-    .dark-modal .table {
-        color: white;
-    }
+.dark-modal .table {
+    color: white;
+}
 
-    .dark-modal .table-bordered {
-        border-color: #1e293b;
-    }
+.dark-modal .table-bordered {
+    border-color: #1e293b;
+}
 
-    .dark-modal .table-bordered th,
-    .dark-modal .table-bordered td {
-        border-color: #1e293b;
-    }
+.dark-modal .table-bordered th,
+.dark-modal .table-bordered td {
+    border-color: #1e293b;
+}
 
-    /* Google Maps container styling */
-    #google-map {
-        height: 100%;
-        width: 100%;
-    }
+/* Google Maps container styling */
+#google-map {
+    height: 100%;
+    width: 100%;
+}
 
-    /* Loading spinner */
-    .spinner-border.text-primary {
-        color: #0092ff !important;
-    }
+/* Loading spinner */
+.spinner-border.text-primary {
+    color: #0092ff !important;
+}
 
-    /* Spin animation for refresh button */
-    .spin {
-        animation: spin 1s linear infinite;
-    }
+/* Spin animation for refresh button */
+.spin {
+    animation: spin 1s linear infinite;
+}
 
-    @keyframes spin {
-        from { transform: rotate(0deg); }
-        to { transform: rotate(360deg); }
-    }`}
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}`}
                 </style>
             </>
         );
     } catch (renderError) {
-        errorLog('Component render error', renderError);
+        console.error('Component render error', renderError);
         return (
             <div className="container mt-4">
                 <div className="alert alert-danger">

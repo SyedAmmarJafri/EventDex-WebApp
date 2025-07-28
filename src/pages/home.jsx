@@ -16,7 +16,8 @@ import {
     ResponsiveContainer,
     PieChart,
     Pie,
-    Cell
+    Cell,
+    Tooltip
 } from 'recharts';
 import axios from 'axios';
 import moment from 'moment';
@@ -567,7 +568,7 @@ const Dashboard = () => {
                                 }
                             >
                                 <ResponsiveContainer width="100%" height={280}>
-                                    <PieChart>
+                                    <PieChart width={400} height={300}>
                                         <Pie
                                             data={formatOrderStatusData()}
                                             cx="50%"
@@ -578,6 +579,7 @@ const Dashboard = () => {
                                             dataKey="value"
                                             nameKey="name"
                                             label={({ name, percent }) => `${name}\n${(percent * 100).toFixed(0)}%`}
+                                            labelLine={false}
                                         >
                                             {formatOrderStatusData().map((entry, index) => (
                                                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />

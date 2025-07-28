@@ -14,6 +14,10 @@ const errorLog = (message, error = null) => {
     console.error(`[TimesheetsModal ERROR] ${message}`, error || '');
 };
 
+// Get currency settings from localStorage
+const authData = JSON.parse(localStorage.getItem("authData"));
+const currencySymbol = authData?.currencySettings?.currencySymbol || '$';
+
 window.global ||= window;
 
 const TimesheetsModal = () => {
@@ -633,7 +637,7 @@ const TimesheetsModal = () => {
                                                 <strong>Contact:</strong> {order.customerContact || 'N/A'}
                                             </p>
                                             <p className="card-text text-muted small mb-1">
-                                                <strong>Total:</strong> ${order.totalAmount?.toFixed(2) || '0.00'}
+                                                <strong>Total:</strong> {currencySymbol}{order.totalAmount?.toFixed(2) || '0.00'}
                                             </p>
                                             <p className="card-text text-muted small mb-1">
                                                 <strong>Created:</strong> {new Date(order.createdAt).toLocaleString()}
@@ -821,9 +825,9 @@ const OrderDetailsModal = ({ show, onHide, order, onAccept, onReject }) => {
                                         {order.items?.map((item, index) => (
                                             <tr key={index}>
                                                 <td>{item.name}</td>
-                                                <td>${item.price?.toFixed(2) || '0.00'}</td>
+                                                <td>{currencySymbol}{item.price?.toFixed(2) || '0.00'}</td>
                                                 <td>{item.quantity}</td>
-                                                <td>${item.itemTotal?.toFixed(2) || '0.00'}</td>
+                                                <td>{currencySymbol}{item.itemTotal?.toFixed(2) || '0.00'}</td>
                                                 <td>{item.itemDiscountRate || 0}%</td>
                                             </tr>
                                         ))}
@@ -854,7 +858,7 @@ const OrderDetailsModal = ({ show, onHide, order, onAccept, onReject }) => {
                                 <div className="card-body">
                                     <div className="d-flex justify-content-between mb-2">
                                         <h6>Subtotal:</h6>
-                                        <h6>${order.subtotal?.toFixed(2) || order.totalAmount?.toFixed(2) || '0.00'}</h6>
+                                        <h6>{currencySymbol}{order.subtotal?.toFixed(2) || order.totalAmount?.toFixed(2) || '0.00'}</h6>
                                     </div>
                                     {order.discountAmount > 0 && (
                                         <div className="d-flex justify-content-between mb-2">
@@ -865,18 +869,18 @@ const OrderDetailsModal = ({ show, onHide, order, onAccept, onReject }) => {
                                     {order.gstAmount > 0 && (
                                         <div className="d-flex justify-content-between mb-2">
                                             <h6>GST ({order.gstRate}%):</h6>
-                                            <h6>${order.gstAmount.toFixed(2)}</h6>
+                                            <h6>{currencySymbol}{order.gstAmount.toFixed(2)}</h6>
                                         </div>
                                     )}
                                     {order.sstAmount > 0 && (
                                         <div className="d-flex justify-content-between mb-2">
                                             <h6>SST ({order.sstRate}%):</h6>
-                                            <h6>${order.sstAmount.toFixed(2)}</h6>
+                                            <h6>{currencySymbol}{order.sstAmount.toFixed(2)}</h6>
                                         </div>
                                     )}
                                     <div className="d-flex justify-content-between fw-bold">
                                         <h6>Total:</h6>
-                                        <h6>${order.totalAmount?.toFixed(2) || '0.00'}</h6>
+                                        <h6>{currencySymbol}{order.totalAmount?.toFixed(2) || '0.00'}</h6>
                                     </div>
                                 </div>
                             </div>
