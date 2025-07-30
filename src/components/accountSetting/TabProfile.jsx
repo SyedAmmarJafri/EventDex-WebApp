@@ -28,11 +28,20 @@ const TabProfile = () => {
     const [profilePictureUrl, setProfilePictureUrl] = useState('/images/avatar/1.png');
     const fileInputRef = useRef(null);
 
+    // Get auth data from localStorage
+    const authData = JSON.parse(localStorage.getItem('authData')) || {};
+    const { role = '', permissions = [] } = authData;
+
+    // Check permissions
+    const canUpdateProfile = role === 'CLIENT_ADMIN' || permissions.includes('PROFILE_UPDATE');
+    const canUploadProfilePicture = role === 'CLIENT_ADMIN' || 
+                                  (permissions.includes('PROFILE_PICTURE_UPLOAD') && 
+                                   permissions.includes('PROFILE_PICTURE_UPDATE'));
+
     // Fetch profile data
     useEffect(() => {
         const fetchProfile = async () => {
             try {
-                const authData = JSON.parse(localStorage.getItem('authData'));
                 if (!authData?.token) {
                     toast.error('Authentication token not found');
                     setLoadingProfile(false);
@@ -53,53 +62,57 @@ const TabProfile = () => {
                     profilePicture: authData.profilePicture || ''
                 });
 
-                // Then fetch fresh profile picture from API
-                try {
-                    const pictureResponse = await axios.get(`${BASE_URL}/api/client-admin/profile/picture`, {
-                        headers: {
-                            Authorization: `Bearer ${authData.token}`
-                        }
-                    });
+                // Then fetch fresh profile picture from API if allowed
+                if (canUploadProfilePicture) {
+                    try {
+                        const pictureResponse = await axios.get(`${BASE_URL}/api/client-admin/profile/picture`, {
+                            headers: {
+                                Authorization: `Bearer ${authData.token}`
+                            }
+                        });
 
-                    if (pictureResponse.data?.data) {
-                        setProfilePictureUrl(pictureResponse.data.data);
-                    }
-                } catch (pictureError) {
-                    console.warn('Failed to fetch profile picture from API, using localStorage data');
-                    if (authData.profilePicture) {
-                        setProfilePictureUrl(authData.profilePicture);
+                        if (pictureResponse.data?.data) {
+                            setProfilePictureUrl(pictureResponse.data.data);
+                        }
+                    } catch (pictureError) {
+                        console.warn('Failed to fetch profile picture from API, using localStorage data');
+                        if (authData.profilePicture) {
+                            setProfilePictureUrl(authData.profilePicture);
+                        }
                     }
                 }
 
-                // Optionally fetch fresh profile data in background
-                try {
-                    const profileResponse = await axios.get(`${BASE_URL}/api/client-admin/profile`, {
-                        headers: {
-                            Authorization: `Bearer ${authData.token}`
-                        }
-                    });
+                // Optionally fetch fresh profile data in background if allowed
+                if (canUpdateProfile) {
+                    try {
+                        const profileResponse = await axios.get(`${BASE_URL}/api/client-admin/profile`, {
+                            headers: {
+                                Authorization: `Bearer ${authData.token}`
+                            }
+                        });
 
-                    const profileData = profileResponse.data || {};
-                    setFormData({
-                        name: profileData.name || authData.name || '',
-                        address: profileData.address || authData.address || '',
-                        contactNumber: profileData.contactNumber || authData.contactNumber || '',
-                        country: profileData.country || authData.country || '',
-                        state: profileData.state || authData.state || '',
-                        city: profileData.city || authData.city || '',
-                        businessDetails: {
-                            businessName: profileData.businessDetails?.businessName || authData.businessDetails?.businessName || ''
-                        },
-                        profilePicture: profileData.profilePicture || authData.profilePicture || ''
-                    });
+                        const profileData = profileResponse.data || {};
+                        setFormData({
+                            name: profileData.name || authData.name || '',
+                            address: profileData.address || authData.address || '',
+                            contactNumber: profileData.contactNumber || authData.contactNumber || '',
+                            country: profileData.country || authData.country || '',
+                            state: profileData.state || authData.state || '',
+                            city: profileData.city || authData.city || '',
+                            businessDetails: {
+                                businessName: profileData.businessDetails?.businessName || authData.businessDetails?.businessName || ''
+                            },
+                            profilePicture: profileData.profilePicture || authData.profilePicture || ''
+                        });
 
-                    // Update localStorage with fresh data
-                    localStorage.setItem('authData', JSON.stringify({
-                        ...authData,
-                        ...profileData
-                    }));
-                } catch (profileError) {
-                    console.warn('Failed to fetch fresh profile data, using localStorage data');
+                        // Update localStorage with fresh data
+                        localStorage.setItem('authData', JSON.stringify({
+                            ...authData,
+                            ...profileData
+                        }));
+                    } catch (profileError) {
+                        console.warn('Failed to fetch fresh profile data, using localStorage data');
+                    }
                 }
 
             } catch (error) {
@@ -113,7 +126,7 @@ const TabProfile = () => {
         fetchProfile();
     }, []);
 
-    // Rest of the component remains exactly the same...
+    // Rest of the component functions remain the same...
     const handleChange = (e) => {
         const { name, value } = e.target;
 
@@ -135,6 +148,8 @@ const TabProfile = () => {
     };
 
     const handleFileChange = (e) => {
+        if (!canUploadProfilePicture) return;
+
         const file = e.target.files[0];
         if (file) {
             // Validate file type
@@ -159,7 +174,7 @@ const TabProfile = () => {
     };
 
     const uploadProfilePicture = async () => {
-        if (!profilePicture) return null;
+        if (!profilePicture || !canUploadProfilePicture) return null;
 
         try {
             const authData = JSON.parse(localStorage.getItem('authData'));
@@ -194,6 +209,8 @@ const TabProfile = () => {
     };
 
     const handleSubmit = async () => {
+        if (!canUpdateProfile) return;
+
         setUpdating(true);
         setShowConfirmModal(false);
 
@@ -204,9 +221,9 @@ const TabProfile = () => {
                 return;
             }
 
-            // First upload profile picture if changed
+            // First upload profile picture if changed and allowed
             let newPictureUrl = null;
-            if (profilePicture) {
+            if (profilePicture && canUploadProfilePicture) {
                 newPictureUrl = await uploadProfilePicture();
                 if (newPictureUrl) {
                     setFormData(prev => ({
@@ -222,37 +239,39 @@ const TabProfile = () => {
                 profilePicture: newPictureUrl || formData.profilePicture
             };
 
-            // Update the profile via API
-            await axios.put(
-                `${BASE_URL}/api/client-admin/profile`,
-                dataToSend,
-                {
-                    headers: {
-                        Authorization: `Bearer ${authData.token}`,
-                        'Content-Type': 'application/json'
+            // Update the profile via API if allowed
+            if (canUpdateProfile) {
+                await axios.put(
+                    `${BASE_URL}/api/client-admin/profile`,
+                    dataToSend,
+                    {
+                        headers: {
+                            Authorization: `Bearer ${authData.token}`,
+                            'Content-Type': 'application/json'
+                        }
                     }
+                );
+
+                // Update localStorage
+                const updatedAuthData = {
+                    ...authData,
+                    ...dataToSend
+                };
+                localStorage.setItem('authData', JSON.stringify(updatedAuthData));
+
+                // Reset the profile picture state if upload was successful
+                if (newPictureUrl) {
+                    setProfilePicture(null);
+                    setProfilePictureUrl(newPictureUrl);
                 }
-            );
 
-            // Update localStorage
-            const updatedAuthData = {
-                ...authData,
-                ...dataToSend
-            };
-            localStorage.setItem('authData', JSON.stringify(updatedAuthData));
+                toast.success('Profile updated successfully');
 
-            // Reset the profile picture state if upload was successful
-            if (newPictureUrl) {
-                setProfilePicture(null);
-                setProfilePictureUrl(newPictureUrl);
+                // Reload the page after a short delay to show the success message
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
             }
-
-            toast.success('Profile updated successfully');
-
-            // Reload the page after a short delay to show the success message
-            setTimeout(() => {
-                window.location.reload();
-            }, 1000);
         } catch (error) {
             toast.error(error.response?.data?.message || 'Failed to update profile');
             console.error('Error:', error);
@@ -274,236 +293,255 @@ const TabProfile = () => {
     return (
         <div className="tab-pane fade show active" id="profileTab" role="tabpanel">
             <div className="card-body personal-info">
-                <Form onSubmit={(e) => { e.preventDefault(); setShowConfirmModal(true); }}>
-                    <div className="mb-4 d-flex align-items-center justify-content-between">
-                        <h5 className="fw-bold mb-0 me-4">
-                            <span className="d-block mb-2">Personal Information:</span>
-                            <span className="fs-12 fw-normal text-muted">Following information is publicly displayed, be careful!</span>
-                        </h5>
-                    </div>
+                {canUpdateProfile ? (
+                    <Form onSubmit={(e) => { e.preventDefault(); setShowConfirmModal(true); }}>
+                        <div className="mb-4 d-flex align-items-center justify-content-between">
+                            <h5 className="fw-bold mb-0 me-4">
+                                <span className="d-block mb-2">Business Information:</span>
+                            </h5>
+                        </div>
 
-                    {/* Avatar Section with Upload Button */}
-                    <Form.Group className="row mb-4 align-items-center">
-                        <Form.Label column lg={4} className="fw-semibold">Avatar:</Form.Label>
-                        <div className="col-lg-8">
-                            <div className="d-flex align-items-center gap-3">
-                                <div className="position-relative">
-                                    <img
-                                        src={profilePictureUrl}
-                                        className="rounded"
-                                        style={{
-                                            width: '100px',
-                                            height: '100px',
-                                            objectFit: 'cover',
-                                            cursor: 'pointer'
-                                        }}
-                                        alt="Profile"
-                                        onClick={() => fileInputRef.current.click()}
-                                        onError={(e) => {
-                                            e.target.src = '/images/avatar/1.png'; // Fallback if image fails to load
-                                        }}
-                                    />
-                                    <div
-                                        className="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center"
-                                        style={{
-                                            backgroundColor: 'rgba(0,0,0,0.3)',
-                                            opacity: 0,
-                                            transition: 'opacity 0.3s',
-                                            cursor: 'pointer'
-                                        }}
-                                        onMouseEnter={(e) => e.currentTarget.style.opacity = 1}
-                                        onMouseLeave={(e) => e.currentTarget.style.opacity = 0}
-                                        onClick={() => fileInputRef.current.click()}
-                                    >
-                                        <FiCamera className="text-white" size={24} />
+                        {/* Avatar Section with Upload Button - Only show if allowed */}
+                        {canUploadProfilePicture && (
+                            <Form.Group className="row mb-4 align-items-center">
+                                <Form.Label column lg={4} className="fw-semibold">Avatar:</Form.Label>
+                                <div className="col-lg-8">
+                                    <div className="d-flex align-items-center gap-3">
+                                        <div className="position-relative">
+                                            <img
+                                                src={profilePictureUrl}
+                                                className="rounded"
+                                                style={{
+                                                    width: '100px',
+                                                    height: '100px',
+                                                    objectFit: 'cover',
+                                                    cursor: 'pointer'
+                                                }}
+                                                alt="Profile"
+                                                onClick={() => fileInputRef.current.click()}
+                                                onError={(e) => {
+                                                    e.target.src = '/images/avatar/1.png'; // Fallback if image fails to load
+                                                }}
+                                            />
+                                            <div
+                                                className="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center"
+                                                style={{
+                                                    backgroundColor: 'rgba(0,0,0,0.3)',
+                                                    opacity: 0,
+                                                    transition: 'opacity 0.3s',
+                                                    cursor: 'pointer'
+                                                }}
+                                                onMouseEnter={(e) => e.currentTarget.style.opacity = 1}
+                                                onMouseLeave={(e) => e.currentTarget.style.opacity = 0}
+                                                onClick={() => fileInputRef.current.click()}
+                                            >
+                                                <FiCamera className="text-white" size={24} />
+                                            </div>
+                                        </div>
+
+                                        <input
+                                            ref={fileInputRef}
+                                            type="file"
+                                            accept="image/*"
+                                            onChange={handleFileChange}
+                                            hidden
+                                        />
+
+                                        <div className="text-muted ms-3" style={{ fontSize: '0.75rem' }}>
+                                            <div>• Avatar size 150x150</div>
+                                            <div>• Max upload size 2MB</div>
+                                            <div>• Allowed: PNG, JPG, JPEG</div>
+                                        </div>
                                     </div>
                                 </div>
+                            </Form.Group>
+                        )}
 
-                                <input
-                                    ref={fileInputRef}
-                                    type="file"
-                                    accept="image/*"
-                                    onChange={handleFileChange}
-                                    hidden
+                        {/* Name */}
+                        <Form.Group className="row mb-3">
+                            <Form.Label column lg={4} className="fw-semibold">Business Name:</Form.Label>
+                            <div className="col-lg-8">
+                                <Form.Control
+                                    type="text"
+                                    name="name"
+                                    value={formData.name}
+                                    onChange={handleChange}
+                                    placeholder="Enter your full name"
+                                    required
+                                    readOnly={!canUpdateProfile}
                                 />
+                            </div>
+                        </Form.Group>
 
-                                <div className="text-muted ms-3" style={{ fontSize: '0.75rem' }}>
-                                    <div>• Avatar size 150x150</div>
-                                    <div>• Max upload size 2MB</div>
-                                    <div>• Allowed: PNG, JPG, JPEG</div>
+                        {/* Address */}
+                        <Form.Group className="row mb-3">
+                            <Form.Label column lg={4} className="fw-semibold">Address:</Form.Label>
+                            <div className="col-lg-8">
+                                <Form.Control
+                                    as="textarea"
+                                    name="address"
+                                    value={formData.address}
+                                    onChange={handleChange}
+                                    placeholder="Enter your address"
+                                    required
+                                    rows={3}
+                                    readOnly={!canUpdateProfile}
+                                />
+                            </div>
+                        </Form.Group>
+
+                        {/* Contact Number */}
+                        <Form.Group className="row mb-3">
+                            <Form.Label column lg={4} className="fw-semibold">Contact Number:</Form.Label>
+                            <div className="col-lg-8">
+                                <Form.Control
+                                    type="tel"
+                                    name="contactNumber"
+                                    value={formData.contactNumber}
+                                    onChange={handleChange}
+                                    placeholder="Enter contact number"
+                                    required
+                                    readOnly={!canUpdateProfile}
+                                />
+                            </div>
+                        </Form.Group>
+
+                        {/* Country */}
+                        <Form.Group className="row mb-3">
+                            <Form.Label column lg={4} className="fw-semibold">Country:</Form.Label>
+                            <div className="col-lg-8">
+                                <Form.Control
+                                    type="text"
+                                    name="country"
+                                    value={formData.country}
+                                    onChange={handleChange}
+                                    placeholder="Enter country"
+                                    required
+                                    readOnly={!canUpdateProfile}
+                                />
+                            </div>
+                        </Form.Group>
+
+                        {/* State */}
+                        <Form.Group className="row mb-3">
+                            <Form.Label column lg={4} className="fw-semibold">State/Province:</Form.Label>
+                            <div className="col-lg-8">
+                                <Form.Control
+                                    type="text"
+                                    name="state"
+                                    value={formData.state}
+                                    onChange={handleChange}
+                                    placeholder="Enter state/province"
+                                    required
+                                    readOnly={!canUpdateProfile}
+                                />
+                            </div>
+                        </Form.Group>
+
+                        {/* City */}
+                        <Form.Group className="row mb-3">
+                            <Form.Label column lg={4} className="fw-semibold">City:</Form.Label>
+                            <div className="col-lg-8">
+                                <Form.Control
+                                    type="text"
+                                    name="city"
+                                    value={formData.city}
+                                    onChange={handleChange}
+                                    placeholder="Enter city"
+                                    required
+                                    readOnly={!canUpdateProfile}
+                                />
+                            </div>
+                        </Form.Group>
+
+                        {/* Business Name */}
+                        <Form.Group className="row mb-3">
+                            <Form.Label column lg={4} className="fw-semibold">Business Registered Name:</Form.Label>
+                            <div className="col-lg-8">
+                                <Form.Control
+                                    type="text"
+                                    name="businessDetails.businessName"
+                                    value={formData.businessDetails.businessName}
+                                    onChange={handleChange}
+                                    placeholder="Enter business name"
+                                    required
+                                    readOnly={!canUpdateProfile}
+                                />
+                            </div>
+                        </Form.Group>
+
+                        {/* Only show update button if allowed */}
+                        {canUpdateProfile && (
+                            <div className="row mt-4">
+                                <div className="col-lg-8 offset-lg-4">
+                                    <Button variant="primary" type="submit" disabled={updating}>
+                                        {updating ? (
+                                            <>
+                                                <Spinner as="span" animation="border" size="sm" role="status" aria-hidden="true" />
+                                                <span className="ms-2">Updating...</span>
+                                            </>
+                                        ) : 'Update Profile'}
+                                    </Button>
                                 </div>
                             </div>
-                        </div>
-                    </Form.Group>
-
-                    {/* Name */}
-                    <Form.Group className="row mb-3">
-                        <Form.Label column lg={4} className="fw-semibold">Full Name:</Form.Label>
-                        <div className="col-lg-8">
-                            <Form.Control
-                                type="text"
-                                name="name"
-                                value={formData.name}
-                                onChange={handleChange}
-                                placeholder="Enter your full name"
-                                required
-                            />
-                        </div>
-                    </Form.Group>
-
-                    {/* Address */}
-                    <Form.Group className="row mb-3">
-                        <Form.Label column lg={4} className="fw-semibold">Address:</Form.Label>
-                        <div className="col-lg-8">
-                            <Form.Control
-                                as="textarea"
-                                name="address"
-                                value={formData.address}
-                                onChange={handleChange}
-                                placeholder="Enter your address"
-                                required
-                                rows={3}
-                            />
-                        </div>
-                    </Form.Group>
-
-                    {/* Contact Number */}
-                    <Form.Group className="row mb-3">
-                        <Form.Label column lg={4} className="fw-semibold">Contact Number:</Form.Label>
-                        <div className="col-lg-8">
-                            <Form.Control
-                                type="tel"
-                                name="contactNumber"
-                                value={formData.contactNumber}
-                                onChange={handleChange}
-                                placeholder="Enter contact number"
-                                required
-                            />
-                        </div>
-                    </Form.Group>
-
-                    {/* Country */}
-                    <Form.Group className="row mb-3">
-                        <Form.Label column lg={4} className="fw-semibold">Country:</Form.Label>
-                        <div className="col-lg-8">
-                            <Form.Control
-                                type="text"
-                                name="country"
-                                value={formData.country}
-                                onChange={handleChange}
-                                placeholder="Enter country"
-                                required
-                            />
-                        </div>
-                    </Form.Group>
-
-                    {/* State */}
-                    <Form.Group className="row mb-3">
-                        <Form.Label column lg={4} className="fw-semibold">State/Province:</Form.Label>
-                        <div className="col-lg-8">
-                            <Form.Control
-                                type="text"
-                                name="state"
-                                value={formData.state}
-                                onChange={handleChange}
-                                placeholder="Enter state/province"
-                                required
-                            />
-                        </div>
-                    </Form.Group>
-
-                    {/* City */}
-                    <Form.Group className="row mb-3">
-                        <Form.Label column lg={4} className="fw-semibold">City:</Form.Label>
-                        <div className="col-lg-8">
-                            <Form.Control
-                                type="text"
-                                name="city"
-                                value={formData.city}
-                                onChange={handleChange}
-                                placeholder="Enter city"
-                                required
-                            />
-                        </div>
-                    </Form.Group>
-
-                    {/* Business Name */}
-                    <Form.Group className="row mb-3">
-                        <Form.Label column lg={4} className="fw-semibold">Business Name:</Form.Label>
-                        <div className="col-lg-8">
-                            <Form.Control
-                                type="text"
-                                name="businessDetails.businessName"
-                                value={formData.businessDetails.businessName}
-                                onChange={handleChange}
-                                placeholder="Enter business name"
-                                required
-                            />
-                        </div>
-                    </Form.Group>
-
-                    <div className="row mt-4">
-                        <div className="col-lg-8 offset-lg-4">
-                            <Button variant="primary" type="submit" disabled={updating}>
-                                {updating ? (
-                                    <>
-                                        <Spinner as="span" animation="border" size="sm" role="status" aria-hidden="true" />
-                                        <span className="ms-2">Updating...</span>
-                                    </>
-                                ) : 'Update Profile'}
-                            </Button>
-                        </div>
+                        )}
+                    </Form>
+                ) : (
+                    <div className="alert alert-info">
+                        You don't have permission to update profile information.
                     </div>
-                </Form>
+                )}
             </div>
 
-            {/* Confirmation Modal */}
-            <Modal
-                show={showConfirmModal}
-                onHide={() => !updating && setShowConfirmModal(false)} // Prevent closing when updating
-                centered
-                backdrop={updating ? 'static' : true} // Force static backdrop when updating
-                keyboard={!updating} // Only allow keyboard dismiss when not updating
-            >
-                <Modal.Header closeButton={!updating} className="border-0 pb-0">
-                    <Modal.Title className="w-100 text-center">
-                        <h5 className="fw-bold">Confirm Update</h5>
-                    </Modal.Title>
-                </Modal.Header>
-                <Modal.Body className="text-center py-4">
-                    <h8 className="mb-4">Are you sure you want to update your profile information?</h8>
-                </Modal.Body>
-                <Modal.Footer className="justify-content-center">
-                    <Button
-                        variant="danger"
-                        onClick={() => setShowConfirmModal(false)}
-                        className="px-4"
-                        disabled={updating}
-                    >
-                        Cancel
-                    </Button>
-                    <Button
-                        variant="primary"
-                        onClick={handleSubmit}
-                        className="px-4"
-                        disabled={updating}
-                    >
-                        {updating ? (
-                            <>
-                                <Spinner
-                                    as="span"
-                                    animation="border"
-                                    size="sm"
-                                    role="status"
-                                    aria-hidden="true"
-                                    className="me-2"
-                                />
-                                Updating...
-                            </>
-                        ) : 'Confirm Update'}
-                    </Button>
-                </Modal.Footer>
-            </Modal>
+            {/* Confirmation Modal - Only shown if canUpdateProfile is true */}
+            {canUpdateProfile && (
+                <Modal
+                    show={showConfirmModal}
+                    onHide={() => !updating && setShowConfirmModal(false)}
+                    centered
+                    backdrop={updating ? 'static' : true}
+                    keyboard={!updating}
+                >
+                    <Modal.Header closeButton={!updating} className="border-0 pb-0">
+                        <Modal.Title className="w-100 text-center">
+                            <h5 className="fw-bold">Confirm Update</h5>
+                        </Modal.Title>
+                    </Modal.Header>
+                    <Modal.Body className="text-center py-4">
+                        <h8 className="mb-4">Are you sure you want to update your profile information?</h8>
+                    </Modal.Body>
+                    <Modal.Footer className="justify-content-center">
+                        <Button
+                            variant="danger"
+                            onClick={() => setShowConfirmModal(false)}
+                            className="px-4"
+                            disabled={updating}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            variant="primary"
+                            onClick={handleSubmit}
+                            className="px-4"
+                            disabled={updating}
+                        >
+                            {updating ? (
+                                <>
+                                    <Spinner
+                                        as="span"
+                                        animation="border"
+                                        size="sm"
+                                        role="status"
+                                        aria-hidden="true"
+                                        className="me-2"
+                                    />
+                                    Updating...
+                                </>
+                            ) : 'Confirm Update'}
+                        </Button>
+                    </Modal.Footer>
+                </Modal>
+            )}
         </div>
     );
 };

@@ -83,36 +83,6 @@ const HelpKnowledgebase = () => {
         <>
             <HelpBanner />
             <div className="main-content container-lg px-4 help-center-main-contet-area overflow-visible">
-                <div className="row help-quick-card">
-                    <HelpCard
-                        description={"Lorem ipsum dolor sit, amet consectetur adipisicing elit. Sequi, veniam. Modi quas vero odit asperiores alias libero quae in quam dicta autem et repudiandae ex, molestiae doloremque, explicabo reiciendis minus?"}
-                        img={"/images/icons/line-icon/idea.png"}
-                        title={"Knowledge Base"}
-                    />
-                    <HelpCard
-                        description={"Lorem ipsum dolor sit, amet consectetur adipisicing elit. Sequi, veniam. Modi quas vero odit asperiores alias libero quae in quam dicta autem et repudiandae ex, molestiae doloremque, explicabo reiciendis minus?"}
-                        img={"/images/icons/line-icon/support.png"}
-                        title={"Contact Agent"}
-                    />
-                    <HelpCard
-                        description={"Lorem ipsum dolor sit, amet consectetur adipisicing elit. Sequi, veniam. Modi quas vero odit asperiores alias libero quae in quam dicta autem et repudiandae ex, molestiae doloremque, explicabo reiciendis minus?"}
-                        img={"/images/icons/line-icon/rocket.png"}
-                        title={"Community Forum"}
-                    />
-                </div>
-                <section className="topic-category-section">
-                    <div className="d-flex flex-column align-items-center justify-content-center mb-5">
-                        <h2 className="fs-20 fw-bold mb-3">Documentation Category</h2>
-                        <p className="px-5 mx-5 text-center text-muted text-truncate-3-line">Lorem ipsum dolor sit amet consectetur adipisicing elit. Minus laboriosam obcaecati fuga repellat animi quam nesciunt maiores dolorem corporis debitis incidunt, accusantium corrupti dignissimos repellendus, saepe accusamus expedita necessitatibus.</p>
-                    </div>
-                    <div className="row">
-                        {categoryData.map((card, index) => (
-                            <div className="col-xl-4 col-lg-6" key={index}>
-                                <CategoryCard {...card} />
-                            </div>
-                        ))}
-                    </div>
-                </section>
                 <section className="topic-tranding-section">
                     <div className="d-flex flex-column align-items-center justify-content-center mb-5">
                         <h2 className="fs-20 fw-bold mb-3">Tranding Topics</h2>

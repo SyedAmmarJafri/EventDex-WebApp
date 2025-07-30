@@ -26,8 +26,25 @@ const InventoryTable = () => {
         active: true
     });
     const [editFormErrors, setEditFormErrors] = useState({});
+    const [userPermissions, setUserPermissions] = useState([]);
+    const [userRole, setUserRole] = useState('');
     const skinTheme = localStorage.getItem('skinTheme') || 'light';
     const isDarkMode = skinTheme === 'dark';
+
+    // Initialize user permissions and role
+    useEffect(() => {
+        const authData = JSON.parse(localStorage.getItem("authData"));
+        if (authData) {
+            setUserRole(authData.role || '');
+            setUserPermissions(authData.permissions || []);
+        }
+    }, []);
+
+    // Check if user has permission
+    const hasPermission = (permission) => {
+        if (userRole === 'CLIENT_ADMIN') return true;
+        return userPermissions.includes(permission);
+    };
 
     // Custom toast notification function
     const showToast = (message, type = 'success') => {
@@ -82,7 +99,7 @@ const InventoryTable = () => {
                             <th scope="col">Low Stock Threshold</th>
                             <th scope="col">Category</th>
                             <th scope="col">Status</th>
-                            <th scope="col" className="text-end">Actions</th>
+                            {hasPermission('ITEM_UPDATE') && <th scope="col" className="text-end">Actions</th>}
                         </tr>
                     </thead>
                     <tbody>
@@ -133,31 +150,19 @@ const InventoryTable = () => {
                                         highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
                                     />
                                 </td>
-                                <td>
-                                    <div className="hstack gap-2 justify-content-end">
-                                        <Skeleton
-                                            circle
-                                            width={24}
-                                            height={24}
-                                            baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
-                                            highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
-                                        />
-                                        <Skeleton
-                                            circle
-                                            width={24}
-                                            height={24}
-                                            baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
-                                            highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
-                                        />
-                                        <Skeleton
-                                            circle
-                                            width={24}
-                                            height={24}
-                                            baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
-                                            highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
-                                        />
-                                    </div>
-                                </td>
+                                {hasPermission('ITEM_UPDATE') && (
+                                    <td>
+                                        <div className="hstack gap-2 justify-content-end">
+                                            <Skeleton
+                                                circle
+                                                width={24}
+                                                height={24}
+                                                baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
+                                                highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
+                                            />
+                                        </div>
+                                    </td>
+                                )}
                             </tr>
                         ))}
                     </tbody>
@@ -333,7 +338,7 @@ const InventoryTable = () => {
             header: 'Low Stock Threshold',
             cell: (info) => info.getValue() || '5'
         },
-        {
+        ...(hasPermission('ITEM_UPDATE') ? [{
             accessorKey: 'actions',
             header: "Actions",
             cell: ({ row }) => (
@@ -347,8 +352,8 @@ const InventoryTable = () => {
                 </div>
             ),
             meta: { headerClassName: 'text-end' }
-        },
-    ],);
+        }] : [])
+    ], [hasPermission]);
 
     return (
         <>

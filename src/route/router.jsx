@@ -32,7 +32,6 @@ import ChangeCover from "../pages/change-cover";
 import ErrorCover from "../pages/error-cover";
 import OtpCover from "../pages/otp-cover";
 import MaintenanceCover from "../pages/maintenance-cover";
-import HelpKnowledgebase from "../pages/help-knowledgebase";
 
 // Authentication check function
 const checkAuth = () => {
@@ -47,21 +46,97 @@ const checkAuth = () => {
     }
 };
 
-// Protected Route Wrapper Component
-const ProtectedRoute = ({ children }) => {
+// Authorization check function
+const checkPermission = (requiredPermission) => {
+    try {
+        const authDataString = localStorage.getItem('authData');
+        if (!authDataString) return false;
+        
+        const authData = JSON.parse(authDataString);
+        
+        // CLIENT_ADMIN has all permissions
+        if (authData.role === "CLIENT_ADMIN") return true;
+        
+        // Check if the required permission exists in tabPermissions
+        const permissions = authData.tabPermissions || {};
+        return permissions[requiredPermission] === true;
+    } catch (error) {
+        console.error('Error checking permissions:', error);
+        return false;
+    }
+};
+
+// Enhanced Protected Route with permission check
+const ProtectedRoute = ({ children, permission }) => {
     if (!checkAuth()) {
         return <Navigate to="/authentication/login/cover" replace />;
+    }
+    
+    // If permission is required but not granted
+    if (permission && !checkPermission(permission)) {
+        return <Navigate to="/" replace />;
+    }
+    
+    return children;
+};
+
+// Public Route remains the same
+const PublicRoute = ({ children }) => {
+    if (checkAuth()) {
+        return <Navigate to="/" replace />;
     }
     return children;
 };
 
-// Public Route Wrapper Component (for auth pages)
-const PublicRoute = ({ children }) => {
-    if (checkAuth()) {
-        // Redirect to home if user is already authenticated
-        return <Navigate to="/" replace />;
-    }
-    return children;
+// Permission mapping configuration
+const routePermissions = {
+    // Root routes
+    '/': 'dashboard',
+    '/pos': 'pos',
+    '/account': null, // No permission required
+    '/help/knowledgebase': null, // No permission required
+    
+    // Analytics routes
+    '/analytics/sales': 'sales_analytics',
+    '/analytics/product': 'product_analytics',
+    '/analytics/customer': 'customer_analytics',
+    '/analytics/financial': 'financial_analytics',
+    '/analytics/team': 'team_analytics',
+    '/analytics/comparison': 'comparison_analytics',
+    '/reports': 'reports',
+    
+    // Product routes
+    '/category/list': 'category',
+    '/item/list': 'item',
+    '/deal/list': 'deal',
+    
+    // Order/customer routes
+    '/orders/list': 'orders',
+    '/customer/list': 'customers',
+    '/discount/list': 'discounts',
+    
+    // Marketing routes
+    '/marketing/list': 'email_marketing',
+    '/template/list': 'marketing_template',
+    
+    // Inventory/finance routes
+    '/inventory/list': 'inventory',
+    '/finance': 'finance',
+    
+    // Tracker route
+    '/tracker': 'live_tracker',
+    
+    // User management routes
+    '/role/list': 'role',
+    '/team/list': 'team',
+    
+    // Store settings
+    '/Store/settings': 'online_store'
+};
+
+// Helper function to get permission for a path
+const getPermissionForPath = (path) => {
+    return routePermissions[path] || null;
 };
 
 export const router = createBrowserRouter([
@@ -75,99 +150,192 @@ export const router = createBrowserRouter([
         children: [
             {
                 path: "/",
-                element: <Home />
+                element: (
+                    <ProtectedRoute permission={getPermissionForPath('/')}>
+                        <Home />
+                    </ProtectedRoute>
+                )
             },
             {
                 path: "/pos",
-                element: <PosList />
+                element: (
+                    <ProtectedRoute permission={getPermissionForPath('/pos')}>
+                        <PosList />
+                    </ProtectedRoute>
+                )
             },
             {
                 path: "/account",
-                element: <AccountSetting />
+                element: <AccountSetting /> // No permission required
             },
+            // Analytics routes
             {
                 path: "/analytics/sales",
-                element: <ReportsSales />
+                element: (
+                    <ProtectedRoute permission={getPermissionForPath('/analytics/sales')}>
+                        <ReportsSales />
+                    </ProtectedRoute>
+                )
             },
             {
                 path: "/analytics/product",
-                element: <ReportsProducts />
+                element: (
+                    <ProtectedRoute permission={getPermissionForPath('/analytics/product')}>
+                        <ReportsProducts />
+                    </ProtectedRoute>
+                )
             },
             {
                 path: "/analytics/customer",
-                element: <ReportsCustomer />
+                element: (
+                    <ProtectedRoute permission={getPermissionForPath('/analytics/customer')}>
+                        <ReportsCustomer />
+                    </ProtectedRoute>
+                )
             },
             {
                 path: "/analytics/financial",
-                element: <ReportsFinancial />
+                element: (
+                    <ProtectedRoute permission={getPermissionForPath('/analytics/financial')}>
+                        <ReportsFinancial />
+                    </ProtectedRoute>
+                )
             },
             {
                 path: "/analytics/team",
-                element: <ReportsTeam />
+                element: (
+                    <ProtectedRoute permission={getPermissionForPath('/analytics/team')}>
+                        <ReportsTeam />
+                    </ProtectedRoute>
+                )
             },
             {
                 path: "/analytics/comparison",
-                element: <ReportsComparison />
+                element: (
+                    <ProtectedRoute permission={getPermissionForPath('/analytics/comparison')}>
+                        <ReportsComparison />
+                    </ProtectedRoute>
+                )
             },
             {
                 path: "/reports",
-                element: <Reports />
+                element: (
+                    <ProtectedRoute permission={getPermissionForPath('/reports')}>
+                        <Reports />
+                    </ProtectedRoute>
+                )
             },
+            // Product routes
             {
                 path: "/category/list",
-                element: <Categorylist />
+                element: (
+                    <ProtectedRoute permission={getPermissionForPath('/category/list')}>
+                        <Categorylist />
+                    </ProtectedRoute>
+                )
             },
             {
                 path: "/item/list",
-                element: <Itemlist />
+                element: (
+                    <ProtectedRoute permission={getPermissionForPath('/item/list')}>
+                        <Itemlist />
+                    </ProtectedRoute>
+                )
             },
             {
                 path: "/inventory/list",
-                element: <Inventorylist />
+                element: (
+                    <ProtectedRoute permission={getPermissionForPath('/inventory/list')}>
+                        <Inventorylist />
+                    </ProtectedRoute>
+                )
             },
             {
                 path: "/deal/list",
-                element: <Deallist />
+                element: (
+                    <ProtectedRoute permission={getPermissionForPath('/deal/list')}>
+                        <Deallist />
+                    </ProtectedRoute>
+                )
             },
+            // Order routes
             {
                 path: "/orders/list",
-                element: <Orderlist />
+                element: (
+                    <ProtectedRoute permission={getPermissionForPath('/orders/list')}>
+                        <Orderlist />
+                    </ProtectedRoute>
+                )
             },
+            // Customer routes
             {
                 path: "/customer/list",
-                element: <Customerlist />
+                element: (
+                    <ProtectedRoute permission={getPermissionForPath('/customer/list')}>
+                        <Customerlist />
+                    </ProtectedRoute>
+                )
             },
+            // Marketing routes
             {
                 path: "/marketing/list",
-                element: <Marketinglist />
+                element: (
+                    <ProtectedRoute permission={getPermissionForPath('/marketing/list')}>
+                        <Marketinglist />
+                    </ProtectedRoute>
+                )
             },
             {
                 path: "/template/list",
-                element: <Templatelist />
+                element: (
+                    <ProtectedRoute permission={getPermissionForPath('/template/list')}>
+                        <Templatelist />
+                    </ProtectedRoute>
+                )
             },
+            // Discount routes
             {
                 path: "/discount/list",
-                element: <Discountlist />
+                element: (
+                    <ProtectedRoute permission={getPermissionForPath('/discount/list')}>
+                        <Discountlist />
+                    </ProtectedRoute>
+                )
             },
+            // User management routes
             {
                 path: "/role/list",
-                element: <RoleList />
+                element: (
+                    <ProtectedRoute permission={getPermissionForPath('/role/list')}>
+                        <RoleList />
+                    </ProtectedRoute>
+                )
             },
             {
                 path: "/team/list",
-                element: <TeamList />
+                element: (
+                    <ProtectedRoute permission={getPermissionForPath('/team/list')}>
+                        <TeamList />
+                    </ProtectedRoute>
+                )
             },
+            // Finance route
             {
                 path: "/finance",
-                element: <FinanceList />
+                element: (
+                    <ProtectedRoute permission={getPermissionForPath('/finance')}>
+                        <FinanceList />
+                    </ProtectedRoute>
+                )
             },
+            // Tracker route
             {
                 path: "/tracker",
-                element: <Tracker />
-            },
-            {
-                path: "/help/knowledgebase",
-                element: <HelpKnowledgebase />
+                element: (
+                    <ProtectedRoute permission={getPermissionForPath('/tracker')}>
+                        <Tracker />
+                    </ProtectedRoute>
+                )
             },
         ]
     },
@@ -181,10 +349,15 @@ export const router = createBrowserRouter([
         children: [
             {
                 path: "/Store/settings",
-                element: <StoreSettings />
+                element: (
+                    <ProtectedRoute permission={getPermissionForPath('/Store/settings')}>
+                        <StoreSettings />
+                    </ProtectedRoute>
+                )
             }
         ]
     },
+    // Authentication routes (remain unchanged)
     {
         path: "/",
         element: <LayoutAuth />,

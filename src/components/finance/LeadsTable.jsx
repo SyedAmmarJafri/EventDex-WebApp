@@ -106,6 +106,22 @@ const deleteFromDB = async (storeName, key) => {
 };
 
 const TransactionsTable = () => {
+    const authData = JSON.parse(localStorage.getItem("authData"));
+    const userRole = authData?.role;
+    const userPermissions = authData?.permissions || [];
+    const currencySymbol = authData?.currencySettings?.currencySymbol || '$';
+    const skinTheme = localStorage.getItem('skinTheme') || 'light';
+    const isDarkMode = skinTheme === 'dark';
+
+    const hasPermission = (permission) => {
+        if (userRole === 'CLIENT_ADMIN') return true;
+        return userPermissions.includes(permission);
+    };
+
+    const canDelete = hasPermission('FINANCE_DELETE');
+    const canUpdate = hasPermission('FINANCE_UPDATE');
+    const canWrite = hasPermission('FINANCE_WRITE');
+
     const [transactions, setTransactions] = useState([]);
     const [summary, setSummary] = useState(null);
     const [paymentMethods, setPaymentMethods] = useState([]);
@@ -121,10 +137,6 @@ const TransactionsTable = () => {
     const [showAddWithdrawal, setShowAddWithdrawal] = useState(false);
     const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
     const [paymentMethodToDelete, setPaymentMethodToDelete] = useState(null);
-
-    // Get currency settings from localStorage
-    const authData = JSON.parse(localStorage.getItem("authData"));
-    const currencySymbol = authData?.currencySettings?.currencySymbol || '$';
 
     // Form states
     const [newPaymentMethod, setNewPaymentMethod] = useState({
@@ -166,8 +178,6 @@ const TransactionsTable = () => {
     ]);
 
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const skinTheme = localStorage.getItem('skinTheme') || 'light';
-    const isDarkMode = skinTheme === 'dark';
 
     const SkeletonLoader = () => {
         return (
@@ -895,9 +905,11 @@ const TransactionsTable = () => {
                     </Form>
                 </Modal.Body>
                 <Modal.Footer>
-                    <Button variant="primary" onClick={handleAddPaymentMethod} disabled={isSubmitting || !newPaymentMethod.name}>
-                        {isSubmitting ? 'Adding...' : 'Add Payment Method'}
-                    </Button>
+                    {canWrite && (
+                        <Button variant="primary" onClick={handleAddPaymentMethod} disabled={isSubmitting || !newPaymentMethod.name}>
+                            {isSubmitting ? 'Adding...' : 'Add Payment Method'}
+                        </Button>
+                    )}
                 </Modal.Footer>
             </Modal>
 
@@ -991,10 +1003,12 @@ const TransactionsTable = () => {
                     </Form>
                 </Modal.Body>
                 <Modal.Footer>
-                    <Button variant="primary" onClick={() => handleAddTransaction('INCOME')}
-                        disabled={isSubmitting || !newTransaction.amount || !newTransaction.paymentMethodId || !newTransaction.description || !newTransaction.category}>
-                        {isSubmitting ? 'Adding...' : 'Add Income'}
-                    </Button>
+                    {canWrite && (
+                        <Button variant="primary" onClick={() => handleAddTransaction('INCOME')}
+                            disabled={isSubmitting || !newTransaction.amount || !newTransaction.paymentMethodId || !newTransaction.description || !newTransaction.category}>
+                            {isSubmitting ? 'Adding...' : 'Add Income'}
+                        </Button>
+                    )}
                 </Modal.Footer>
             </Modal>
 
@@ -1088,10 +1102,12 @@ const TransactionsTable = () => {
                     </Form>
                 </Modal.Body>
                 <Modal.Footer>
-                    <Button variant="primary" onClick={() => handleAddTransaction('EXPENSE')}
-                        disabled={isSubmitting || !newTransaction.amount || !newTransaction.paymentMethodId || !newTransaction.description || !newTransaction.category}>
-                        {isSubmitting ? 'Adding...' : 'Add Expense'}
-                    </Button>
+                    {canWrite && (
+                        <Button variant="primary" onClick={() => handleAddTransaction('EXPENSE')}
+                            disabled={isSubmitting || !newTransaction.amount || !newTransaction.paymentMethodId || !newTransaction.description || !newTransaction.category}>
+                            {isSubmitting ? 'Adding...' : 'Add Expense'}
+                        </Button>
+                    )}
                 </Modal.Footer>
             </Modal>
 
@@ -1184,10 +1200,12 @@ const TransactionsTable = () => {
                     </Form>
                 </Modal.Body>
                 <Modal.Footer>
-                    <Button variant="primary" onClick={() => handleAddTransaction('WITHDRAWAL')}
-                        disabled={isSubmitting || !newTransaction.amount || !newTransaction.paymentMethodId || !newTransaction.description || !newTransaction.category}>
-                        {isSubmitting ? 'Adding...' : 'Add Withdrawal'}
-                    </Button>
+                    {canWrite && (
+                        <Button variant="primary" onClick={() => handleAddTransaction('WITHDRAWAL')}
+                            disabled={isSubmitting || !newTransaction.amount || !newTransaction.paymentMethodId || !newTransaction.description || !newTransaction.category}>
+                            {isSubmitting ? 'Adding...' : 'Add Withdrawal'}
+                        </Button>
+                    )}
                 </Modal.Footer>
             </Modal>
 
@@ -1243,20 +1261,22 @@ const TransactionsTable = () => {
                                         All-time income
                                     </div>
                                     <div className="mt-auto">
-                                        <Button
-                                            variant="light"
-                                            className="me-2"
-                                            onClick={() => setShowAddIncome(true)}
-                                            style={{
-                                                borderRadius: '25px',
-                                                border: '2px solid #fff',
-                                                fontWeight: '500',
-                                                padding: '8px 16px',
-                                                boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                                            }}
-                                        >
-                                            <FaPlus className="me-1" /> Add Income
-                                        </Button>
+                                        {canWrite && (
+                                            <Button
+                                                variant="light"
+                                                className="me-2"
+                                                onClick={() => setShowAddIncome(true)}
+                                                style={{
+                                                    borderRadius: '25px',
+                                                    border: '2px solid #fff',
+                                                    fontWeight: '500',
+                                                    padding: '8px 16px',
+                                                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                                                }}
+                                            >
+                                                <FaPlus className="me-1" /> Add Income
+                                            </Button>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -1277,20 +1297,22 @@ const TransactionsTable = () => {
                                         All-time expenses
                                     </div>
                                     <div className="mt-auto">
-                                        <Button
-                                            variant="light"
-                                            className="me-2"
-                                            onClick={() => setShowAddExpense(true)}
-                                            style={{
-                                                borderRadius: '25px',
-                                                border: '2px solid #fff',
-                                                fontWeight: '500',
-                                                padding: '8px 16px',
-                                                boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                                            }}
-                                        >
-                                            <FaPlus className="me-1" /> Add Expense
-                                        </Button>
+                                        {canWrite && (
+                                            <Button
+                                                variant="light"
+                                                className="me-2"
+                                                onClick={() => setShowAddExpense(true)}
+                                                style={{
+                                                    borderRadius: '25px',
+                                                    border: '2px solid #fff',
+                                                    fontWeight: '500',
+                                                    padding: '8px 16px',
+                                                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                                                }}
+                                            >
+                                                <FaPlus className="me-1" /> Add Expense
+                                            </Button>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -1311,20 +1333,22 @@ const TransactionsTable = () => {
                                         All-time withdrawals
                                     </div>
                                     <div className="mt-auto">
-                                        <Button
-                                            variant="light"
-                                            className="me-2"
-                                            onClick={() => setShowAddWithdrawal(true)}
-                                            style={{
-                                                borderRadius: '25px',
-                                                border: '2px solid #fff',
-                                                fontWeight: '500',
-                                                padding: '8px 16px',
-                                                boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                                            }}
-                                        >
-                                            <FaPlus className="me-1" /> Add Withdrawal
-                                        </Button>
+                                        {canWrite && (
+                                            <Button
+                                                variant="light"
+                                                className="me-2"
+                                                onClick={() => setShowAddWithdrawal(true)}
+                                                style={{
+                                                    borderRadius: '25px',
+                                                    border: '2px solid #fff',
+                                                    fontWeight: '500',
+                                                    padding: '8px 16px',
+                                                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                                                }}
+                                            >
+                                                <FaPlus className="me-1" /> Add Withdrawal
+                                            </Button>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -1461,21 +1485,23 @@ const TransactionsTable = () => {
                                                     <FaWallet size={20} className="me-2" />
                                                     <span className="ms-2">{method.paymentMethodName}</span>
                                                 </h6>
-                                                <div
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        if (paymentMethod) {
-                                                            handleUpdatePaymentMethodStatus(paymentMethod.id, !paymentMethod.active);
-                                                        }
-                                                    }}
-                                                    style={{ cursor: 'pointer' }}
-                                                >
-                                                    {paymentMethod?.active ? (
-                                                        <FaToggleOn size={24} style={{ color: 'white' }} />
-                                                    ) : (
-                                                        <FaToggleOff size={24} className="text-light" />
-                                                    )}
-                                                </div>
+                                                {canUpdate && (
+                                                    <div
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            if (paymentMethod) {
+                                                                handleUpdatePaymentMethodStatus(paymentMethod.id, !paymentMethod.active);
+                                                            }
+                                                        }}
+                                                        style={{ cursor: 'pointer' }}
+                                                    >
+                                                        {paymentMethod?.active ? (
+                                                            <FaToggleOn size={24} style={{ color: 'white' }} />
+                                                        ) : (
+                                                            <FaToggleOff size={24} className="text-light" />
+                                                        )}
+                                                    </div>
+                                                )}
                                             </div>
                                             <h3 className={`mb-0 ${method.balance > 0 ? 'text-light' :
                                                 method.balance < 0 ? 'text-danger' : 'text-light'
@@ -1486,7 +1512,7 @@ const TransactionsTable = () => {
                                                 <span style={{ fontSize: '0.8rem', opacity: 0.9 }}>
                                                     {paymentMethod?.active ? 'Active' : 'Inactive'}
                                                 </span>
-                                                {paymentMethod && !paymentMethod.default && (
+                                                {paymentMethod && !paymentMethod.default && canDelete && (
                                                     <FaTrash
                                                         className="text-white"
                                                         style={{
@@ -1507,31 +1533,33 @@ const TransactionsTable = () => {
                                 </div>
                             );
                         })}
-                        <div className="col-md-3 col-sm-6 mb-3">
-                            <div
-                                className="card h-100 d-flex align-items-center justify-content-center"
-                                style={{
-                                    border: '2px dashed var(--bs-gray-400)',
-                                    cursor: 'pointer',
-                                    background: 'transparent',
-                                    height: '115px',
-                                    transition: 'all 0.2s ease',
-                                    minHeight: '115px'
-                                }}
-                                onClick={() => setShowAddPaymentMethod(true)}
-                            >
-                                <div className="card-body text-center d-flex flex-column align-items-center justify-content-center p-3">
-                                    <FaPlus
-                                        className="me-1"
-                                        size={24}
-                                        style={{ color: 'var(--bs-gray-600)' }}
-                                    />
-                                    <h6 className="mb-0 mt-2" style={{ color: 'var(--bs-gray-600)' }}>
-                                        Add Payment Method
-                                    </h6>
+                        {canWrite && (
+                            <div className="col-md-3 col-sm-6 mb-3">
+                                <div
+                                    className="card h-100 d-flex align-items-center justify-content-center"
+                                    style={{
+                                        border: '2px dashed var(--bs-gray-400)',
+                                        cursor: 'pointer',
+                                        background: 'transparent',
+                                        height: '115px',
+                                        transition: 'all 0.2s ease',
+                                        minHeight: '115px'
+                                    }}
+                                    onClick={() => setShowAddPaymentMethod(true)}
+                                >
+                                    <div className="card-body text-center d-flex flex-column align-items-center justify-content-center p-3">
+                                        <FaPlus
+                                            className="me-1"
+                                            size={24}
+                                            style={{ color: 'var(--bs-gray-600)' }}
+                                        />
+                                        <h6 className="mb-0 mt-2" style={{ color: 'var(--bs-gray-600)' }}>
+                                            Add Payment Method
+                                        </h6>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
+                        )}
                     </div>
                 </>
             ) : null

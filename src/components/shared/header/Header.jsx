@@ -1,9 +1,8 @@
-import React, { useContext, useEffect, useRef, useState } from 'react'
-import { FiAlignLeft, FiArrowRight, FiMaximize, FiMinimize, FiMoon, FiSun } from "react-icons/fi";
-import LanguagesModal from './LanguagesModal';
+import React, { useContext, useEffect, useState } from 'react'
+import { FiAlignLeft, FiMaximize, FiMinimize, FiMoon, FiSun } from "react-icons/fi";
 import NotificationsModal from './NotificationsModal';
 import ProfileModal from './ProfileModal';
-import SearchModal from './SearchModal';
+import Support from './SearchModal';
 import TimesheetsModal from './TimesheetsModal';
 import { NavigationContext } from '../../../contentApi/navigationProvider';
 
@@ -12,8 +11,29 @@ const Header = () => {
     const [navigationExpend, setNavigationExpend] = useState(false);
     const [isMobile, setIsMobile] = useState(false);
     const [darkMode, setDarkMode] = useState(false);
-    const miniButtonRef = useRef(null);
-    const expendButtonRef = useRef(null);
+    const [userPermissions, setUserPermissions] = useState({
+        role: '',
+        permissions: []
+    });
+
+    // Check permissions on component mount
+    useEffect(() => {
+        const authData = JSON.parse(localStorage.getItem("authData"));
+        if (authData) {
+            setUserPermissions({
+                role: authData.role,
+                permissions: authData.permissions || []
+            });
+        }
+    }, []);
+
+    // Check if user has permission to view timesheets
+    const canViewTimesheets = () => {
+        if (userPermissions.role === 'CLIENT_ADMIN') {
+            return true;
+        }
+        return userPermissions.permissions.includes('ORDER_READ');
+    };
 
     const handleThemeMode = (type) => {
         const isDark = type === "dark";
@@ -97,19 +117,6 @@ const Header = () => {
         }
     };
 
-    const handleNavigationExpendDown = (e, param) => {
-        e.preventDefault();
-        if (param === "show") {
-            setNavigationExpend(true);
-            document.documentElement.classList.remove('minimenu');
-            localStorage.setItem("navigationExpend", "true");
-        } else {
-            setNavigationExpend(false);
-            document.documentElement.classList.add('minimenu');
-            localStorage.setItem("navigationExpend", "false");
-        }
-    };
-
     const fullScreenMaximize = () => {
         const elem = document.documentElement;
         if (elem.requestFullscreen) {
@@ -178,7 +185,7 @@ const Header = () => {
                 
                 <div className="header-right ms-auto">
                     <div className="d-flex align-items-center">
-                        <SearchModal />
+                        <Support />
                         <div className="nxl-h-item d-none d-sm-flex">
                             <div className="full-screen-switcher">
                                 <span className="nxl-head-link me-0">
@@ -203,7 +210,7 @@ const Header = () => {
                                 <FiSun size={20} />
                             </div>
                         </div>
-                        <TimesheetsModal />
+                        {canViewTimesheets() && <TimesheetsModal />}
                         <NotificationsModal />
                         <ProfileModal />
                     </div>

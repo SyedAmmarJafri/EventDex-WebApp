@@ -35,7 +35,7 @@ const RidersAndMapView = () => {
     }
 
     const script = document.createElement('script');
-    script.src = 'https://maps.gomaps.pro/maps/api/js?key=AlzaSyNWmbqBT69lAW7bQ3RKsK37imGf2v6fhcy&libraries=places&callback=initMap';
+    script.src = 'https://maps.gomaps.pro/maps/api/js?key=AlzaSyBIjymAxfyobCBnk3FI8jJ1DJ6RBsCPEtg&libraries=places&callback=initMap';
     script.async = true;
     script.defer = true;
 

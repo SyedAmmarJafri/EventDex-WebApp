@@ -62,8 +62,19 @@ const ItemsTable = () => {
     const skinTheme = localStorage.getItem('skinTheme') || 'light';
     const isDarkMode = skinTheme === 'dark';
 
+    // Get user permissions from authData
+    const authData = JSON.parse(localStorage.getItem("authData")) || {};
+    const userRole = authData?.role || '';
+    const userPermissions = authData?.permissions || [];
+    
+    // Permission checks
+    const canRead = userRole === 'CLIENT_ADMIN' || userPermissions.includes('ITEM_READ');
+    const canWrite = userRole === 'CLIENT_ADMIN' || userPermissions.includes('ITEM_WRITE');
+    const canUpdate = userRole === 'CLIENT_ADMIN' || userPermissions.includes('ITEM_UPDATE');
+    const canDelete = userRole === 'CLIENT_ADMIN' || userPermissions.includes('ITEM_DELETE');
+    const canToggleStatus = userRole === 'CLIENT_ADMIN' || userPermissions.includes('ITEM_UPDATE');
+
     // Get currency settings from localStorage
-    const authData = JSON.parse(localStorage.getItem("authData"));
     const currencySymbol = authData?.currencySettings?.currencySymbol || '$';
 
     // Toast notification helpers
@@ -93,21 +104,11 @@ const ItemsTable = () => {
         });
     };
 
-    const getErrorMessage = (error) => {
-        if (error.response && error.response.data) {
-            // Handle API response errors
-            if (error.response.data.error) {
-                return error.response.data.error;
-            }
-            if (error.response.data.message) {
-                return error.response.data.message;
-            }
-        }
-        return error.message || 'An unexpected error occurred';
-    };
-
     // Variant management functions
     const addNewVariant = (isEdit = false) => {
+        if (!canUpdate && isEdit) return;
+        if (!canWrite && !isEdit) return;
+
         const newVariant = {
             name: '',
             description: '',
@@ -130,6 +131,9 @@ const ItemsTable = () => {
     };
 
     const removeVariant = (index, isEdit = false) => {
+        if (!canUpdate && isEdit) return;
+        if (!canWrite && !isEdit) return;
+
         if (isEdit) {
             setEditItem(prev => {
                 const updatedVariants = [...prev.variants];
@@ -151,6 +155,9 @@ const ItemsTable = () => {
     };
 
     const updateVariant = (index, field, value, isEdit = false) => {
+        if (!canUpdate && isEdit) return;
+        if (!canWrite && !isEdit) return;
+
         if (isEdit) {
             setEditItem(prev => {
                 const updatedVariants = [...prev.variants];
@@ -167,6 +174,9 @@ const ItemsTable = () => {
     };
 
     const addOptionToVariant = (variantIndex, isEdit = false) => {
+        if (!canUpdate && isEdit) return;
+        if (!canWrite && !isEdit) return;
+
         const newOption = { name: '', priceModifier: 0 };
         if (isEdit) {
             setEditItem(prev => {
@@ -184,6 +194,9 @@ const ItemsTable = () => {
     };
 
     const removeOptionFromVariant = (variantIndex, optionIndex, isEdit = false) => {
+        if (!canUpdate && isEdit) return;
+        if (!canWrite && !isEdit) return;
+
         if (isEdit) {
             setEditItem(prev => {
                 const updatedVariants = [...prev.variants];
@@ -200,6 +213,9 @@ const ItemsTable = () => {
     };
 
     const updateOption = (variantIndex, optionIndex, field, value, isEdit = false) => {
+        if (!canUpdate && isEdit) return;
+        if (!canWrite && !isEdit) return;
+
         if (isEdit) {
             setEditItem(prev => {
                 const updatedVariants = [...prev.variants];
@@ -241,14 +257,16 @@ const ItemsTable = () => {
                 </div>
                 <h5 className="mb-2">No Items Found</h5>
                 <p className="text-muted mb-4">You haven't added any items yet. Start by adding a new item.</p>
-                <Button
-                    variant="contained"
-                    onClick={() => setIsModalOpen(true)}
-                    className="d-flex align-items-center gap-2 mx-auto"
-                    style={{ backgroundColor: '#0092ff', color: 'white' }}
-                >
-                    <FiPlus /> Add Item
-                </Button>
+                {canWrite && (
+                    <Button
+                        variant="contained"
+                        onClick={() => setIsModalOpen(true)}
+                        className="d-flex align-items-center gap-2 mx-auto"
+                        style={{ backgroundColor: '#0092ff', color: 'white' }}
+                    >
+                        <FiPlus /> Add Item
+                    </Button>
+                )}
             </div>
         );
     };
@@ -419,6 +437,8 @@ const ItemsTable = () => {
 
     // Handle status toggle
     const handleStatusChange = async (itemId, currentStatus) => {
+        if (!canToggleStatus) return;
+
         try {
             const authData = JSON.parse(localStorage.getItem("authData"));
             const response = await fetch(`${BASE_URL}/api/client-admin/items/${itemId}/status`, {
@@ -505,6 +525,8 @@ const ItemsTable = () => {
 
     // Handle image deletion
     const handleDeleteImage = async (imageUrl) => {
+        if (!canUpdate) return;
+
         try {
             const authData = JSON.parse(localStorage.getItem("authData"));
 
@@ -552,6 +574,7 @@ const ItemsTable = () => {
     const validateForm = (formData, setErrors) => {
         const errors = {};
         if (!formData.name.trim()) errors.name = 'Name is required';
+        if (!formData.description.trim()) errors.description = 'Description is required';
         if (formData.price <= 0) errors.price = 'Price must be greater than 0';
         if (formData.quantity < 0) errors.quantity = 'Quantity cannot be negative';
         if (!formData.category) errors.category = 'Category is required';
@@ -611,9 +634,7 @@ const ItemsTable = () => {
 
             const data = await response.json();
             if (!response.ok) {
-                // Show the API error message in a popup
-                showErrorToast(data.error || data.message || 'Failed to create item');
-                return;
+                throw new Error(data.message || 'Failed to create item');
             }
 
             if (selectedFile) {
@@ -631,8 +652,7 @@ const ItemsTable = () => {
 
                 if (!uploadResponse.ok) {
                     const uploadError = await uploadResponse.json();
-                    showErrorToast(uploadError.error || uploadError.message || 'Failed to upload image');
-                    return;
+                    throw new Error(uploadError.message || 'Failed to upload image');
                 }
             }
 
@@ -657,8 +677,7 @@ const ItemsTable = () => {
             setSelectedFile(null);
             setImagePreview('');
         } catch (err) {
-            showErrorToast(getErrorMessage(err));
-            setIsModalOpen(false);
+            showErrorToast(err.message);
         } finally {
             setUploadingImage(false);
         }
@@ -686,15 +705,18 @@ const ItemsTable = () => {
                     body: formData
                 });
 
+                const uploadData = await uploadResponse.json();
                 if (!uploadResponse.ok) {
-                    const uploadError = await uploadResponse.json();
-                    showErrorToast(uploadError.error || uploadError.message || 'Failed to upload image');
-                    return;
+                    throw new Error(uploadData.message || 'Failed to upload image');
                 }
 
-                const uploadData = await uploadResponse.json();
                 imageUrl = uploadData.imageUrl;
             }
+
+            // Calculate discounted price if discount is enabled
+            const discountedPrice = editItem.itemDiscountEnabled
+                ? editItem.price - (editItem.price * editItem.itemDiscountRate / 100)
+                : 0;
 
             const response = await fetch(`${BASE_URL}/api/client-admin/items/${editItem.id}`, {
                 method: 'PUT',
@@ -703,14 +725,25 @@ const ItemsTable = () => {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    // ... your request body
+                    name: editItem.name,
+                    description: editItem.description,
+                    price: editItem.price,
+                    discountedPrice: parseFloat(discountedPrice.toFixed(2)),
+                    itemDiscountRate: editItem.itemDiscountRate,
+                    itemDiscountEnabled: editItem.itemDiscountEnabled,
+                    quantity: editItem.quantity,
+                    category: editItem.category || null,
+                    primaryImageUrl: imageUrl,
+                    active: editItem.active,
+                    barcode: editItem.barcode,
+                    lowStockThreshold: editItem.lowStockThreshold,
+                    variants: editItem.variants || null
                 })
             });
 
             const data = await response.json();
             if (!response.ok) {
-                showErrorToast(data.error || data.message || 'Failed to update item');
-                return;
+                throw new Error(data.message || 'Failed to update item');
             }
 
             showSuccessToast('Item updated successfully');
@@ -719,7 +752,7 @@ const ItemsTable = () => {
             setSelectedFile(null);
             setImagePreview('');
         } catch (err) {
-            showErrorToast(getErrorMessage(err));
+            showErrorToast(err.message);
         } finally {
             setUploadingImage(false);
         }
@@ -738,24 +771,25 @@ const ItemsTable = () => {
 
             const data = await response.json();
             if (!response.ok) {
-                showErrorToast(data.error || data.message || 'Failed to delete item');
-                return;
+                throw new Error(data.message || 'Failed to delete item');
             }
 
             showSuccessToast('Item deleted successfully');
             await fetchItems();
             setIsDeleteModalOpen(false);
         } catch (err) {
-            showErrorToast(getErrorMessage(err));
+            showErrorToast(err.message);
         }
     };
 
     const handleViewItem = (item) => {
+        if (!canRead) return;
         setSelectedItem(item);
         setIsViewModalOpen(true);
     };
 
     const handleEditItem = (item) => {
+        if (!canUpdate) return;
         setEditItem({
             id: item.id,
             name: item.name,
@@ -780,6 +814,7 @@ const ItemsTable = () => {
     };
 
     const handleDeleteClick = (item) => {
+        if (!canDelete) return;
         setItemToDelete(item);
         setIsDeleteModalOpen(true);
     };
@@ -819,7 +854,7 @@ const ItemsTable = () => {
         {
             accessorKey: 'categoryName',
             header: 'Category',
-            cell: (info) => info.getValue() || '-'
+            cell: (info) => info.getValue() || 'N/A'
         },
         {
             accessorKey: 'price',
@@ -856,6 +891,7 @@ const ItemsTable = () => {
                         'aria-label': 'status switch',
                         'id': `status-switch-${row.original.id}`
                     }}
+                    disabled={!canToggleStatus}
                 />
             )
         },
@@ -864,29 +900,35 @@ const ItemsTable = () => {
             header: "Actions",
             cell: ({ row }) => (
                 <div className="hstack gap-2 justify-content-end">
-                    <button
-                        className="avatar-text avatar-md"
-                        onClick={() => handleViewItem(row.original)}
-                    >
-                        <FiEye />
-                    </button>
-                    <button
-                        className="avatar-text avatar-md"
-                        onClick={() => handleEditItem(row.original)}
-                    >
-                        <FiEdit />
-                    </button>
-                    <button
-                        className="avatar-text avatar-md"
-                        onClick={() => handleDeleteClick(row.original)}
-                    >
-                        <FiTrash />
-                    </button>
+                    {canRead && (
+                        <button
+                            className="avatar-text avatar-md"
+                            onClick={() => handleViewItem(row.original)}
+                        >
+                            <FiEye />
+                        </button>
+                    )}
+                    {canUpdate && (
+                        <button
+                            className="avatar-text avatar-md"
+                            onClick={() => handleEditItem(row.original)}
+                        >
+                            <FiEdit />
+                        </button>
+                    )}
+                    {canDelete && (
+                        <button
+                            className="avatar-text avatar-md"
+                            onClick={() => handleDeleteClick(row.original)}
+                        >
+                            <FiTrash />
+                        </button>
+                    )}
                 </div>
             ),
             meta: { headerClassName: 'text-end' }
         },
-    ], [categories, currencySymbol]);
+    ], [categories, currencySymbol, canRead, canUpdate, canDelete, canToggleStatus]);
 
     return (
         <>
@@ -905,14 +947,16 @@ const ItemsTable = () => {
 
             <div className="d-flex justify-content-between align-items-center mb-4">
                 <h4>Item</h4>
-                <Button
-                    variant="contained"
-                    onClick={() => setIsModalOpen(true)}
-                    className="d-flex align-items-center gap-2"
-                    style={{ backgroundColor: '#0092ff', color: 'white' }}
-                >
-                    <FiPlus /> Add Item
-                </Button>
+                {canWrite && (
+                    <Button
+                        variant="contained"
+                        onClick={() => setIsModalOpen(true)}
+                        className="d-flex align-items-center gap-2"
+                        style={{ backgroundColor: '#0092ff', color: 'white' }}
+                    >
+                        <FiPlus /> Add Item
+                    </Button>
+                )}
             </div>
 
             {loading ? (
@@ -928,954 +972,964 @@ const ItemsTable = () => {
             )}
 
             {/* Add Item Modal */}
-            <Modal show={isModalOpen} onHide={() => {
-                setIsModalOpen(false);
-                setNewItem({
-                    name: '',
-                    description: '',
-                    price: 0,
-                    discountedPrice: 0,
-                    itemDiscountRate: 0,
-                    itemDiscountEnabled: false,
-                    quantity: 0,
-                    category: '',
-                    primaryImageUrl: '',
-                    active: true,
-                    barcode: '',
-                    lowStockThreshold: 0,
-                    variants: []
-                });
-                setFormErrors({});
-                setSelectedFile(null);
-                setImagePreview('');
-            }} centered size="lg">
-                <Modal.Header closeButton>
-                    <Modal.Title>Add Item</Modal.Title>
-                </Modal.Header>
-                <Modal.Body>
-                    <form onSubmit={handleSubmit}>
-                        <div className="mb-3">
-                            <label htmlFor="name" className="form-label">Name</label>
-                            <input
-                                type="text"
-                                className={`form-control ${formErrors.name ? 'is-invalid' : ''}`}
-                                id="name"
-                                name="name"
-                                value={newItem.name}
-                                onChange={handleInputChange}
-                            />
-                            {formErrors.name && <div className="invalid-feedback">{formErrors.name}</div>}
-                        </div>
-                        <div className="mb-3">
-                            <label htmlFor="description" className="form-label">Description</label>
-                            <textarea
-                                className="form-control"
-                                id="description"
-                                name="description"
-                                value={newItem.description}
-                                onChange={handleInputChange}
-                                rows="2"
-                                style={{ minHeight: '80px' }}
-                            />
-                        </div>
-                        <div className="row mb-3">
-                            <div className="col-md-6">
-                                <label htmlFor="price" className="form-label">Price</label>
-                                <div className="input-group">
-                                    <span className="input-group-text">{currencySymbol}</span>
-                                    <input
-                                        type="number"
-                                        step="0.01"
-                                        className={`form-control ${formErrors.price ? 'is-invalid' : ''}`}
-                                        id="price"
-                                        name="price"
-                                        value={newItem.price}
-                                        onChange={handleInputChange}
-                                        min="0"
-                                    />
-                                    {formErrors.price && <div className="invalid-feedback">{formErrors.price}</div>}
-                                </div>
-                            </div>
-                            <div className="col-md-6">
-                                <label htmlFor="category" className="form-label">Category</label>
-                                <select
-                                    className={`form-control ${formErrors.category ? 'is-invalid' : ''}`}
-                                    id="category"
-                                    name="category"
-                                    value={newItem.category}
-                                    onChange={handleInputChange}
-                                >
-                                    <option value="">Select a category</option>
-                                    {categories.map(category => (
-                                        <option key={category.id} value={category.id}>
-                                            {category.name}
-                                        </option>
-                                    ))}
-                                </select>
-                                {formErrors.category && <div className="invalid-feedback">{formErrors.category}</div>}
-                            </div>
-                        </div>
-                        <div className="row mb-3">
-                            <div className="col-md-6">
-                                <div className="form-check form-switch mb-3">
-                                    <input
-                                        className="form-check-input"
-                                        type="checkbox"
-                                        role="switch"
-                                        id="itemDiscountEnabled"
-                                        name="itemDiscountEnabled"
-                                        checked={newItem.itemDiscountEnabled}
-                                        onChange={handleInputChange}
-                                    />
-                                    <h8 className="form-check-label" htmlFor="itemDiscountEnabled">
-                                        Enable Discount
-                                    </h8>
-                                </div>
-                                {newItem.itemDiscountEnabled && (
-                                    <div className="mb-3">
-                                        <label htmlFor="itemDiscountRate" className="form-label">Discount Rate (%)</label>
-                                        <input
-                                            type="number"
-                                            step="0.01"
-                                            className={`form-control ${formErrors.itemDiscountRate ? 'is-invalid' : ''}`}
-                                            id="itemDiscountRate"
-                                            name="itemDiscountRate"
-                                            value={newItem.itemDiscountRate}
-                                            onChange={handleInputChange}
-                                            min="0"
-                                            max="100"
-                                        />
-                                        {formErrors.itemDiscountRate && (
-                                            <div className="invalid-feedback">{formErrors.itemDiscountRate}</div>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-                            <div className="col-md-6">
-                                <div className="mb-3">
-                                    <label htmlFor="quantity" className="form-label">Quantity</label>
-                                    <input
-                                        type="number"
-                                        className={`form-control ${formErrors.quantity ? 'is-invalid' : ''}`}
-                                        id="quantity"
-                                        name="quantity"
-                                        value={newItem.quantity}
-                                        onChange={handleInputChange}
-                                        min="0"
-                                    />
-                                    {formErrors.quantity && <div className="invalid-feedback">{formErrors.quantity}</div>}
-                                </div>
-                            </div>
-                        </div>
-                        <div className="row mb-3">
-                            <div className="col-md-6">
-                                <label htmlFor="barcode" className="form-label">Barcode</label>
+            {canWrite && (
+                <Modal show={isModalOpen} onHide={() => {
+                    setIsModalOpen(false);
+                    setNewItem({
+                        name: '',
+                        description: '',
+                        price: 0,
+                        discountedPrice: 0,
+                        itemDiscountRate: 0,
+                        itemDiscountEnabled: false,
+                        quantity: 0,
+                        category: '',
+                        primaryImageUrl: '',
+                        active: true,
+                        barcode: '',
+                        lowStockThreshold: 0,
+                        variants: []
+                    });
+                    setFormErrors({});
+                    setSelectedFile(null);
+                    setImagePreview('');
+                }} centered size="lg">
+                    <Modal.Header closeButton>
+                        <Modal.Title>Add Item</Modal.Title>
+                    </Modal.Header>
+                    <Modal.Body>
+                        <form onSubmit={handleSubmit}>
+                            <div className="mb-3">
+                                <label htmlFor="name" className="form-label">Name</label>
                                 <input
                                     type="text"
-                                    className="form-control"
-                                    id="barcode"
-                                    name="barcode"
-                                    value={newItem.barcode}
+                                    className={`form-control ${formErrors.name ? 'is-invalid' : ''}`}
+                                    id="name"
+                                    name="name"
+                                    value={newItem.name}
                                     onChange={handleInputChange}
                                 />
+                                {formErrors.name && <div className="invalid-feedback">{formErrors.name}</div>}
                             </div>
-                            <div className="col-md-6">
-                                <label htmlFor="lowStockThreshold" className="form-label">Low Stock Threshold</label>
-                                <input
-                                    type="number"
-                                    className="form-control"
-                                    id="lowStockThreshold"
-                                    name="lowStockThreshold"
-                                    value={newItem.lowStockThreshold}
+                            <div className="mb-3">
+                                <label htmlFor="description" className="form-label">Description</label>
+                                <textarea
+                                    className={`form-control ${formErrors.description ? 'is-invalid' : ''}`}
+                                    id="description"
+                                    name="description"
+                                    value={newItem.description}
                                     onChange={handleInputChange}
-                                    min="0"
+                                    rows="2"
+                                    style={{ minHeight: '80px' }}
                                 />
+                                {formErrors.description && <div className="invalid-feedback">{formErrors.description}</div>}
                             </div>
-                        </div>
-
-                        {/* Variants Section */}
-                        <div className="mb-3">
-                            <div className="d-flex justify-content-between align-items-center mb-2">
-                                <h5>Variants</h5>
-                                <Button
-                                    variant="outlined"
-                                    size="small"
-                                    onClick={() => addNewVariant()}
-                                >
-                                    Add Variant
-                                </Button>
-                            </div>
-
-                            {newItem.variants.length === 0 ? (
-                                <div className="text-muted mb-3">No variants added</div>
-                            ) : (
-                                <div className="accordion" id="variantsAccordion">
-                                    {newItem.variants.map((variant, index) => (
-                                        <div className="accordion-item mb-2" key={index}>
-                                            <div className="accordion-header d-flex justify-content-between align-items-center p-2">
-                                                <div className="d-flex align-items-center">
-                                                    <button
-                                                        className="btn btn-link me-2"
-                                                        type="button"
-                                                        onClick={() => toggleVariantExpansion(index)}
-                                                    >
-                                                        {expandedVariantIndex === index ? <FiChevronUp /> : <FiChevronDown />}
-                                                    </button>
-                                                    <span>
-                                                        {variant.name || `Variant ${index + 1}`}
-                                                        {variant.required && <span className="badge bg-info ms-2">Required</span>}
-                                                    </span>
-                                                </div>
-                                                <button
-                                                    type="button"
-                                                    className="btn btn-danger btn-sm"
-                                                    onClick={() => removeVariant(index)}
-                                                >
-                                                    <FiX />
-                                                </button>
-                                            </div>
-
-                                            <div className={`accordion-collapse ${expandedVariantIndex === index ? 'show' : 'collapse'}`}>
-                                                <div className="accordion-body p-3">
-                                                    <div className="mb-3">
-                                                        <label htmlFor={`variantName-${index}`} className="form-label">Variant Name</label>
-                                                        <input
-                                                            type="text"
-                                                            className={`form-control ${formErrors[`variantName_${index}`] ? 'is-invalid' : ''}`}
-                                                            id={`variantName-${index}`}
-                                                            value={variant.name}
-                                                            onChange={(e) => updateVariant(index, 'name', e.target.value)}
-                                                        />
-                                                        {formErrors[`variantName_${index}`] && (
-                                                            <div className="invalid-feedback">{formErrors[`variantName_${index}`]}</div>
-                                                        )}
-                                                    </div>
-
-                                                    <div className="mb-3">
-                                                        <label htmlFor={`variantDesc-${index}`} className="form-label">Description (Optional)</label>
-                                                        <input
-                                                            type="text"
-                                                            className="form-control"
-                                                            id={`variantDesc-${index}`}
-                                                            value={variant.description}
-                                                            onChange={(e) => updateVariant(index, 'description', e.target.value)}
-                                                        />
-                                                    </div>
-
-                                                    <div className="form-check mb-3">
-                                                        <input
-                                                            className="form-check-input"
-                                                            type="checkbox"
-                                                            id={`variantRequired-${index}`}
-                                                            checked={variant.required}
-                                                            onChange={(e) => updateVariant(index, 'required', e.target.checked)}
-                                                        />
-                                                        <label className="form-check-label" htmlFor={`variantRequired-${index}`}>
-                                                            Required Selection
-                                                        </label>
-                                                    </div>
-
-                                                    <div className="mb-3">
-                                                        <div className="d-flex justify-content-between align-items-center mb-2">
-                                                            <h6>Options</h6>
-                                                            <Button
-                                                                variant="outlined"
-                                                                size="small"
-                                                                onClick={() => addOptionToVariant(index)}
-                                                            >
-                                                                <FiPlus /> Add Option
-                                                            </Button>
-                                                        </div>
-
-                                                        {variant.options.length === 0 ? (
-                                                            <div className="text-muted">No options added</div>
-                                                        ) : (
-                                                            <div className="table-responsive">
-                                                                <table className="table table-sm">
-                                                                    <thead>
-                                                                        <tr>
-                                                                            <th>Option Name</th>
-                                                                            <th>Price Modifier</th>
-                                                                            <th>Action</th>
-                                                                        </tr>
-                                                                    </thead>
-                                                                    <tbody>
-                                                                        {variant.options.map((option, optIndex) => (
-                                                                            <tr key={optIndex}>
-                                                                                <td>
-                                                                                    <input
-                                                                                        type="text"
-                                                                                        className={`form-control form-control-sm ${formErrors[`optionName_${index}_${optIndex}`] ? 'is-invalid' : ''}`}
-                                                                                        value={option.name}
-                                                                                        onChange={(e) => updateOption(index, optIndex, 'name', e.target.value)}
-                                                                                    />
-                                                                                    {formErrors[`optionName_${index}_${optIndex}`] && (
-                                                                                        <div className="invalid-feedback">{formErrors[`optionName_${index}_${optIndex}`]}</div>
-                                                                                    )}
-                                                                                </td>
-                                                                                <td>
-                                                                                    <div className="input-group input-group-sm">
-                                                                                        <span className="input-group-text">{currencySymbol}</span>
-                                                                                        <input
-                                                                                            type="number"
-                                                                                            step="0.01"
-                                                                                            className="form-control"
-                                                                                            value={option.priceModifier}
-                                                                                            onChange={(e) => updateOption(index, optIndex, 'priceModifier', parseFloat(e.target.value) || 0)}
-                                                                                        />
-                                                                                    </div>
-                                                                                </td>
-                                                                                <td>
-                                                                                    <button
-                                                                                        type="button"
-                                                                                        className="btn btn-danger btn-sm"
-                                                                                        onClick={() => removeOptionFromVariant(index, optIndex)}
-                                                                                    >
-                                                                                        <FiX />
-                                                                                    </button>
-                                                                                </td>
-                                                                            </tr>
-                                                                        ))}
-                                                                    </tbody>
-                                                                </table>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="mb-3">
-                            <label className="form-label">Item Image</label>
-                            <div className="d-flex flex-wrap gap-3 mb-3">
-                                <div className="position-relative" style={{ width: '100px', height: '100px' }}>
-                                    <div
-                                        className="w-100 h-100 border rounded d-flex flex-column justify-content-center align-items-center cursor-pointer"
-                                        style={{
-                                            borderStyle: imagePreview ? 'solid' : 'dashed',
-                                            backgroundColor: isDarkMode ? '#1e293b' : '#f8f9fa'
-                                        }}
-                                        onClick={() => document.getElementById('add-image-upload').click()}
-                                    >
-                                        {imagePreview ? (
-                                            <img
-                                                src={imagePreview}
-                                                alt="Preview"
-                                                className="w-100 h-100"
-                                                style={{
-                                                    objectFit: 'cover',
-                                                    borderRadius: '4px'
-                                                }}
-                                            />
-                                        ) : (
-                                            <>
-                                                <FiUpload size={20} className="mb-1" />
-                                                <h8 className="small">Add Image</h8>
-                                            </>
-                                        )}
-                                    </div>
-                                    <input
-                                        type="file"
-                                        id="add-image-upload"
-                                        className="d-none"
-                                        accept="image/*"
-                                        onChange={handleFileChange}
-                                    />
-                                </div>
-                            </div>
-                        </div>
-                    </form>
-                </Modal.Body>
-                <Modal.Footer>
-                    <Button
-                        variant="contained"
-                        onClick={handleSubmit}
-                        style={{ backgroundColor: '#1976d2', color: 'white' }}
-                        disabled={uploadingImage}
-                    >
-                        {uploadingImage ? (
-                            <>
-                                <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                                Creating...
-                            </>
-                        ) : (
-                            'Create'
-                        )}
-                    </Button>
-                </Modal.Footer>
-            </Modal>
-
-            {/* Edit Item Modal */}
-            <Modal show={isEditModalOpen} onHide={() => {
-                setIsEditModalOpen(false);
-                setEditFormErrors({});
-                setSelectedFile(null);
-                setImagePreview('');
-                setExpandedVariantIndex(null);
-            }} centered size="lg">
-                <Modal.Header closeButton>
-                    <Modal.Title>Edit Item</Modal.Title>
-                </Modal.Header>
-                <Modal.Body>
-                    <form onSubmit={handleEditSubmit}>
-                        <div className="mb-3">
-                            <label htmlFor="edit-name" className="form-label">Name</label>
-                            <input
-                                type="text"
-                                className={`form-control ${editFormErrors.name ? 'is-invalid' : ''}`}
-                                id="edit-name"
-                                name="name"
-                                value={editItem.name}
-                                onChange={handleEditInputChange}
-                            />
-                            {editFormErrors.name && <div className="invalid-feedback">{editFormErrors.name}</div>}
-                        </div>
-                        <div className="mb-3">
-                            <label htmlFor="edit-description" className="form-label">Description</label>
-                            <textarea
-                                className="form-control"
-                                id="edit-description"
-                                name="description"
-                                value={editItem.description}
-                                onChange={handleEditInputChange}
-                                rows="2"
-                                style={{ minHeight: '80px' }}
-                            />
-                        </div>
-                        <div className="row mb-3">
-                            <div className="col-md-6">
-                                <label htmlFor="edit-price" className="form-label">Price</label>
-                                <div className="input-group">
-                                    <span className="input-group-text">{currencySymbol}</span>
-                                    <input
-                                        type="number"
-                                        step="0.01"
-                                        className={`form-control ${editFormErrors.price ? 'is-invalid' : ''}`}
-                                        id="edit-price"
-                                        name="price"
-                                        value={editItem.price}
-                                        onChange={handleEditInputChange}
-                                        min="0"
-                                    />
-                                    {editFormErrors.price && <div className="invalid-feedback">{editFormErrors.price}</div>}
-                                </div>
-                            </div>
-                            <div className="col-md-6">
-                                <label htmlFor="edit-category" className="form-label">Category</label>
-                                <select
-                                    className={`form-control ${editFormErrors.category ? 'is-invalid' : ''}`}
-                                    id="edit-category"
-                                    name="category"
-                                    value={editItem.category}
-                                    onChange={handleEditInputChange}
-                                >
-                                    <option value="">Select a category</option>
-                                    {categories.map(category => (
-                                        <option key={category.id} value={category.id}>
-                                            {category.name}
-                                        </option>
-                                    ))}
-                                </select>
-                                {editFormErrors.category && <div className="invalid-feedback">{editFormErrors.category}</div>}
-                            </div>
-                        </div>
-                        <div className="row mb-3">
-                            <div className="col-md-6">
-                                <div className="form-check form-switch mb-3">
-                                    <input
-                                        className="form-check-input"
-                                        type="checkbox"
-                                        role="switch"
-                                        id="edit-itemDiscountEnabled"
-                                        name="itemDiscountEnabled"
-                                        checked={editItem.itemDiscountEnabled}
-                                        onChange={handleEditInputChange}
-                                    />
-                                    <h8 className="form-check-label" htmlFor="edit-itemDiscountEnabled">
-                                        Enable Discount
-                                    </h8>
-                                </div>
-                                {editItem.itemDiscountEnabled && (
-                                    <div className="mb-3">
-                                        <label htmlFor="edit-itemDiscountRate" className="form-label">Discount Rate (%)</label>
+                            <div className="row mb-3">
+                                <div className="col-md-6">
+                                    <label htmlFor="price" className="form-label">Price</label>
+                                    <div className="input-group">
+                                        <span className="input-group-text">{currencySymbol}</span>
                                         <input
                                             type="number"
                                             step="0.01"
-                                            className={`form-control ${editFormErrors.itemDiscountRate ? 'is-invalid' : ''}`}
-                                            id="edit-itemDiscountRate"
-                                            name="itemDiscountRate"
-                                            value={editItem.itemDiscountRate}
-                                            onChange={handleEditInputChange}
+                                            className={`form-control ${formErrors.price ? 'is-invalid' : ''}`}
+                                            id="price"
+                                            name="price"
+                                            value={newItem.price}
+                                            onChange={handleInputChange}
                                             min="0"
-                                            max="100"
                                         />
-                                        {editFormErrors.itemDiscountRate && (
-                                            <div className="invalid-feedback">{editFormErrors.itemDiscountRate}</div>
-                                        )}
-                                        <div className="mt-2">
-                                            <strong>Discounted Price:</strong> {currencySymbol}{
-                                                editItem.discountedPrice !== null && editItem.discountedPrice !== undefined
-                                                    ? editItem.discountedPrice.toFixed(2)
-                                                    : '0.00'
-                                            }
-                                        </div>
+                                        {formErrors.price && <div className="invalid-feedback">{formErrors.price}</div>}
                                     </div>
-                                )}
-                                <div className="mb-3">
-                                    <label htmlFor="edit-barcode" className="form-label">Barcode</label>
+                                </div>
+                                <div className="col-md-6">
+                                    <label htmlFor="category" className="form-label">Category</label>
+                                    <select
+                                        className={`form-control ${formErrors.category ? 'is-invalid' : ''}`}
+                                        id="category"
+                                        name="category"
+                                        value={newItem.category}
+                                        onChange={handleInputChange}
+                                    >
+                                        <option value="">Select a category</option>
+                                        {categories.map(category => (
+                                            <option key={category.id} value={category.id}>
+                                                {category.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    {formErrors.category && <div className="invalid-feedback">{formErrors.category}</div>}
+                                </div>
+                            </div>
+                            <div className="row mb-3">
+                                <div className="col-md-6">
+                                    <div className="form-check form-switch mb-3">
+                                        <input
+                                            className="form-check-input"
+                                            type="checkbox"
+                                            role="switch"
+                                            id="itemDiscountEnabled"
+                                            name="itemDiscountEnabled"
+                                            checked={newItem.itemDiscountEnabled}
+                                            onChange={handleInputChange}
+                                        />
+                                        <h8 className="form-check-label" htmlFor="itemDiscountEnabled">
+                                            Enable Discount
+                                        </h8>
+                                    </div>
+                                    {newItem.itemDiscountEnabled && (
+                                        <div className="mb-3">
+                                            <label htmlFor="itemDiscountRate" className="form-label">Discount Rate (%)</label>
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                className={`form-control ${formErrors.itemDiscountRate ? 'is-invalid' : ''}`}
+                                                id="itemDiscountRate"
+                                                name="itemDiscountRate"
+                                                value={newItem.itemDiscountRate}
+                                                onChange={handleInputChange}
+                                                min="0"
+                                                max="100"
+                                            />
+                                            {formErrors.itemDiscountRate && (
+                                                <div className="invalid-feedback">{formErrors.itemDiscountRate}</div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="col-md-6">
+                                    <div className="mb-3">
+                                        <label htmlFor="quantity" className="form-label">Quantity</label>
+                                        <input
+                                            type="number"
+                                            className={`form-control ${formErrors.quantity ? 'is-invalid' : ''}`}
+                                            id="quantity"
+                                            name="quantity"
+                                            value={newItem.quantity}
+                                            onChange={handleInputChange}
+                                            min="0"
+                                        />
+                                        {formErrors.quantity && <div className="invalid-feedback">{formErrors.quantity}</div>}
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="row mb-3">
+                                <div className="col-md-6">
+                                    <label htmlFor="barcode" className="form-label">Barcode</label>
                                     <input
                                         type="text"
                                         className="form-control"
-                                        id="edit-barcode"
+                                        id="barcode"
                                         name="barcode"
-                                        value={editItem.barcode}
-                                        onChange={handleEditInputChange}
+                                        value={newItem.barcode}
+                                        onChange={handleInputChange}
                                     />
                                 </div>
-                            </div>
-                        </div>
-
-                        {/* Variants Section */}
-                        <div className="mb-3">
-                            <div className="d-flex justify-content-between align-items-center mb-2">
-                                <h5>Variants</h5>
-                                <Button
-                                    variant="outlined"
-                                    size="small"
-                                    onClick={() => addNewVariant(true)}
-                                >
-                                    Add Variant
-                                </Button>
-                            </div>
-
-                            {editItem.variants.length === 0 ? (
-                                <div className="text-muted mb-3">No variants added</div>
-                            ) : (
-                                <div className="accordion" id="editVariantsAccordion">
-                                    {editItem.variants.map((variant, index) => (
-                                        <div className="accordion-item mb-2" key={index}>
-                                            <div className="accordion-header d-flex justify-content-between align-items-center p-2">
-                                                <div className="d-flex align-items-center">
-                                                    <button
-                                                        className="btn btn-link me-2"
-                                                        type="button"
-                                                        onClick={() => toggleVariantExpansion(index)}
-                                                    >
-                                                        {expandedVariantIndex === index ? <FiChevronUp /> : <FiChevronDown />}
-                                                    </button>
-                                                    <h8>
-                                                        {variant.name || `Variant ${index + 1}`}
-                                                        {variant.required && <span className="badge bg-info ms-2">Required</span>}
-                                                    </h8>
-                                                </div>
-                                                <button
-                                                    type="button"
-                                                    className="btn btn-danger btn-sm"
-                                                    onClick={() => removeVariant(index, true)}
-                                                >
-                                                    <FiX />
-                                                </button>
-                                            </div>
-
-                                            <div className={`accordion-collapse ${expandedVariantIndex === index ? 'show' : 'collapse'}`}>
-                                                <div className="accordion-body p-3">
-                                                    <div className="mb-3">
-                                                        <label htmlFor={`editVariantName-${index}`} className="form-label">Variant Name</label>
-                                                        <input
-                                                            type="text"
-                                                            className={`form-control ${editFormErrors[`variantName_${index}`] ? 'is-invalid' : ''}`}
-                                                            id={`editVariantName-${index}`}
-                                                            value={variant.name}
-                                                            onChange={(e) => updateVariant(index, 'name', e.target.value, true)}
-                                                        />
-                                                        {editFormErrors[`variantName_${index}`] && (
-                                                            <div className="invalid-feedback">{editFormErrors[`variantName_${index}`]}</div>
-                                                        )}
-                                                    </div>
-
-                                                    <div className="mb-3">
-                                                        <label htmlFor={`editVariantDesc-${index}`} className="form-label">Description (Optional)</label>
-                                                        <input
-                                                            type="text"
-                                                            className="form-control"
-                                                            id={`editVariantDesc-${index}`}
-                                                            value={variant.description}
-                                                            onChange={(e) => updateVariant(index, 'description', e.target.value, true)}
-                                                        />
-                                                    </div>
-
-                                                    <div className="form-check mb-3">
-                                                        <input
-                                                            className="form-check-input"
-                                                            type="checkbox"
-                                                            id={`editVariantRequired-${index}`}
-                                                            checked={variant.required}
-                                                            onChange={(e) => updateVariant(index, 'required', e.target.checked, true)}
-                                                        />
-                                                        <label className="form-check-label" htmlFor={`editVariantRequired-${index}`}>
-                                                            Required Selection
-                                                        </label>
-                                                    </div>
-
-                                                    <div className="mb-3">
-                                                        <div className="d-flex justify-content-between align-items-center mb-2">
-                                                            <h6>Options</h6>
-                                                            <Button
-                                                                variant="outlined"
-                                                                size="small"
-                                                                onClick={() => addOptionToVariant(index, true)}
-                                                            >
-                                                                Add Option
-                                                            </Button>
-                                                        </div>
-
-                                                        {variant.options.length === 0 ? (
-                                                            <div className="text-muted">No options added</div>
-                                                        ) : (
-                                                            <div className="table-responsive">
-                                                                <table className="table table-sm">
-                                                                    <thead>
-                                                                        <tr>
-                                                                            <th>Option Name</th>
-                                                                            <th>Price Modifier</th>
-                                                                            <th>Action</th>
-                                                                        </tr>
-                                                                    </thead>
-                                                                    <tbody>
-                                                                        {variant.options.map((option, optIndex) => (
-                                                                            <tr key={optIndex}>
-                                                                                <td>
-                                                                                    <input
-                                                                                        type="text"
-                                                                                        className={`form-control form-control-sm ${editFormErrors[`optionName_${index}_${optIndex}`] ? 'is-invalid' : ''}`}
-                                                                                        value={option.name}
-                                                                                        onChange={(e) => updateOption(index, optIndex, 'name', e.target.value, true)}
-                                                                                    />
-                                                                                    {editFormErrors[`optionName_${index}_${optIndex}`] && (
-                                                                                        <div className="invalid-feedback">{editFormErrors[`optionName_${index}_${optIndex}`]}</div>
-                                                                                    )}
-                                                                                </td>
-                                                                                <td>
-                                                                                    <div className="input-group input-group-sm">
-                                                                                        <span className="input-group-text">{currencySymbol}</span>
-                                                                                        <input
-                                                                                            type="number"
-                                                                                            step="0.01"
-                                                                                            className="form-control"
-                                                                                            value={option.priceModifier}
-                                                                                            onChange={(e) => updateOption(index, optIndex, 'priceModifier', parseFloat(e.target.value) || 0, true)}
-                                                                                        />
-                                                                                    </div>
-                                                                                </td>
-                                                                                <td>
-                                                                                    <button
-                                                                                        type="button"
-                                                                                        className="btn btn-danger btn-sm"
-                                                                                        onClick={() => removeOptionFromVariant(index, optIndex, true)}
-                                                                                    >
-                                                                                        <FiX />
-                                                                                    </button>
-                                                                                </td>
-                                                                            </tr>
-                                                                        ))}
-                                                                    </tbody>
-                                                                </table>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="mb-3">
-                            <label className="form-label">Item Images</label>
-                            <div className="d-flex flex-wrap gap-3 mb-3">
-                                {editItem.imageUrls?.map((imageUrl, index) => (
-                                    <div
-                                        key={index}
-                                        className="position-relative"
-                                        style={{ width: '100px', height: '100px' }}
-                                        onClick={() => setEditItem(prev => ({ ...prev, primaryImageUrl: imageUrl }))}
-                                    >
-                                        <img
-                                            src={imageUrl}
-                                            alt={`Item ${index}`}
-                                            className="w-100 h-100 cursor-pointer"
-                                            style={{
-                                                objectFit: 'cover',
-                                                borderRadius: '4px',
-                                                border: imageUrl === editItem.primaryImageUrl ? '2px solid #1976d2' : '1px solid #dee2e6'
-                                            }}
-                                        />
-                                        <div className="position-absolute top-0 end-0 p-1">
-                                            <button
-                                                type="button"
-                                                className="btn btn-danger btn-sm p-1"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    handleDeleteImage(imageUrl);
-                                                }}
-                                                style={{ width: '24px', height: '24px' }}
-                                            >
-                                                <FiTrash size={12} />
-                                            </button>
-                                        </div>
-                                        {imageUrl === editItem.primaryImageUrl && (
-                                            <div className="position-absolute bottom-0 start-0 bg-primary text-white px-2 py-1 small">
-                                                Primary
-                                            </div>
-                                        )}
-                                    </div>
-                                ))}
-
-                                <div className="position-relative" style={{ width: '100px', height: '100px' }}>
-                                    <div
-                                        className="w-100 h-100 border rounded d-flex flex-column justify-content-center align-items-center cursor-pointer"
-                                        style={{
-                                            borderStyle: imagePreview ? 'solid' : 'dashed',
-                                            backgroundColor: isDarkMode ? '#1e293b' : '#f8f9fa'
-                                        }}
-                                        onClick={() => document.getElementById('edit-image-upload').click()}
-                                    >
-                                        {imagePreview ? (
-                                            <img
-                                                src={imagePreview}
-                                                alt="Preview"
-                                                className="w-100 h-100"
-                                                style={{
-                                                    objectFit: 'cover',
-                                                    borderRadius: '4px'
-                                                }}
-                                            />
-                                        ) : (
-                                            <>
-                                                <FiUpload size={20} className="mb-1" />
-                                                <h8 className="small">Add Image</h8>
-                                            </>
-                                        )}
-                                    </div>
+                                <div className="col-md-6">
+                                    <label htmlFor="lowStockThreshold" className="form-label">Low Stock Threshold</label>
                                     <input
-                                        type="file"
-                                        id="edit-image-upload"
-                                        className="d-none"
-                                        accept="image/*"
-                                        onChange={handleFileChange}
+                                        type="number"
+                                        className="form-control"
+                                        id="lowStockThreshold"
+                                        name="lowStockThreshold"
+                                        value={newItem.lowStockThreshold}
+                                        onChange={handleInputChange}
+                                        min="0"
                                     />
                                 </div>
-                            </div>
-                        </div>
-                    </form>
-                </Modal.Body>
-                <Modal.Footer>
-                    <Button
-                        variant="contained"
-                        onClick={handleEditSubmit}
-                        style={{ backgroundColor: '#1976d2', color: 'white' }}
-                        disabled={uploadingImage}
-                    >
-                        {uploadingImage ? (
-                            <>
-                                <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                                Updating...
-                            </>
-                        ) : (
-                            'Update'
-                        )}
-                    </Button>
-                </Modal.Footer>
-            </Modal>
-
-            {/* View Item Modal */}
-            <Modal show={isViewModalOpen} onHide={() => setIsViewModalOpen(false)} centered size="lg">
-                <Modal.Header closeButton>
-                    <Modal.Title>Item Details</Modal.Title>
-                </Modal.Header>
-                <Modal.Body>
-                    {selectedItem && (
-                        <div>
-                            <div className="row mb-3">
-                                <div className="col-md-6">
-                                    <h5>Name</h5>
-                                    <h8>{selectedItem.name}</h8>
-                                </div>
-                                <div className="col-md-6">
-                                    <h5>Status</h5>
-                                    <h8>{selectedItem.active ? 'Active' : 'Inactive'}</h8>
-                                </div>
-                            </div>
-                            <div className="row mb-3">
-                                <div className="col-md-6">
-                                    <h5>Price</h5>
-                                    <h8>{currencySymbol}{selectedItem.price !== null && selectedItem.price !== undefined ? selectedItem.price.toFixed(2) : '0.00'}</h8>
-                                </div>
-                                <div className="col-md-6">
-                                    <h5>Category</h5>
-                                    <h8>{selectedItem.categoryName || '-'}</h8>
-                                </div>
-                            </div>
-                            <div className="row mb-3">
-                                <div className="col-md-6">
-                                    <h5>Discount</h5>
-                                    <h8>
-                                        {selectedItem.itemDiscountEnabled ?
-                                            `${selectedItem.itemDiscountRate}% (${currencySymbol}${selectedItem.discountedPrice !== null && selectedItem.discountedPrice !== undefined
-                                                ? selectedItem.discountedPrice.toFixed(2)
-                                                : '0.00'
-                                            })` :
-                                            'No discount'}
-                                    </h8>
-                                </div>
-                                <div className="col-md-6">
-                                    <h5>Quantity</h5>
-                                    <h8>{selectedItem.quantity}</h8>
-                                </div>
-                            </div>
-                            <div className="row mb-3">
-                                <div className="col-md-6">
-                                    <h5>Barcode</h5>
-                                    <h8>{selectedItem.barcode || '-'}</h8>
-                                </div>
-                                <div className="col-md-6">
-                                    <h5>Low Stock Threshold</h5>
-                                    <h8>{selectedItem.lowStockThreshold || '0'}</h8>
-                                </div>
-                            </div>
-                            <div className="mb-3">
-                                <h5>Description</h5>
-                                <h8>{selectedItem.description || '-'}</h8>
                             </div>
 
                             {/* Variants Section */}
-                            {selectedItem.variants && selectedItem.variants.length > 0 && (
-                                <div className="mb-3">
+                            <div className="mb-3">
+                                <div className="d-flex justify-content-between align-items-center mb-2">
                                     <h5>Variants</h5>
-                                    <div className="accordion" id="viewVariantsAccordion">
-                                        {selectedItem.variants.map((variant, index) => (
+                                    <Button
+                                        variant="outlined"
+                                        size="small"
+                                        onClick={() => addNewVariant()}
+                                    >
+                                        Add Variant
+                                    </Button>
+                                </div>
+
+                                {newItem.variants.length === 0 ? (
+                                    <div className="text-muted mb-3">No variants added</div>
+                                ) : (
+                                    <div className="accordion" id="variantsAccordion">
+                                        {newItem.variants.map((variant, index) => (
                                             <div className="accordion-item mb-2" key={index}>
                                                 <div className="accordion-header d-flex justify-content-between align-items-center p-2">
                                                     <div className="d-flex align-items-center">
                                                         <button
                                                             className="btn btn-link me-2"
                                                             type="button"
-                                                            data-bs-toggle="collapse"
-                                                            data-bs-target={`#viewVariantCollapse-${index}`}
+                                                            onClick={() => toggleVariantExpansion(index)}
                                                         >
-                                                            <FiChevronDown />
+                                                            {expandedVariantIndex === index ? <FiChevronUp /> : <FiChevronDown />}
                                                         </button>
-                                                        <h8>
-                                                            {variant.name}
+                                                        <span>
+                                                            {variant.name || `Variant ${index + 1}`}
                                                             {variant.required && <span className="badge bg-info ms-2">Required</span>}
-                                                        </h8>
+                                                        </span>
                                                     </div>
+                                                    <button
+                                                        type="button"
+                                                        className="btn btn-danger btn-sm"
+                                                        onClick={() => removeVariant(index)}
+                                                    >
+                                                        <FiX />
+                                                    </button>
                                                 </div>
 
-                                                <div id={`viewVariantCollapse-${index}`} className="accordion-collapse collapse show">
+                                                <div className={`accordion-collapse ${expandedVariantIndex === index ? 'show' : 'collapse'}`}>
                                                     <div className="accordion-body p-3">
-                                                        {variant.description && (
-                                                            <div className="mb-2">
-                                                                <strong>Description:</strong> {variant.description}
-                                                            </div>
-                                                        )}
+                                                        <div className="mb-3">
+                                                            <label htmlFor={`variantName-${index}`} className="form-label">Variant Name</label>
+                                                            <input
+                                                                type="text"
+                                                                className={`form-control ${formErrors[`variantName_${index}`] ? 'is-invalid' : ''}`}
+                                                                id={`variantName-${index}`}
+                                                                value={variant.name}
+                                                                onChange={(e) => updateVariant(index, 'name', e.target.value)}
+                                                            />
+                                                            {formErrors[`variantName_${index}`] && (
+                                                                <div className="invalid-feedback">{formErrors[`variantName_${index}`]}</div>
+                                                            )}
+                                                        </div>
 
-                                                        <div className="mb-2">
-                                                            <strong>Options:</strong>
-                                                            <ul className="list-group mt-2">
-                                                                {variant.options.map((option, optIndex) => (
-                                                                    <li key={optIndex} className="list-group-item d-flex justify-content-between align-items-center">
-                                                                        <span>
-                                                                            {option.name}
-                                                                            {option.priceModifier !== 0 && (
-                                                                                <span className="ms-2">
-                                                                                    ({option.priceModifier > 0 ? '+' : ''}{currencySymbol}{Math.abs(option.priceModifier).toFixed(2)})
-                                                                                </span>
-                                                                            )}
-                                                                        </span>
-                                                                    </li>
-                                                                ))}
-                                                            </ul>
+                                                        <div className="mb-3">
+                                                            <label htmlFor={`variantDesc-${index}`} className="form-label">Description (Optional)</label>
+                                                            <input
+                                                                type="text"
+                                                                className="form-control"
+                                                                id={`variantDesc-${index}`}
+                                                                value={variant.description}
+                                                                onChange={(e) => updateVariant(index, 'description', e.target.value)}
+                                                            />
+                                                        </div>
+
+                                                        <div className="form-check mb-3">
+                                                            <input
+                                                                className="form-check-input"
+                                                                type="checkbox"
+                                                                id={`variantRequired-${index}`}
+                                                                checked={variant.required}
+                                                                onChange={(e) => updateVariant(index, 'required', e.target.checked)}
+                                                            />
+                                                            <label className="form-check-label" htmlFor={`variantRequired-${index}`}>
+                                                                Required Selection
+                                                            </label>
+                                                        </div>
+
+                                                        <div className="mb-3">
+                                                            <div className="d-flex justify-content-between align-items-center mb-2">
+                                                                <h6>Options</h6>
+                                                                <Button
+                                                                    variant="outlined"
+                                                                    size="small"
+                                                                    onClick={() => addOptionToVariant(index)}
+                                                                >
+                                                                    <FiPlus /> Add Option
+                                                                </Button>
+                                                            </div>
+
+                                                            {variant.options.length === 0 ? (
+                                                                <div className="text-muted">No options added</div>
+                                                            ) : (
+                                                                <div className="table-responsive">
+                                                                    <table className="table table-sm">
+                                                                        <thead>
+                                                                            <tr>
+                                                                                <th>Option Name</th>
+                                                                                <th>Price Modifier</th>
+                                                                                <th>Action</th>
+                                                                            </tr>
+                                                                        </thead>
+                                                                        <tbody>
+                                                                            {variant.options.map((option, optIndex) => (
+                                                                                <tr key={optIndex}>
+                                                                                    <td>
+                                                                                        <input
+                                                                                            type="text"
+                                                                                            className={`form-control form-control-sm ${formErrors[`optionName_${index}_${optIndex}`] ? 'is-invalid' : ''}`}
+                                                                                            value={option.name}
+                                                                                            onChange={(e) => updateOption(index, optIndex, 'name', e.target.value)}
+                                                                                        />
+                                                                                        {formErrors[`optionName_${index}_${optIndex}`] && (
+                                                                                            <div className="invalid-feedback">{formErrors[`optionName_${index}_${optIndex}`]}</div>
+                                                                                        )}
+                                                                                    </td>
+                                                                                    <td>
+                                                                                        <div className="input-group input-group-sm">
+                                                                                            <span className="input-group-text">{currencySymbol}</span>
+                                                                                            <input
+                                                                                                type="number"
+                                                                                                step="0.01"
+                                                                                                className="form-control"
+                                                                                                value={option.priceModifier}
+                                                                                                onChange={(e) => updateOption(index, optIndex, 'priceModifier', parseFloat(e.target.value) || 0)}
+                                                                                            />
+                                                                                        </div>
+                                                                                    </td>
+                                                                                    <td>
+                                                                                        <button
+                                                                                            type="button"
+                                                                                            className="btn btn-danger btn-sm"
+                                                                                            onClick={() => removeOptionFromVariant(index, optIndex)}
+                                                                                        >
+                                                                                            <FiX />
+                                                                                        </button>
+                                                                                    </td>
+                                                                                </tr>
+                                                                            ))}
+                                                                        </tbody>
+                                                                    </table>
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 </div>
                                             </div>
                                         ))}
                                     </div>
-                                </div>
-                            )}
+                                )}
+                            </div>
 
                             <div className="mb-3">
-                                <h5>Images</h5>
-                                <div className="d-flex flex-wrap gap-3">
-                                    {selectedItem.imageUrls?.length > 0 ? (
-                                        selectedItem.imageUrls.map((imageUrl, index) => (
-                                            <div key={index} className="position-relative" style={{ width: '100px', height: '100px' }}>
+                                <label className="form-label">Item Image</label>
+                                <div className="d-flex flex-wrap gap-3 mb-3">
+                                    <div className="position-relative" style={{ width: '100px', height: '100px' }}>
+                                        <div
+                                            className="w-100 h-100 border rounded d-flex flex-column justify-content-center align-items-center cursor-pointer"
+                                            style={{
+                                                borderStyle: imagePreview ? 'solid' : 'dashed',
+                                                backgroundColor: isDarkMode ? '#1e293b' : '#f8f9fa'
+                                            }}
+                                            onClick={() => document.getElementById('add-image-upload').click()}
+                                        >
+                                            {imagePreview ? (
                                                 <img
-                                                    src={imageUrl}
-                                                    alt={`Item ${index}`}
+                                                    src={imagePreview}
+                                                    alt="Preview"
                                                     className="w-100 h-100"
                                                     style={{
                                                         objectFit: 'cover',
-                                                        borderRadius: '4px',
-                                                        border: imageUrl === selectedItem.primaryImageUrl ? '2px solid #1976d2' : '1px solid #dee2e6'
+                                                        borderRadius: '4px'
                                                     }}
                                                 />
-                                                {imageUrl === selectedItem.primaryImageUrl && (
-                                                    <div className="position-absolute bottom-0 start-0 bg-primary text-white px-2 py-1 small">
-                                                        Primary
-                                                    </div>
-                                                )}
-                                            </div>
-                                        ))
-                                    ) : (
-                                        <div style={{ width: '100px', height: '100px' }}>
-                                            <img
-                                                src="/images/avatar/1.png"
-                                                alt="Item"
-                                                className="w-100 h-100"
-                                                style={{
-                                                    objectFit: 'cover',
-                                                    borderRadius: '4px'
-                                                }}
-                                            />
+                                            ) : (
+                                                <>
+                                                    <FiUpload size={20} className="mb-1" />
+                                                    <h8 className="small">Add Image</h8>
+                                                </>
+                                            )}
                                         </div>
-                                    )}
+                                        <input
+                                            type="file"
+                                            id="add-image-upload"
+                                            className="d-none"
+                                            accept="image/*"
+                                            onChange={handleFileChange}
+                                        />
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    )}
-                </Modal.Body>
-            </Modal>
+                        </form>
+                    </Modal.Body>
+                    <Modal.Footer>
+                        <Button
+                            variant="contained"
+                            onClick={handleSubmit}
+                            style={{ backgroundColor: '#1976d2', color: 'white' }}
+                            disabled={uploadingImage}
+                        >
+                            {uploadingImage ? (
+                                <>
+                                    <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                    Creating...
+                                </>
+                            ) : (
+                                'Create'
+                            )}
+                        </Button>
+                    </Modal.Footer>
+                </Modal>
+            )}
+
+            {/* Edit Item Modal */}
+            {canUpdate && (
+                <Modal show={isEditModalOpen} onHide={() => {
+                    setIsEditModalOpen(false);
+                    setEditFormErrors({});
+                    setSelectedFile(null);
+                    setImagePreview('');
+                    setExpandedVariantIndex(null);
+                }} centered size="lg">
+                    <Modal.Header closeButton>
+                        <Modal.Title>Edit Item</Modal.Title>
+                    </Modal.Header>
+                    <Modal.Body>
+                        <form onSubmit={handleEditSubmit}>
+                            <div className="mb-3">
+                                <label htmlFor="edit-name" className="form-label">Name</label>
+                                <input
+                                    type="text"
+                                    className={`form-control ${editFormErrors.name ? 'is-invalid' : ''}`}
+                                    id="edit-name"
+                                    name="name"
+                                    value={editItem.name}
+                                    onChange={handleEditInputChange}
+                                />
+                                {editFormErrors.name && <div className="invalid-feedback">{editFormErrors.name}</div>}
+                            </div>
+                            <div className="mb-3">
+                                <label htmlFor="edit-description" className="form-label">Description</label>
+                                <textarea
+                                    className={`form-control ${editFormErrors.description ? 'is-invalid' : ''}`}
+                                    id="edit-description"
+                                    name="description"
+                                    value={editItem.description}
+                                    onChange={handleEditInputChange}
+                                    rows="2"
+                                    style={{ minHeight: '80px' }}
+                                />
+                                {editFormErrors.description && <div className="invalid-feedback">{editFormErrors.description}</div>}
+                            </div>
+                            <div className="row mb-3">
+                                <div className="col-md-6">
+                                    <label htmlFor="edit-price" className="form-label">Price</label>
+                                    <div className="input-group">
+                                        <span className="input-group-text">{currencySymbol}</span>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            className={`form-control ${editFormErrors.price ? 'is-invalid' : ''}`}
+                                            id="edit-price"
+                                            name="price"
+                                            value={editItem.price}
+                                            onChange={handleEditInputChange}
+                                            min="0"
+                                        />
+                                        {editFormErrors.price && <div className="invalid-feedback">{editFormErrors.price}</div>}
+                                    </div>
+                                </div>
+                                <div className="col-md-6">
+                                    <label htmlFor="edit-category" className="form-label">Category</label>
+                                    <select
+                                        className={`form-control ${editFormErrors.category ? 'is-invalid' : ''}`}
+                                        id="edit-category"
+                                        name="category"
+                                        value={editItem.category}
+                                        onChange={handleEditInputChange}
+                                    >
+                                        <option value="">Select a category</option>
+                                        {categories.map(category => (
+                                            <option key={category.id} value={category.id}>
+                                                {category.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    {editFormErrors.category && <div className="invalid-feedback">{editFormErrors.category}</div>}
+                                </div>
+                            </div>
+                            <div className="row mb-3">
+                                <div className="col-md-6">
+                                    <div className="form-check form-switch mb-3">
+                                        <input
+                                            className="form-check-input"
+                                            type="checkbox"
+                                            role="switch"
+                                            id="edit-itemDiscountEnabled"
+                                            name="itemDiscountEnabled"
+                                            checked={editItem.itemDiscountEnabled}
+                                            onChange={handleEditInputChange}
+                                        />
+                                        <h8 className="form-check-label" htmlFor="edit-itemDiscountEnabled">
+                                            Enable Discount
+                                        </h8>
+                                    </div>
+                                    {editItem.itemDiscountEnabled && (
+                                        <div className="mb-3">
+                                            <label htmlFor="edit-itemDiscountRate" className="form-label">Discount Rate (%)</label>
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                className={`form-control ${editFormErrors.itemDiscountRate ? 'is-invalid' : ''}`}
+                                                id="edit-itemDiscountRate"
+                                                name="itemDiscountRate"
+                                                value={editItem.itemDiscountRate}
+                                                onChange={handleEditInputChange}
+                                                min="0"
+                                                max="100"
+                                            />
+                                            {editFormErrors.itemDiscountRate && (
+                                                <div className="invalid-feedback">{editFormErrors.itemDiscountRate}</div>
+                                            )}
+                                            <div className="mt-2">
+                                                <strong>Discounted Price:</strong> {currencySymbol}{
+                                                    editItem.discountedPrice !== null && editItem.discountedPrice !== undefined
+                                                        ? editItem.discountedPrice.toFixed(2)
+                                                        : '0.00'
+                                                }
+                                            </div>
+                                        </div>
+                                    )}
+                                    <div className="mb-3">
+                                        <label htmlFor="edit-barcode" className="form-label">Barcode</label>
+                                        <input
+                                            type="text"
+                                            className="form-control"
+                                            id="edit-barcode"
+                                            name="barcode"
+                                            value={editItem.barcode}
+                                            onChange={handleEditInputChange}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Variants Section */}
+                            <div className="mb-3">
+                                <div className="d-flex justify-content-between align-items-center mb-2">
+                                    <h5>Variants</h5>
+                                    <Button
+                                        variant="outlined"
+                                        size="small"
+                                        onClick={() => addNewVariant(true)}
+                                    >
+                                        Add Variant
+                                    </Button>
+                                </div>
+
+                                {editItem.variants.length === 0 ? (
+                                    <div className="text-muted mb-3">No variants added</div>
+                                ) : (
+                                    <div className="accordion" id="editVariantsAccordion">
+                                        {editItem.variants.map((variant, index) => (
+                                            <div className="accordion-item mb-2" key={index}>
+                                                <div className="accordion-header d-flex justify-content-between align-items-center p-2">
+                                                    <div className="d-flex align-items-center">
+                                                        <button
+                                                            className="btn btn-link me-2"
+                                                            type="button"
+                                                            onClick={() => toggleVariantExpansion(index)}
+                                                        >
+                                                            {expandedVariantIndex === index ? <FiChevronUp /> : <FiChevronDown />}
+                                                        </button>
+                                                        <h8>
+                                                            {variant.name || `Variant ${index + 1}`}
+                                                            {variant.required && <span className="badge bg-info ms-2">Required</span>}
+                                                        </h8>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        className="btn btn-danger btn-sm"
+                                                        onClick={() => removeVariant(index, true)}
+                                                    >
+                                                        <FiX />
+                                                    </button>
+                                                </div>
+
+                                                <div className={`accordion-collapse ${expandedVariantIndex === index ? 'show' : 'collapse'}`}>
+                                                    <div className="accordion-body p-3">
+                                                        <div className="mb-3">
+                                                            <label htmlFor={`editVariantName-${index}`} className="form-label">Variant Name</label>
+                                                            <input
+                                                                type="text"
+                                                                className={`form-control ${editFormErrors[`variantName_${index}`] ? 'is-invalid' : ''}`}
+                                                                id={`editVariantName-${index}`}
+                                                                value={variant.name}
+                                                                onChange={(e) => updateVariant(index, 'name', e.target.value, true)}
+                                                            />
+                                                            {editFormErrors[`variantName_${index}`] && (
+                                                                <div className="invalid-feedback">{editFormErrors[`variantName_${index}`]}</div>
+                                                            )}
+                                                        </div>
+
+                                                        <div className="mb-3">
+                                                            <label htmlFor={`editVariantDesc-${index}`} className="form-label">Description (Optional)</label>
+                                                            <input
+                                                                type="text"
+                                                                className="form-control"
+                                                                id={`editVariantDesc-${index}`}
+                                                                value={variant.description}
+                                                                onChange={(e) => updateVariant(index, 'description', e.target.value, true)}
+                                                            />
+                                                        </div>
+
+                                                        <div className="form-check mb-3">
+                                                            <input
+                                                                className="form-check-input"
+                                                                type="checkbox"
+                                                                id={`editVariantRequired-${index}`}
+                                                                checked={variant.required}
+                                                                onChange={(e) => updateVariant(index, 'required', e.target.checked, true)}
+                                                            />
+                                                            <label className="form-check-label" htmlFor={`editVariantRequired-${index}`}>
+                                                                Required Selection
+                                                            </label>
+                                                        </div>
+
+                                                        <div className="mb-3">
+                                                            <div className="d-flex justify-content-between align-items-center mb-2">
+                                                                <h6>Options</h6>
+                                                                <Button
+                                                                    variant="outlined"
+                                                                    size="small"
+                                                                    onClick={() => addOptionToVariant(index, true)}
+                                                                >
+                                                                    Add Option
+                                                                </Button>
+                                                            </div>
+
+                                                            {variant.options.length === 0 ? (
+                                                                <div className="text-muted">No options added</div>
+                                                            ) : (
+                                                                <div className="table-responsive">
+                                                                    <table className="table table-sm">
+                                                                        <thead>
+                                                                            <tr>
+                                                                                <th>Option Name</th>
+                                                                                <th>Price Modifier</th>
+                                                                                <th>Action</th>
+                                                                            </tr>
+                                                                        </thead>
+                                                                        <tbody>
+                                                                            {variant.options.map((option, optIndex) => (
+                                                                                <tr key={optIndex}>
+                                                                                    <td>
+                                                                                        <input
+                                                                                            type="text"
+                                                                                            className={`form-control form-control-sm ${editFormErrors[`optionName_${index}_${optIndex}`] ? 'is-invalid' : ''}`}
+                                                                                            value={option.name}
+                                                                                            onChange={(e) => updateOption(index, optIndex, 'name', e.target.value, true)}
+                                                                                        />
+                                                                                        {editFormErrors[`optionName_${index}_${optIndex}`] && (
+                                                                                            <div className="invalid-feedback">{editFormErrors[`optionName_${index}_${optIndex}`]}</div>
+                                                                                        )}
+                                                                                    </td>
+                                                                                    <td>
+                                                                                        <div className="input-group input-group-sm">
+                                                                                            <span className="input-group-text">{currencySymbol}</span>
+                                                                                            <input
+                                                                                                type="number"
+                                                                                                step="0.01"
+                                                                                                className="form-control"
+                                                                                                value={option.priceModifier}
+                                                                                                onChange={(e) => updateOption(index, optIndex, 'priceModifier', parseFloat(e.target.value) || 0, true)}
+                                                                                            />
+                                                                                        </div>
+                                                                                    </td>
+                                                                                    <td>
+                                                                                        <button
+                                                                                            type="button"
+                                                                                            className="btn btn-danger btn-sm"
+                                                                                            onClick={() => removeOptionFromVariant(index, optIndex, true)}
+                                                                                        >
+                                                                                            <FiX />
+                                                                                        </button>
+                                                                                    </td>
+                                                                                </tr>
+                                                                            ))}
+                                                                        </tbody>
+                                                                    </table>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="mb-3">
+                                <label className="form-label">Item Images</label>
+                                <div className="d-flex flex-wrap gap-3 mb-3">
+                                    {editItem.imageUrls?.map((imageUrl, index) => (
+                                        <div
+                                            key={index}
+                                            className="position-relative"
+                                            style={{ width: '100px', height: '100px' }}
+                                            onClick={() => setEditItem(prev => ({ ...prev, primaryImageUrl: imageUrl }))}
+                                        >
+                                            <img
+                                                src={imageUrl}
+                                                alt={`Item ${index}`}
+                                                className="w-100 h-100 cursor-pointer"
+                                                style={{
+                                                    objectFit: 'cover',
+                                                    borderRadius: '4px',
+                                                    border: imageUrl === editItem.primaryImageUrl ? '2px solid #1976d2' : '1px solid #dee2e6'
+                                                }}
+                                            />
+                                            <div className="position-absolute top-0 end-0 p-1">
+                                                <button
+                                                    type="button"
+                                                    className="btn btn-danger btn-sm p-1"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleDeleteImage(imageUrl);
+                                                    }}
+                                                    style={{ width: '24px', height: '24px' }}
+                                                >
+                                                    <FiTrash size={12} />
+                                                </button>
+                                            </div>
+                                            {imageUrl === editItem.primaryImageUrl && (
+                                                <div className="position-absolute bottom-0 start-0 bg-primary text-white px-2 py-1 small">
+                                                    Primary
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+
+                                    <div className="position-relative" style={{ width: '100px', height: '100px' }}>
+                                        <div
+                                            className="w-100 h-100 border rounded d-flex flex-column justify-content-center align-items-center cursor-pointer"
+                                            style={{
+                                                borderStyle: imagePreview ? 'solid' : 'dashed',
+                                                backgroundColor: isDarkMode ? '#1e293b' : '#f8f9fa'
+                                            }}
+                                            onClick={() => document.getElementById('edit-image-upload').click()}
+                                        >
+                                            {imagePreview ? (
+                                                <img
+                                                    src={imagePreview}
+                                                    alt="Preview"
+                                                    className="w-100 h-100"
+                                                    style={{
+                                                        objectFit: 'cover',
+                                                        borderRadius: '4px'
+                                                    }}
+                                                />
+                                            ) : (
+                                                <>
+                                                    <FiUpload size={20} className="mb-1" />
+                                                    <h8 className="small">Add Image</h8>
+                                                </>
+                                            )}
+                                        </div>
+                                        <input
+                                            type="file"
+                                            id="edit-image-upload"
+                                            className="d-none"
+                                            accept="image/*"
+                                            onChange={handleFileChange}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </form>
+                    </Modal.Body>
+                    <Modal.Footer>
+                        <Button
+                            variant="contained"
+                            onClick={handleEditSubmit}
+                            style={{ backgroundColor: '#1976d2', color: 'white' }}
+                            disabled={uploadingImage}
+                        >
+                            {uploadingImage ? (
+                                <>
+                                    <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                    Updating...
+                                </>
+                            ) : (
+                                'Update'
+                            )}
+                        </Button>
+                    </Modal.Footer>
+                </Modal>
+            )}
+
+            {/* View Item Modal */}
+            {canRead && (
+                <Modal show={isViewModalOpen} onHide={() => setIsViewModalOpen(false)} centered size="lg">
+                    <Modal.Header closeButton>
+                        <Modal.Title>Item Details</Modal.Title>
+                    </Modal.Header>
+                    <Modal.Body>
+                        {selectedItem && (
+                            <div>
+                                <div className="row mb-3">
+                                    <div className="col-md-6">
+                                        <h5>Name</h5>
+                                        <h8>{selectedItem.name}</h8>
+                                    </div>
+                                    <div className="col-md-6">
+                                        <h5>Status</h5>
+                                        <h8>{selectedItem.active ? 'Active' : 'Inactive'}</h8>
+                                    </div>
+                                </div>
+                                <div className="row mb-3">
+                                    <div className="col-md-6">
+                                        <h5>Price</h5>
+                                        <h8>{currencySymbol}{selectedItem.price !== null && selectedItem.price !== undefined ? selectedItem.price.toFixed(2) : '0.00'}</h8>
+                                    </div>
+                                    <div className="col-md-6">
+                                        <h5>Category</h5>
+                                        <h8>{selectedItem.categoryName || 'N/A'}</h8>
+                                    </div>
+                                </div>
+                                <div className="row mb-3">
+                                    <div className="col-md-6">
+                                        <h5>Discount</h5>
+                                        <h8>
+                                            {selectedItem.itemDiscountEnabled ?
+                                                `${selectedItem.itemDiscountRate}% (${currencySymbol}${selectedItem.discountedPrice !== null && selectedItem.discountedPrice !== undefined
+                                                    ? selectedItem.discountedPrice.toFixed(2)
+                                                    : '0.00'
+                                                })` :
+                                                'No discount'}
+                                        </h8>
+                                    </div>
+                                    <div className="col-md-6">
+                                        <h5>Quantity</h5>
+                                        <h8>{selectedItem.quantity}</h8>
+                                    </div>
+                                </div>
+                                <div className="row mb-3">
+                                    <div className="col-md-6">
+                                        <h5>Barcode</h5>
+                                        <h8>{selectedItem.barcode || 'N/A'}</h8>
+                                    </div>
+                                    <div className="col-md-6">
+                                        <h5>Low Stock Threshold</h5>
+                                        <h8>{selectedItem.lowStockThreshold || '0'}</h8>
+                                    </div>
+                                </div>
+                                <div className="mb-3">
+                                    <h5>Description</h5>
+                                    <h8>{selectedItem.description || 'N/A'}</h8>
+                                </div>
+
+                                {/* Variants Section */}
+                                {selectedItem.variants && selectedItem.variants.length > 0 && (
+                                    <div className="mb-3">
+                                        <h5>Variants</h5>
+                                        <div className="accordion" id="viewVariantsAccordion">
+                                            {selectedItem.variants.map((variant, index) => (
+                                                <div className="accordion-item mb-2" key={index}>
+                                                    <div className="accordion-header d-flex justify-content-between align-items-center p-2">
+                                                        <div className="d-flex align-items-center">
+                                                            <button
+                                                                className="btn btn-link me-2"
+                                                                type="button"
+                                                                data-bs-toggle="collapse"
+                                                                data-bs-target={`#viewVariantCollapse-${index}`}
+                                                            >
+                                                                <FiChevronDown />
+                                                            </button>
+                                                            <h8>
+                                                                {variant.name}
+                                                                {variant.required && <span className="badge bg-info ms-2">Required</span>}
+                                                            </h8>
+                                                        </div>
+                                                    </div>
+
+                                                    <div id={`viewVariantCollapse-${index}`} className="accordion-collapse collapse show">
+                                                        <div className="accordion-body p-3">
+                                                            {variant.description && (
+                                                                <div className="mb-2">
+                                                                    <strong>Description:</strong> {variant.description}
+                                                                </div>
+                                                            )}
+
+                                                            <div className="mb-2">
+                                                                <strong>Options:</strong>
+                                                                <ul className="list-group mt-2">
+                                                                    {variant.options.map((option, optIndex) => (
+                                                                        <li key={optIndex} className="list-group-item d-flex justify-content-between align-items-center">
+                                                                            <span>
+                                                                                {option.name}
+                                                                                {option.priceModifier !== 0 && (
+                                                                                    <span className="ms-2">
+                                                                                        ({option.priceModifier > 0 ? '+' : ''}{currencySymbol}{Math.abs(option.priceModifier).toFixed(2)})
+                                                                                    </span>
+                                                                                )}
+                                                                            </span>
+                                                                        </li>
+                                                                    ))}
+                                                                </ul>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="mb-3">
+                                    <h5>Images</h5>
+                                    <div className="d-flex flex-wrap gap-3">
+                                        {selectedItem.imageUrls?.length > 0 ? (
+                                            selectedItem.imageUrls.map((imageUrl, index) => (
+                                                <div key={index} className="position-relative" style={{ width: '100px', height: '100px' }}>
+                                                    <img
+                                                        src={imageUrl}
+                                                        alt={`Item ${index}`}
+                                                        className="w-100 h-100"
+                                                        style={{
+                                                            objectFit: 'cover',
+                                                            borderRadius: '4px',
+                                                            border: imageUrl === selectedItem.primaryImageUrl ? '2px solid #1976d2' : '1px solid #dee2e6'
+                                                        }}
+                                                    />
+                                                    {imageUrl === selectedItem.primaryImageUrl && (
+                                                        <div className="position-absolute bottom-0 start-0 bg-primary text-white px-2 py-1 small">
+                                                            Primary
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <div style={{ width: '100px', height: '100px' }}>
+                                                <img
+                                                    src="/images/avatar/1.png"
+                                                    alt="Item"
+                                                    className="w-100 h-100"
+                                                    style={{
+                                                        objectFit: 'cover',
+                                                        borderRadius: '4px'
+                                                    }}
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </Modal.Body>
+                </Modal>
+            )}
 
             {/* Delete Confirmation Modal */}
-            <Modal show={isDeleteModalOpen} onHide={() => setIsDeleteModalOpen(false)} centered>
-                <Modal.Header closeButton>
-                    <Modal.Title>Delete Item</Modal.Title>
-                </Modal.Header>
-                <Modal.Body>
-                    {itemToDelete && (
-                        <>
-                            <h8>Are you sure you want to delete the item <strong>{itemToDelete.name}</strong>? </h8>
-                            <h8>This action cannot be undone.</h8>
-                        </>
-                    )}
-                </Modal.Body>
-                <Modal.Footer>
-                    <Button
-                        variant="contained"
-                        onClick={handleDeleteItem}
-                        style={{ backgroundColor: '#d32f2f', color: 'white' }}
-                    >
-                        Delete
-                    </Button>
-                </Modal.Footer>
-            </Modal>
+            {canDelete && (
+                <Modal show={isDeleteModalOpen} onHide={() => setIsDeleteModalOpen(false)} centered>
+                    <Modal.Header closeButton>
+                        <Modal.Title>Delete Item</Modal.Title>
+                    </Modal.Header>
+                    <Modal.Body>
+                        {itemToDelete && (
+                            <>
+                                <h8>Are you sure you want to delete the item <strong>{itemToDelete.name}</strong>? </h8>
+                                <h8>This action cannot be undone.</h8>
+                            </>
+                        )}
+                    </Modal.Body>
+                    <Modal.Footer>
+                        <Button
+                            variant="contained"
+                            onClick={handleDeleteItem}
+                            style={{ backgroundColor: '#d32f2f', color: 'white' }}
+                        >
+                            Delete
+                        </Button>
+                    </Modal.Footer>
+                </Modal>
+            )}
         </>
     );
 };

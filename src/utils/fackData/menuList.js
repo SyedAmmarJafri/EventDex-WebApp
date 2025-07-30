@@ -178,4 +178,12 @@ export const menuList = [
         icon: 'feather-shopping-cart',
         dropdownMenu: []
     },
+    {
+        id: 11,
+        name: "Help Center",
+        path: "/help/knowledgebase",
+        icon: 'feather-life-buoy',
+        dropdownMenu: []
+    },
+
 ]

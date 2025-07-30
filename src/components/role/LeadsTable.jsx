@@ -48,6 +48,37 @@ const COMMON_ROLES = [
     'OTHER'
 ];
 
+// Tab permissions based on the dashboard image
+const TAB_PERMISSIONS = [
+    'DASHBOARD',
+    'POS',
+    'ORDERS',
+    'PRODUCTS',
+    'CATEGORY',
+    'ITEM',
+    'DEAL',
+    'CUSTOMERS',
+    'DISCOUNTS',
+    'MARKETING',
+    'EMAIL_MARKETING',
+    'MARKETING_TEMPLATE',
+    'INVENTORY',
+    'FINANCE',
+    'ANALYTICS',
+    'SALES_ANALYTICS',
+    'PRODUCT_ANALYTICS',
+    'CUSTOMER_ANALYTICS',
+    'FINANCIAL_ANALYTICS',
+    'TEAM_ANALYTICS',
+    'COMPARISON_ANALYTICS',
+    'REPORTS',
+    'LIVE_TRACKER',
+    'USERS',
+    'TEAM',
+    'ROLE',
+    'ONLINE_STORE'
+];
+
 const RolesTable = () => {
     const [roles, setRoles] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -61,6 +92,10 @@ const RolesTable = () => {
         name: '',
         description: '',
         permissions: [],
+        tabPermissions: TAB_PERMISSIONS.reduce((acc, tab) => {
+            acc[tab.toLowerCase()] = false;
+            return acc;
+        }, {}),
         active: true,
         isCustomRole: false
     });
@@ -69,6 +104,10 @@ const RolesTable = () => {
         name: '',
         description: '',
         permissions: [],
+        tabPermissions: TAB_PERMISSIONS.reduce((acc, tab) => {
+            acc[tab.toLowerCase()] = false;
+            return acc;
+        }, {}),
         active: true,
         isCustomRole: false
     });
@@ -77,6 +116,20 @@ const RolesTable = () => {
     const [db, setDb] = useState(null);
     const skinTheme = localStorage.getItem('skinTheme') || 'light';
     const isDarkMode = skinTheme === 'dark';
+
+    // Get user role and permissions from authData
+    const authData = JSON.parse(localStorage.getItem("authData"));
+    const userRole = authData?.role;
+    const userPermissions = authData?.permissions || [];
+
+    // Check if user is client admin
+    const isClientAdmin = userRole === 'CLIENT_ADMIN';
+
+    // Check specific permissions
+    const canViewRoles = isClientAdmin || userPermissions.includes('ROLE_READ');
+    const canCreateRoles = isClientAdmin || userPermissions.includes('ROLE_WRITE');
+    const canEditRoles = isClientAdmin || userPermissions.includes('ROLE_UPDATE');
+    const canDeleteRoles = isClientAdmin || userPermissions.includes('ROLE_DELETE');
 
     // Complete permissions list
     const availablePermissions = [
@@ -108,7 +161,7 @@ const RolesTable = () => {
         'ORDER_UPDATE',
         'ORDER_ACCEPT',
         'ORDER_REJECT',
-        'TAX_WRITE',
+        'TAX_READ',
         'TAX_UPDATE',
         'ANALYTICS_READ',
         'FINANCE_READ',
@@ -125,7 +178,7 @@ const RolesTable = () => {
         'SETTINGS_MANAGE',
         'CUSTOMER_READ',
         'STAFF_MANAGEMENT',
-        'ROLE_MANAGEMENT'
+        'ROLE_READ'
     ];
 
     // Group permissions by resource
@@ -141,7 +194,7 @@ const RolesTable = () => {
         'Settings': [
             'SETTINGS_MANAGE',
             'STAFF_MANAGEMENT',
-            'ROLE_MANAGEMENT',
+            'ROLE_READ',
             'CUSTOMER_READ',
             'RIDER_LOCATION'
         ],
@@ -149,7 +202,6 @@ const RolesTable = () => {
         'Analytics': availablePermissions.filter(p => p.startsWith('ANALYTICS_')),
         'Tax': availablePermissions.filter(p => p.startsWith('TAX_')),
         'Currency': availablePermissions.filter(p => p.startsWith('CURRENCY_')),
-
     };
 
     // Initialize IndexedDB on component mount
@@ -203,9 +255,22 @@ const RolesTable = () => {
             const request = store.getAll();
 
             request.onsuccess = () => {
-                setRoles(request.result);
+                const rolesData = request.result.map(role => {
+                    // Ensure tabPermissions exists and has all required fields
+                    const defaultTabPermissions = TAB_PERMISSIONS.reduce((acc, tab) => {
+                        acc[tab.toLowerCase()] = role.tabPermissions?.[tab.toLowerCase()] || false;
+                        return acc;
+                    }, {});
+
+                    return {
+                        ...role,
+                        tabPermissions: role.tabPermissions ? { ...defaultTabPermissions, ...role.tabPermissions } : defaultTabPermissions
+                    };
+                });
+
+                setRoles(rolesData);
                 setLoading(false);
-                resolve(request.result);
+                resolve(rolesData);
             };
 
             request.onerror = () => {
@@ -273,9 +338,22 @@ const RolesTable = () => {
                 throw new Error('Invalid roles data format received');
             }
 
-            setRoles(rolesData);
+            // Ensure all roles have tabPermissions with all required fields
+            const processedRoles = rolesData.map(role => {
+                const defaultTabPermissions = TAB_PERMISSIONS.reduce((acc, tab) => {
+                    acc[tab.toLowerCase()] = role.tabPermissions?.[tab.toLowerCase()] || false;
+                    return acc;
+                }, {});
+
+                return {
+                    ...role,
+                    tabPermissions: role.tabPermissions ? { ...defaultTabPermissions, ...role.tabPermissions } : defaultTabPermissions
+                };
+            });
+
+            setRoles(processedRoles);
             if (database) {
-                await saveRolesToIndexedDB(rolesData, database);
+                await saveRolesToIndexedDB(processedRoles, database);
             }
         } catch (err) {
             console.error('Error fetching roles:', err);
@@ -299,7 +377,7 @@ const RolesTable = () => {
                             <th scope="col">Description</th>
                             <th scope="col">Permissions</th>
                             <th scope="col">Status</th>
-                            <th scope="col" className="text-end">Actions</th>
+                            {canViewRoles && <th scope="col" className="text-end">Actions</th>}
                         </tr>
                     </thead>
                     <tbody>
@@ -333,31 +411,39 @@ const RolesTable = () => {
                                         highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
                                     />
                                 </td>
-                                <td>
-                                    <div className="hstack gap-2 justify-content-end">
-                                        <Skeleton
-                                            circle
-                                            width={24}
-                                            height={24}
-                                            baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
-                                            highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
-                                        />
-                                        <Skeleton
-                                            circle
-                                            width={24}
-                                            height={24}
-                                            baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
-                                            highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
-                                        />
-                                        <Skeleton
-                                            circle
-                                            width={24}
-                                            height={24}
-                                            baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
-                                            highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
-                                        />
-                                    </div>
-                                </td>
+                                {canViewRoles && (
+                                    <td>
+                                        <div className="hstack gap-2 justify-content-end">
+                                            {canViewRoles && (
+                                                <Skeleton
+                                                    circle
+                                                    width={24}
+                                                    height={24}
+                                                    baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
+                                                    highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
+                                                />
+                                            )}
+                                            {canEditRoles && (
+                                                <Skeleton
+                                                    circle
+                                                    width={24}
+                                                    height={24}
+                                                    baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
+                                                    highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
+                                                />
+                                            )}
+                                            {canDeleteRoles && (
+                                                <Skeleton
+                                                    circle
+                                                    width={24}
+                                                    height={24}
+                                                    baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
+                                                    highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
+                                                />
+                                            )}
+                                        </div>
+                                    </td>
+                                )}
                             </tr>
                         ))}
                     </tbody>
@@ -382,14 +468,16 @@ const RolesTable = () => {
                 </div>
                 <h5 className="mb-2">No Roles Found</h5>
                 <p className="text-muted mb-4">You haven't added any roles yet. Start by adding a new role.</p>
-                <Button
-                    variant="contained"
-                    onClick={() => setIsModalOpen(true)}
-                    className="d-flex align-items-center gap-2 mx-auto"
-                    style={{ backgroundColor: '#0092ff', color: 'white' }}
-                >
-                    <FiPlus /> Add Role
-                </Button>
+                {canCreateRoles && (
+                    <Button
+                        variant="contained"
+                        onClick={() => setIsModalOpen(true)}
+                        className="d-flex align-items-center gap-2 mx-auto"
+                        style={{ backgroundColor: '#0092ff', color: 'white' }}
+                    >
+                        <FiPlus /> Add Role
+                    </Button>
+                )}
             </div>
         );
     };
@@ -474,11 +562,36 @@ const RolesTable = () => {
         });
     };
 
+    const handleTabPermissionChange = (tab, isChecked) => {
+        setNewRole(prev => ({
+            ...prev,
+            tabPermissions: {
+                ...prev.tabPermissions,
+                [tab]: isChecked
+            }
+        }));
+    };
+
+    const handleEditTabPermissionChange = (tab, isChecked) => {
+        setEditRole(prev => ({
+            ...prev,
+            tabPermissions: {
+                ...prev.tabPermissions,
+                [tab]: isChecked
+            }
+        }));
+    };
+
     const validateForm = (formData, setErrors) => {
         const errors = {};
         if (!formData.name.trim()) errors.name = 'Name is required';
         if (!formData.description.trim()) errors.description = 'Description is required';
         if (formData.permissions.length === 0) errors.permissions = 'At least one permission is required';
+
+        // Check if at least one tab permission is selected
+        const hasTabPermission = Object.values(formData.tabPermissions).some(val => val);
+        if (!hasTabPermission) errors.tabPermissions = 'At least one tab access must be selected';
+
         setErrors(errors);
         return Object.keys(errors).length === 0;
     };
@@ -500,6 +613,7 @@ const RolesTable = () => {
                     name: newRole.name,
                     description: newRole.description,
                     permissions: newRole.permissions,
+                    tabPermissions: newRole.tabPermissions,
                     active: newRole.active
                 })
             });
@@ -523,6 +637,10 @@ const RolesTable = () => {
                 name: '',
                 description: '',
                 permissions: [],
+                tabPermissions: TAB_PERMISSIONS.reduce((acc, tab) => {
+                    acc[tab.toLowerCase()] = false;
+                    return acc;
+                }, {}),
                 active: true,
                 isCustomRole: false
             });
@@ -548,6 +666,7 @@ const RolesTable = () => {
                     name: editRole.name,
                     description: editRole.description,
                     permissions: editRole.permissions,
+                    tabPermissions: editRole.tabPermissions,
                     active: editRole.active
                 })
             });
@@ -585,6 +704,7 @@ const RolesTable = () => {
             name: role.name,
             description: role.description,
             permissions: role.permissions || [],
+            tabPermissions: { ...role.tabPermissions },
             active: role.active,
             isCustomRole: !COMMON_ROLES.includes(role.name)
         });
@@ -681,36 +801,62 @@ const RolesTable = () => {
             header: "Actions",
             cell: ({ row }) => (
                 <div className="hstack gap-2 justify-content-end">
-                    <button
-                        className="avatar-text avatar-md"
-                        onClick={() => handleViewRole(row.original)}
-                        title="View"
-                    >
-                        <FiEye />
-                    </button>
-                    <button
-                        className="avatar-text avatar-md"
-                        onClick={() => handleEditRole(row.original)}
-                        title="Edit"
-                    >
-                        <FiEdit />
-                    </button>
-                    <button
-                        className="avatar-text avatar-md"
-                        onClick={() => handleDeleteClick(row.original)}
-                        title="Delete"
-                    >
-                        <FiTrash />
-                    </button>
+                    {canViewRoles && (
+                        <button
+                            className="avatar-text avatar-md"
+                            onClick={() => handleViewRole(row.original)}
+                            title="View"
+                        >
+                            <FiEye />
+                        </button>
+                    )}
+                    {canEditRoles && (
+                        <button
+                            className="avatar-text avatar-md"
+                            onClick={() => handleEditRole(row.original)}
+                            title="Edit"
+                        >
+                            <FiEdit />
+                        </button>
+                    )}
+                    {canDeleteRoles && (
+                        <button
+                            className="avatar-text avatar-md"
+                            onClick={() => handleDeleteClick(row.original)}
+                            title="Delete"
+                        >
+                            <FiTrash />
+                        </button>
+                    )}
                 </div>
             ),
             meta: { headerClassName: 'text-end' }
         },
-    ], []);
+    ], [canViewRoles, canEditRoles, canDeleteRoles]);
 
     useEffect(() => {
         fetchRolesFromAPI();
     }, [fetchRolesFromAPI]);
+
+    if (!canViewRoles) {
+        return (
+            <div className="text-center py-5" style={{ minHeight: '460px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+                <div className="mb-4">
+                    <svg width="64" height="41" viewBox="0 0 64 41" xmlns="http://www.w3.org/2000/svg">
+                        <g transform="translate(0 1)" fill="none" fillRule="evenodd">
+                            <ellipse fill={isDarkMode ? "#2d3748" : "#F5F5F5"} cx="32" cy="33" rx="32" ry="7"></ellipse>
+                            <g fillRule="nonzero" stroke={isDarkMode ? "#4a5568" : "#D9D9D9"}>
+                                <path d="M55 12.76L44.854 1.258C44.367.474 43.656 0 42.907 0H21.093c-.749 0-1.46.474-1.947 1.257L9 12.761V22h46v-9.24z"></path>
+                                <path d="M41.613 15.931c0-1.605.994-2.93 2.227-2.931H55v18.137C55 33.26 53.68 35 52.05 35h-40.1C10.32 35 9 33.259 9 31.137V13h11.16c1.233 0 2.227 1.323 2.227 2.928v.022c0 1.605 1.005 2.901 2.237 2.901h14.752c1.232 0 2.237-1.308 2.237-2.913v-.007z" fill={isDarkMode ? "#1a202c" : "#FAFAFA"}></path>
+                            </g>
+                        </g>
+                    </svg>
+                </div>
+                <h5 className="mb-2">Access Denied</h5>
+                <p className="text-muted mb-4">You don't have permission to view roles.</p>
+            </div>
+        );
+    }
 
     return (
         <>
@@ -729,14 +875,16 @@ const RolesTable = () => {
 
             <div className="d-flex justify-content-between align-items-center mb-4">
                 <h4>Roles Management</h4>
-                <Button
-                    variant="contained"
-                    onClick={() => setIsModalOpen(true)}
-                    className="d-flex align-items-center gap-2"
-                    style={{ backgroundColor: '#0092ff', color: 'white' }}
-                >
-                    <FiPlus /> Add Role
-                </Button>
+                {canCreateRoles && (
+                    <Button
+                        variant="contained"
+                        onClick={() => setIsModalOpen(true)}
+                        className="d-flex align-items-center gap-2"
+                        style={{ backgroundColor: '#0092ff', color: 'white' }}
+                    >
+                        <FiPlus /> Add Role
+                    </Button>
+                )}
             </div>
 
             {loading ? (
@@ -754,7 +902,17 @@ const RolesTable = () => {
             {/* Add Role Modal */}
             <Modal show={isModalOpen} onHide={() => {
                 setIsModalOpen(false);
-                setNewRole({ name: '', description: '', permissions: [], active: true, isCustomRole: false });
+                setNewRole({
+                    name: '',
+                    description: '',
+                    permissions: [],
+                    tabPermissions: TAB_PERMISSIONS.reduce((acc, tab) => {
+                        acc[tab.toLowerCase()] = false;
+                        return acc;
+                    }, {}),
+                    active: true,
+                    isCustomRole: false
+                });
                 setFormErrors({});
             }} centered size="lg">
                 <Modal.Header closeButton>
@@ -809,6 +967,33 @@ const RolesTable = () => {
                             />
                             {formErrors.description && <div className="invalid-feedback">{formErrors.description}</div>}
                         </div>
+
+                        <div className="mb-3">
+                            <label className="form-label">Tab Access*</label>
+                            {formErrors.tabPermissions && <div className="text-danger small mb-2">{formErrors.tabPermissions}</div>}
+
+                            <div className="border rounded p-3">
+                                <div className="row">
+                                    {TAB_PERMISSIONS.map(tab => (
+                                        <div key={tab} className="col-md-4 mb-3">
+                                            <div className="form-check form-switch">
+                                                <input
+                                                    className="form-check-input"
+                                                    type="checkbox"
+                                                    id={`tab-${tab}`}
+                                                    checked={newRole.tabPermissions[tab.toLowerCase()] || false}
+                                                    onChange={(e) => handleTabPermissionChange(tab.toLowerCase(), e.target.checked)}
+                                                />
+                                                <h8 className="form-check-label" htmlFor={`tab-${tab}`}>
+                                                    {tab.replace(/_/g, ' ')}
+                                                </h8>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+
                         <div className="mb-3">
                             <Form.Group controlId="formActiveStatus">
                                 <Form.Label>Status</Form.Label>
@@ -824,6 +1009,7 @@ const RolesTable = () => {
                                 </div>
                             </Form.Group>
                         </div>
+
                         <div className="mb-3">
                             <label className="form-label">Permissions*</label>
                             {formErrors.permissions && <div className="text-danger small mb-2">{formErrors.permissions}</div>}
@@ -940,6 +1126,31 @@ const RolesTable = () => {
                             {editFormErrors.description && <div className="invalid-feedback">{editFormErrors.description}</div>}
                         </div>
                         <div className="mb-3">
+                            <label className="form-label">Tab Access*</label>
+                            {editFormErrors.tabPermissions && <div className="text-danger small mb-2">{editFormErrors.tabPermissions}</div>}
+
+                            <div className="border rounded p-3">
+                                <div className="row">
+                                    {TAB_PERMISSIONS.map(tab => (
+                                        <div key={tab} className="col-md-4 mb-3">
+                                            <div className="form-check form-switch">
+                                                <input
+                                                    className="form-check-input"
+                                                    type="checkbox"
+                                                    id={`edit-tab-${tab}`}
+                                                    checked={editRole.tabPermissions[tab.toLowerCase()] || false}
+                                                    onChange={(e) => handleEditTabPermissionChange(tab.toLowerCase(), e.target.checked)}
+                                                />
+                                                <h8 className="form-check-label" htmlFor={`edit-tab-${tab}`}>
+                                                    {tab.replace(/_/g, ' ')}
+                                                </h8>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                        <div className="mb-3">
                             <Form.Group controlId="formEditActiveStatus">
                                 <Form.Label>Status</Form.Label>
                                 <div className="d-flex align-items-center">
@@ -1010,6 +1221,18 @@ const RolesTable = () => {
                             <div className="mb-4">
                                 <h5>Description</h5>
                                 <h8 className="fs-6">{selectedRole.description}</h8>
+                            </div>
+                            <div className="mb-4">
+                                <h5>Tab Access</h5>
+                                <div className="d-flex flex-wrap gap-2">
+                                    {TAB_PERMISSIONS.map(tab => (
+                                        selectedRole.tabPermissions[tab.toLowerCase()] && (
+                                            <span key={tab} className="badge bg-info">
+                                                {tab.replace(/_/g, ' ')}
+                                            </span>
+                                        )
+                                    ))}
+                                </div>
                             </div>
                             <div className="mb-4">
                                 <h5>Status</h5>

@@ -54,14 +54,22 @@ const DiscountsTable = () => {
     const skinTheme = localStorage.getItem('skinTheme') || 'light';
     const isDarkMode = skinTheme === 'dark';
 
+    const authData = JSON.parse(localStorage.getItem("authData"));
+    const userRole = authData?.role;
+    const userPermissions = authData?.permissions || [];
+    const currencySymbol = authData?.currencySettings?.currencySymbol || '$';
+
+    // Check permissions
+    const canRead = userRole === 'CLIENT_ADMIN' || userPermissions.includes('COUPON_READ');
+    const canWrite = userRole === 'CLIENT_ADMIN' || userPermissions.includes('COUPON_WRITE');
+    const canUpdate = userRole === 'CLIENT_ADMIN' || userPermissions.includes('COUPON_UPDATE');
+    const canDelete = userRole === 'CLIENT_ADMIN' || userPermissions.includes('COUPON_DELETE');
+
     const isDateExpired = (dateString) => {
         const date = new Date(dateString);
         const today = new Date();
         return date < today;
     };
-
-    const authData = JSON.parse(localStorage.getItem("authData"));
-    const currencySymbol = authData?.currencySettings?.currencySymbol || '$';
 
     const SkeletonLoader = () => {
         return (
@@ -76,7 +84,7 @@ const DiscountsTable = () => {
                             <th scope="col">Valid To</th>
                             <th scope="col">Min. Order</th>
                             <th scope="col">Status</th>
-                            <th scope="col" className="text-end">Actions</th>
+                            {canRead && <th scope="col" className="text-end">Actions</th>}
                         </tr>
                     </thead>
                     <tbody>
@@ -131,31 +139,33 @@ const DiscountsTable = () => {
                                         highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
                                     />
                                 </td>
-                                <td>
-                                    <div className="hstack gap-2 justify-content-end">
-                                        <Skeleton
-                                            circle
-                                            width={24}
-                                            height={24}
-                                            baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
-                                            highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
-                                        />
-                                        <Skeleton
-                                            circle
-                                            width={24}
-                                            height={24}
-                                            baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
-                                            highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
-                                        />
-                                        <Skeleton
-                                            circle
-                                            width={24}
-                                            height={24}
-                                            baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
-                                            highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
-                                        />
-                                    </div>
-                                </td>
+                                {canRead && (
+                                    <td>
+                                        <div className="hstack gap-2 justify-content-end">
+                                            <Skeleton
+                                                circle
+                                                width={24}
+                                                height={24}
+                                                baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
+                                                highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
+                                            />
+                                            <Skeleton
+                                                circle
+                                                width={24}
+                                                height={24}
+                                                baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
+                                                highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
+                                            />
+                                            <Skeleton
+                                                circle
+                                                width={24}
+                                                height={24}
+                                                baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
+                                                highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
+                                            />
+                                        </div>
+                                    </td>
+                                )}
                             </tr>
                         ))}
                     </tbody>
@@ -180,14 +190,16 @@ const DiscountsTable = () => {
                 </div>
                 <h5 className="mb-2">No Discounts Found</h5>
                 <p className="text-muted mb-4">You haven't added any discounts yet. Start by adding a new discount.</p>
-                <Button
-                    variant="contained"
-                    onClick={() => setIsModalOpen(true)}
-                    className="d-flex align-items-center gap-2 mx-auto"
-                    style={{ backgroundColor: '#0092ff', color: 'white' }}
-                >
-                    <FiPlus /> Add Discount
-                </Button>
+                {canWrite && (
+                    <Button
+                        variant="contained"
+                        onClick={() => setIsModalOpen(true)}
+                        className="d-flex align-items-center gap-2 mx-auto"
+                        style={{ backgroundColor: '#0092ff', color: 'white' }}
+                    >
+                        <FiPlus /> Add Discount
+                    </Button>
+                )}
             </div>
         );
     };
@@ -574,6 +586,7 @@ const DiscountsTable = () => {
                     checked={info.getValue()}
                     onChange={() => handleStatusChange(info.row.original)}
                     color="primary"
+                    disabled={!canUpdate}
                 />
             )
         },
@@ -582,34 +595,53 @@ const DiscountsTable = () => {
             header: "Actions",
             cell: ({ row }) => (
                 <div className="hstack gap-2 justify-content-end">
-                    <button
-                        className="avatar-text avatar-md"
-                        onClick={() => handleViewDiscount(row.original)}
-                    >
-                        <FiEye />
-                    </button>
-                    <button
-                        className="avatar-text avatar-md"
-                        onClick={() => handleEditDiscount(row.original)}
-                    >
-                        <FiEdit />
-                    </button>
-                    <button
-                        className="avatar-text avatar-md"
-                        onClick={() => handleDeleteClick(row.original)}
-                    >
-                        <FiTrash />
-                    </button>
+                    {canRead && (
+                        <button
+                            className="avatar-text avatar-md"
+                            onClick={() => handleViewDiscount(row.original)}
+                        >
+                            <FiEye />
+                        </button>
+                    )}
+                    {canUpdate && (
+                        <button
+                            className="avatar-text avatar-md"
+                            onClick={() => handleEditDiscount(row.original)}
+                        >
+                            <FiEdit />
+                        </button>
+                    )}
+                    {canDelete && (
+                        <button
+                            className="avatar-text avatar-md"
+                            onClick={() => handleDeleteClick(row.original)}
+                        >
+                            <FiTrash />
+                        </button>
+                    )}
                 </div>
             ),
             meta: { headerClassName: 'text-end' }
         },
-    ], []);
+    ], [canRead, canUpdate, canDelete]);
 
     useEffect(() => {
-        fetchDiscounts();
-        fetchCustomers();
-    }, [fetchDiscounts, fetchCustomers]);
+        if (canRead) {
+            fetchDiscounts();
+        }
+        if (canWrite || canUpdate) {
+            fetchCustomers();
+        }
+    }, [fetchDiscounts, fetchCustomers, canRead, canWrite, canUpdate]);
+
+    if (!canRead) {
+        return (
+            <div className="text-center py-5">
+                <h5>Access Denied</h5>
+                <p>You don't have permission to view discounts.</p>
+            </div>
+        );
+    }
 
     return (
         <>
@@ -628,14 +660,16 @@ const DiscountsTable = () => {
 
             <div className="d-flex justify-content-between align-items-center mb-4">
                 <h4>Discounts</h4>
-                <Button
-                    variant="contained"
-                    onClick={() => setIsModalOpen(true)}
-                    className="d-flex align-items-center gap-2"
-                    style={{ backgroundColor: '#0092ff', color: 'white' }}
-                >
-                    <FiPlus /> Add Discount
-                </Button>
+                {canWrite && (
+                    <Button
+                        variant="contained"
+                        onClick={() => setIsModalOpen(true)}
+                        className="d-flex align-items-center gap-2"
+                        style={{ backgroundColor: '#0092ff', color: 'white' }}
+                    >
+                        <FiPlus /> Add Discount
+                    </Button>
+                )}
             </div>
 
             {loading ? (
@@ -659,377 +693,381 @@ const DiscountsTable = () => {
             )}
 
             {/* Add Discount Modal */}
-            <Modal show={isModalOpen} onHide={() => {
-                setIsModalOpen(false);
-                setNewDiscount({
-                    code: '',
-                    type: 'GENERAL',
-                    discountValue: 0,
-                    discountType: 'PERCENTAGE',
-                    validFrom: '',
-                    validTo: '',
-                    minimumOrderAmount: 0,
-                    description: '',
-                    active: true,
-                    firstOrderOnly: false,
-                    customerIds: []
-                });
-                setFormErrors({});
-            }} centered size="lg">
-                <Modal.Header closeButton>
-                    <Modal.Title>Add Discount</Modal.Title>
-                </Modal.Header>
-                <Modal.Body>
-                    <form onSubmit={handleSubmit}>
-                        <div className="row">
-                            <div className="col-md-6 mb-3">
-                                <label htmlFor="code" className="form-label">Code *</label>
-                                <input
-                                    type="text"
-                                    className={`form-control ${formErrors.code ? 'is-invalid' : ''}`}
-                                    id="code"
-                                    name="code"
-                                    value={newDiscount.code}
-                                    onChange={handleInputChange}
-                                />
-                                {formErrors.code && <div className="invalid-feedback">{formErrors.code}</div>}
+            {canWrite && (
+                <Modal show={isModalOpen} onHide={() => {
+                    setIsModalOpen(false);
+                    setNewDiscount({
+                        code: '',
+                        type: 'GENERAL',
+                        discountValue: 0,
+                        discountType: 'PERCENTAGE',
+                        validFrom: '',
+                        validTo: '',
+                        minimumOrderAmount: 0,
+                        description: '',
+                        active: true,
+                        firstOrderOnly: false,
+                        customerIds: []
+                    });
+                    setFormErrors({});
+                }} centered size="lg">
+                    <Modal.Header closeButton>
+                        <Modal.Title>Add Discount</Modal.Title>
+                    </Modal.Header>
+                    <Modal.Body>
+                        <form onSubmit={handleSubmit}>
+                            <div className="row">
+                                <div className="col-md-6 mb-3">
+                                    <label htmlFor="code" className="form-label">Code *</label>
+                                    <input
+                                        type="text"
+                                        className={`form-control ${formErrors.code ? 'is-invalid' : ''}`}
+                                        id="code"
+                                        name="code"
+                                        value={newDiscount.code}
+                                        onChange={handleInputChange}
+                                    />
+                                    {formErrors.code && <div className="invalid-feedback">{formErrors.code}</div>}
+                                </div>
+                                <div className="col-md-6 mb-3">
+                                    <label htmlFor="type" className="form-label">Type *</label>
+                                    <select
+                                        className="form-select"
+                                        id="type"
+                                        name="type"
+                                        value={newDiscount.type}
+                                        onChange={handleInputChange}
+                                    >
+                                        <option value="GENERAL">General</option>
+                                        <option value="FIRST_ORDER">First Order</option>
+                                        <option value="CUSTOMER_SPECIFIC">Specific Customers</option>
+                                    </select>
+                                </div>
                             </div>
-                            <div className="col-md-6 mb-3">
-                                <label htmlFor="type" className="form-label">Type *</label>
-                                <select
-                                    className="form-select"
-                                    id="type"
-                                    name="type"
-                                    value={newDiscount.type}
-                                    onChange={handleInputChange}
-                                >
-                                    <option value="GENERAL">General</option>
-                                    <option value="FIRST_ORDER">First Order</option>
-                                    <option value="CUSTOMER_SPECIFIC">Specific Customers</option>
-                                </select>
-                            </div>
-                        </div>
 
-                        {newDiscount.type === 'CUSTOMER_SPECIFIC' && (
-                            <div className="mb-3">
-                                <label className="form-label">Select Customers *</label>
-                                <Select
-                                    isMulti
-                                    options={customers}
-                                    isLoading={loadingCustomers}
-                                    onChange={handleCustomerSelectChange}
-                                    value={customers.filter(customer =>
-                                        newDiscount.customerIds.includes(customer.value)
+                            {newDiscount.type === 'CUSTOMER_SPECIFIC' && (
+                                <div className="mb-3">
+                                    <label className="form-label">Select Customers *</label>
+                                    <Select
+                                        isMulti
+                                        options={customers}
+                                        isLoading={loadingCustomers}
+                                        onChange={handleCustomerSelectChange}
+                                        value={customers.filter(customer =>
+                                            newDiscount.customerIds.includes(customer.value)
+                                        )}
+                                        className={`basic-multi-select ${formErrors.customerIds ? 'is-invalid' : ''}`}
+                                        classNamePrefix="select"
+                                    />
+                                    {formErrors.customerIds && (
+                                        <div className="text-danger small mt-1">{formErrors.customerIds}</div>
                                     )}
-                                    className={`basic-multi-select ${formErrors.customerIds ? 'is-invalid' : ''}`}
-                                    classNamePrefix="select"
-                                />
-                                {formErrors.customerIds && (
-                                    <div className="text-danger small mt-1">{formErrors.customerIds}</div>
-                                )}
-                            </div>
-                        )}
+                                </div>
+                            )}
 
-                        <div className="row">
-                            <div className="col-md-6 mb-3">
-                                <label htmlFor="discountValue" className="form-label">Discount Value *</label>
+                            <div className="row">
+                                <div className="col-md-6 mb-3">
+                                    <label htmlFor="discountValue" className="form-label">Discount Value *</label>
+                                    <input
+                                        type="number"
+                                        className={`form-control ${formErrors.discountValue ? 'is-invalid' : ''}`}
+                                        id="discountValue"
+                                        name="discountValue"
+                                        value={newDiscount.discountValue}
+                                        onChange={handleInputChange}
+                                        min="0"
+                                        step="0.01"
+                                    />
+                                    {formErrors.discountValue && <div className="invalid-feedback">{formErrors.discountValue}</div>}
+                                </div>
+                                <div className="col-md-6 mb-3">
+                                    <label htmlFor="discountType" className="form-label">Discount Type *</label>
+                                    <select
+                                        className="form-select"
+                                        id="discountType"
+                                        name="discountType"
+                                        value={newDiscount.discountType}
+                                        onChange={handleInputChange}
+                                    >
+                                        <option value="PERCENTAGE">Percentage</option>
+                                        <option value="FIXED_AMOUNT">Fixed Amount</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div className="row">
+                                <div className="col-md-6 mb-3">
+                                    <label htmlFor="validFrom" className="form-label">Valid From *</label>
+                                    <input
+                                        type="date"
+                                        className={`form-control ${formErrors.validFrom ? 'is-invalid' : ''}`}
+                                        id="validFrom"
+                                        name="validFrom"
+                                        value={newDiscount.validFrom}
+                                        onChange={handleInputChange}
+                                    />
+                                    {formErrors.validFrom && <div className="invalid-feedback">{formErrors.validFrom}</div>}
+                                </div>
+                                <div className="col-md-6 mb-3">
+                                    <label htmlFor="validTo" className="form-label">Valid To *</label>
+                                    <input
+                                        type="date"
+                                        className={`form-control ${formErrors.validTo ? 'is-invalid' : ''}`}
+                                        id="validTo"
+                                        name="validTo"
+                                        value={newDiscount.validTo}
+                                        onChange={handleInputChange}
+                                        min={newDiscount.validFrom}
+                                    />
+                                    {formErrors.validTo && <div className="invalid-feedback">{formErrors.validTo}</div>}
+                                </div>
+                            </div>
+                            <div className="mb-3">
+                                <label htmlFor="minimumOrderAmount" className="form-label">Minimum Order Amount</label>
                                 <input
                                     type="number"
-                                    className={`form-control ${formErrors.discountValue ? 'is-invalid' : ''}`}
-                                    id="discountValue"
-                                    name="discountValue"
-                                    value={newDiscount.discountValue}
+                                    className="form-control"
+                                    id="minimumOrderAmount"
+                                    name="minimumOrderAmount"
+                                    value={newDiscount.minimumOrderAmount}
                                     onChange={handleInputChange}
                                     min="0"
                                     step="0.01"
                                 />
-                                {formErrors.discountValue && <div className="invalid-feedback">{formErrors.discountValue}</div>}
                             </div>
-                            <div className="col-md-6 mb-3">
-                                <label htmlFor="discountType" className="form-label">Discount Type *</label>
-                                <select
-                                    className="form-select"
-                                    id="discountType"
-                                    name="discountType"
-                                    value={newDiscount.discountType}
+                            <div className="mb-3">
+                                <label htmlFor="description" className="form-label">Description</label>
+                                <textarea
+                                    className="form-control"
+                                    id="description"
+                                    name="description"
+                                    value={newDiscount.description}
                                     onChange={handleInputChange}
-                                >
-                                    <option value="PERCENTAGE">Percentage</option>
-                                    <option value="FIXED_AMOUNT">Fixed Amount</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div className="row">
-                            <div className="col-md-6 mb-3">
-                                <label htmlFor="validFrom" className="form-label">Valid From *</label>
-                                <input
-                                    type="date"
-                                    className={`form-control ${formErrors.validFrom ? 'is-invalid' : ''}`}
-                                    id="validFrom"
-                                    name="validFrom"
-                                    value={newDiscount.validFrom}
-                                    onChange={handleInputChange}
+                                    rows="3"
                                 />
-                                {formErrors.validFrom && <div className="invalid-feedback">{formErrors.validFrom}</div>}
                             </div>
-                            <div className="col-md-6 mb-3">
-                                <label htmlFor="validTo" className="form-label">Valid To *</label>
-                                <input
-                                    type="date"
-                                    className={`form-control ${formErrors.validTo ? 'is-invalid' : ''}`}
-                                    id="validTo"
-                                    name="validTo"
-                                    value={newDiscount.validTo}
-                                    onChange={handleInputChange}
-                                    min={newDiscount.validFrom}
-                                />
-                                {formErrors.validTo && <div className="invalid-feedback">{formErrors.validTo}</div>}
-                            </div>
-                        </div>
-                        <div className="mb-3">
-                            <label htmlFor="minimumOrderAmount" className="form-label">Minimum Order Amount</label>
-                            <input
-                                type="number"
-                                className="form-control"
-                                id="minimumOrderAmount"
-                                name="minimumOrderAmount"
-                                value={newDiscount.minimumOrderAmount}
-                                onChange={handleInputChange}
-                                min="0"
-                                step="0.01"
-                            />
-                        </div>
-                        <div className="mb-3">
-                            <label htmlFor="description" className="form-label">Description</label>
-                            <textarea
-                                className="form-control"
-                                id="description"
-                                name="description"
-                                value={newDiscount.description}
-                                onChange={handleInputChange}
-                                rows="3"
-                            />
-                        </div>
-                        <div className="row">
-                            <div className="col-md-6 mb-3">
-                                <div className="form-check form-switch">
-                                    <input
-                                        className="form-check-input"
-                                        type="checkbox"
-                                        id="active"
-                                        name="active"
-                                        checked={newDiscount.active}
-                                        onChange={handleInputChange}
-                                    />
-                                    <h8 className="form-check-label" htmlFor="active">Active</h8>
+                            <div className="row">
+                                <div className="col-md-6 mb-3">
+                                    <div className="form-check form-switch">
+                                        <input
+                                            className="form-check-input"
+                                            type="checkbox"
+                                            id="active"
+                                            name="active"
+                                            checked={newDiscount.active}
+                                            onChange={handleInputChange}
+                                        />
+                                        <h8 className="form-check-label" htmlFor="active">Active</h8>
+                                    </div>
+                                </div>
+                                <div className="col-md-6 mb-3">
+                                    <div className="form-check form-switch">
+                                        <input
+                                            className="form-check-input"
+                                            type="checkbox"
+                                            id="firstOrderOnly"
+                                            name="firstOrderOnly"
+                                            checked={newDiscount.firstOrderOnly}
+                                            onChange={handleInputChange}
+                                        />
+                                        <h8 className="form-check-label" htmlFor="firstOrderOnly">First Order Only</h8>
+                                    </div>
                                 </div>
                             </div>
-                            <div className="col-md-6 mb-3">
-                                <div className="form-check form-switch">
-                                    <input
-                                        className="form-check-input"
-                                        type="checkbox"
-                                        id="firstOrderOnly"
-                                        name="firstOrderOnly"
-                                        checked={newDiscount.firstOrderOnly}
-                                        onChange={handleInputChange}
-                                    />
-                                    <h8 className="form-check-label" htmlFor="firstOrderOnly">First Order Only</h8>
-                                </div>
-                            </div>
-                        </div>
-                    </form>
-                </Modal.Body>
-                <Modal.Footer>
-                    <Button
-                        variant="contained"
-                        onClick={handleSubmit}
-                        style={{ backgroundColor: '#1976d2', color: 'white' }}
-                    >
-                        Create
-                    </Button>
-                </Modal.Footer>
-            </Modal>
+                        </form>
+                    </Modal.Body>
+                    <Modal.Footer>
+                        <Button
+                            variant="contained"
+                            onClick={handleSubmit}
+                            style={{ backgroundColor: '#1976d2', color: 'white' }}
+                        >
+                            Create
+                        </Button>
+                    </Modal.Footer>
+                </Modal>
+            )}
 
             {/* Edit Discount Modal */}
-            <Modal show={isEditModalOpen} onHide={() => {
-                setIsEditModalOpen(false);
-                setEditFormErrors({});
-            }} centered size="lg">
-                <Modal.Header closeButton>
-                    <Modal.Title>Edit Discount</Modal.Title>
-                </Modal.Header>
-                <Modal.Body>
-                    <form onSubmit={handleEditSubmit}>
-                        <div className="row">
-                            <div className="col-md-6 mb-3">
-                                <label htmlFor="edit-code" className="form-label">Code *</label>
-                                <input
-                                    type="text"
-                                    className={`form-control ${editFormErrors.code ? 'is-invalid' : ''}`}
-                                    id="edit-code"
-                                    name="code"
-                                    value={editDiscount.code}
-                                    onChange={handleEditInputChange}
-                                />
-                                {editFormErrors.code && <div className="invalid-feedback">{editFormErrors.code}</div>}
+            {canUpdate && (
+                <Modal show={isEditModalOpen} onHide={() => {
+                    setIsEditModalOpen(false);
+                    setEditFormErrors({});
+                }} centered size="lg">
+                    <Modal.Header closeButton>
+                        <Modal.Title>Edit Discount</Modal.Title>
+                    </Modal.Header>
+                    <Modal.Body>
+                        <form onSubmit={handleEditSubmit}>
+                            <div className="row">
+                                <div className="col-md-6 mb-3">
+                                    <label htmlFor="edit-code" className="form-label">Code *</label>
+                                    <input
+                                        type="text"
+                                        className={`form-control ${editFormErrors.code ? 'is-invalid' : ''}`}
+                                        id="edit-code"
+                                        name="code"
+                                        value={editDiscount.code}
+                                        onChange={handleEditInputChange}
+                                    />
+                                    {editFormErrors.code && <div className="invalid-feedback">{editFormErrors.code}</div>}
+                                </div>
+                                <div className="col-md-6 mb-3">
+                                    <label htmlFor="edit-type" className="form-label">Type *</label>
+                                    <select
+                                        className="form-select"
+                                        id="edit-type"
+                                        name="type"
+                                        value={editDiscount.type}
+                                        onChange={handleEditInputChange}
+                                    >
+                                        <option value="GENERAL">General</option>
+                                        <option value="FIRST_ORDER">First Order</option>
+                                        <option value="CUSTOMER_SPECIFIC">Specific Customers</option>
+                                    </select>
+                                </div>
                             </div>
-                            <div className="col-md-6 mb-3">
-                                <label htmlFor="edit-type" className="form-label">Type *</label>
-                                <select
-                                    className="form-select"
-                                    id="edit-type"
-                                    name="type"
-                                    value={editDiscount.type}
-                                    onChange={handleEditInputChange}
-                                >
-                                    <option value="GENERAL">General</option>
-                                    <option value="FIRST_ORDER">First Order</option>
-                                    <option value="CUSTOMER_SPECIFIC">Specific Customers</option>
-                                </select>
-                            </div>
-                        </div>
 
-                        {editDiscount.type === 'CUSTOMER_SPECIFIC' && (
-                            <div className="mb-3">
-                                <label className="form-label">Select Customers *</label>
-                                <Select
-                                    isMulti
-                                    options={customers}
-                                    isLoading={loadingCustomers}
-                                    onChange={handleEditCustomerSelectChange}
-                                    value={customers.filter(customer =>
-                                        editDiscount.customerIds.includes(customer.value)
+                            {editDiscount.type === 'CUSTOMER_SPECIFIC' && (
+                                <div className="mb-3">
+                                    <label className="form-label">Select Customers *</label>
+                                    <Select
+                                        isMulti
+                                        options={customers}
+                                        isLoading={loadingCustomers}
+                                        onChange={handleEditCustomerSelectChange}
+                                        value={customers.filter(customer =>
+                                            editDiscount.customerIds.includes(customer.value)
+                                        )}
+                                        className={`basic-multi-select ${editFormErrors.customerIds ? 'is-invalid' : ''}`}
+                                        classNamePrefix="select"
+                                    />
+                                    {editFormErrors.customerIds && (
+                                        <div className="text-danger small mt-1">{editFormErrors.customerIds}</div>
                                     )}
-                                    className={`basic-multi-select ${editFormErrors.customerIds ? 'is-invalid' : ''}`}
-                                    classNamePrefix="select"
-                                />
-                                {editFormErrors.customerIds && (
-                                    <div className="text-danger small mt-1">{editFormErrors.customerIds}</div>
-                                )}
-                            </div>
-                        )}
+                                </div>
+                            )}
 
-                        <div className="row">
-                            <div className="col-md-6 mb-3">
-                                <label htmlFor="edit-discountValue" className="form-label">Discount Value *</label>
+                            <div className="row">
+                                <div className="col-md-6 mb-3">
+                                    <label htmlFor="edit-discountValue" className="form-label">Discount Value *</label>
+                                    <input
+                                        type="number"
+                                        className={`form-control ${editFormErrors.discountValue ? 'is-invalid' : ''}`}
+                                        id="edit-discountValue"
+                                        name="discountValue"
+                                        value={editDiscount.discountValue}
+                                        onChange={handleEditInputChange}
+                                        min="0"
+                                        step="0.01"
+                                    />
+                                    {editFormErrors.discountValue && <div className="invalid-feedback">{editFormErrors.discountValue}</div>}
+                                </div>
+                                <div className="col-md-6 mb-3">
+                                    <label htmlFor="edit-discountType" className="form-label">Discount Type *</label>
+                                    <select
+                                        className="form-select"
+                                        id="edit-discountType"
+                                        name="discountType"
+                                        value={editDiscount.discountType}
+                                        onChange={handleEditInputChange}
+                                    >
+                                        <option value="PERCENTAGE">Percentage</option>
+                                        <option value="FIXED_AMOUNT">Fixed Amount</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div className="row">
+                                <div className="col-md-6 mb-3">
+                                    <label htmlFor="edit-validFrom" className="form-label">Valid From *</label>
+                                    <input
+                                        type="date"
+                                        className={`form-control ${editFormErrors.validFrom ? 'is-invalid' : ''}`}
+                                        id="edit-validFrom"
+                                        name="validFrom"
+                                        value={editDiscount.validFrom}
+                                        onChange={handleEditInputChange}
+                                    />
+                                    {editFormErrors.validFrom && <div className="invalid-feedback">{editFormErrors.validFrom}</div>}
+                                </div>
+                                <div className="col-md-6 mb-3">
+                                    <label htmlFor="edit-validTo" className="form-label">Valid To *</label>
+                                    <input
+                                        type="date"
+                                        className={`form-control ${editFormErrors.validTo ? 'is-invalid' : ''}`}
+                                        id="edit-validTo"
+                                        name="validTo"
+                                        value={editDiscount.validTo}
+                                        onChange={handleEditInputChange}
+                                        min={editDiscount.validFrom}
+                                    />
+                                    {editFormErrors.validTo && <div className="invalid-feedback">{editFormErrors.validTo}</div>}
+                                </div>
+                            </div>
+                            <div className="mb-3">
+                                <label htmlFor="edit-minimumOrderAmount" className="form-label">Minimum Order Amount</label>
                                 <input
                                     type="number"
-                                    className={`form-control ${editFormErrors.discountValue ? 'is-invalid' : ''}`}
-                                    id="edit-discountValue"
-                                    name="discountValue"
-                                    value={editDiscount.discountValue}
+                                    className="form-control"
+                                    id="edit-minimumOrderAmount"
+                                    name="minimumOrderAmount"
+                                    value={editDiscount.minimumOrderAmount}
                                     onChange={handleEditInputChange}
                                     min="0"
                                     step="0.01"
                                 />
-                                {editFormErrors.discountValue && <div className="invalid-feedback">{editFormErrors.discountValue}</div>}
                             </div>
-                            <div className="col-md-6 mb-3">
-                                <label htmlFor="edit-discountType" className="form-label">Discount Type *</label>
-                                <select
-                                    className="form-select"
-                                    id="edit-discountType"
-                                    name="discountType"
-                                    value={editDiscount.discountType}
+                            <div className="mb-3">
+                                <label htmlFor="edit-description" className="form-label">Description</label>
+                                <textarea
+                                    className="form-control"
+                                    id="edit-description"
+                                    name="description"
+                                    value={editDiscount.description}
                                     onChange={handleEditInputChange}
-                                >
-                                    <option value="PERCENTAGE">Percentage</option>
-                                    <option value="FIXED_AMOUNT">Fixed Amount</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div className="row">
-                            <div className="col-md-6 mb-3">
-                                <label htmlFor="edit-validFrom" className="form-label">Valid From *</label>
-                                <input
-                                    type="date"
-                                    className={`form-control ${editFormErrors.validFrom ? 'is-invalid' : ''}`}
-                                    id="edit-validFrom"
-                                    name="validFrom"
-                                    value={editDiscount.validFrom}
-                                    onChange={handleEditInputChange}
+                                    rows="3"
                                 />
-                                {editFormErrors.validFrom && <div className="invalid-feedback">{editFormErrors.validFrom}</div>}
                             </div>
-                            <div className="col-md-6 mb-3">
-                                <label htmlFor="edit-validTo" className="form-label">Valid To *</label>
-                                <input
-                                    type="date"
-                                    className={`form-control ${editFormErrors.validTo ? 'is-invalid' : ''}`}
-                                    id="edit-validTo"
-                                    name="validTo"
-                                    value={editDiscount.validTo}
-                                    onChange={handleEditInputChange}
-                                    min={editDiscount.validFrom}
-                                />
-                                {editFormErrors.validTo && <div className="invalid-feedback">{editFormErrors.validTo}</div>}
-                            </div>
-                        </div>
-                        <div className="mb-3">
-                            <label htmlFor="edit-minimumOrderAmount" className="form-label">Minimum Order Amount</label>
-                            <input
-                                type="number"
-                                className="form-control"
-                                id="edit-minimumOrderAmount"
-                                name="minimumOrderAmount"
-                                value={editDiscount.minimumOrderAmount}
-                                onChange={handleEditInputChange}
-                                min="0"
-                                step="0.01"
-                            />
-                        </div>
-                        <div className="mb-3">
-                            <label htmlFor="edit-description" className="form-label">Description</label>
-                            <textarea
-                                className="form-control"
-                                id="edit-description"
-                                name="description"
-                                value={editDiscount.description}
-                                onChange={handleEditInputChange}
-                                rows="3"
-                            />
-                        </div>
-                        <div className="row">
-                            <div className="col-md-6 mb-3">
-                                <div className="form-check form-switch">
-                                    <input
-                                        className="form-check-input"
-                                        type="checkbox"
-                                        id="edit-active"
-                                        name="active"
-                                        checked={editDiscount.active}
-                                        onChange={handleEditInputChange}
-                                    />
-                                    <h8 className="form-check-label" htmlFor="edit-active">Active</h8>
+                            <div className="row">
+                                <div className="col-md-6 mb-3">
+                                    <div className="form-check form-switch">
+                                        <input
+                                            className="form-check-input"
+                                            type="checkbox"
+                                            id="edit-active"
+                                            name="active"
+                                            checked={editDiscount.active}
+                                            onChange={handleEditInputChange}
+                                        />
+                                        <h8 className="form-check-label" htmlFor="edit-active">Active</h8>
+                                    </div>
+                                </div>
+                                <div className="col-md-6 mb-3">
+                                    <div className="form-check form-switch">
+                                        <input
+                                            className="form-check-input"
+                                            type="checkbox"
+                                            id="edit-firstOrderOnly"
+                                            name="firstOrderOnly"
+                                            checked={editDiscount.firstOrderOnly}
+                                            onChange={handleEditInputChange}
+                                        />
+                                        <h8 className="form-check-label" htmlFor="edit-firstOrderOnly">First Order Only</h8>
+                                    </div>
                                 </div>
                             </div>
-                            <div className="col-md-6 mb-3">
-                                <div className="form-check form-switch">
-                                    <input
-                                        className="form-check-input"
-                                        type="checkbox"
-                                        id="edit-firstOrderOnly"
-                                        name="firstOrderOnly"
-                                        checked={editDiscount.firstOrderOnly}
-                                        onChange={handleEditInputChange}
-                                    />
-                                    <h8 className="form-check-label" htmlFor="edit-firstOrderOnly">First Order Only</h8>
-                                </div>
-                            </div>
-                        </div>
-                    </form>
-                </Modal.Body>
-                <Modal.Footer>
-                    <Button
-                        variant="contained"
-                        onClick={handleEditSubmit}
-                        style={{ backgroundColor: '#1976d2', color: 'white' }}
-                    >
-                        Update
-                    </Button>
-                </Modal.Footer>
-            </Modal>
+                        </form>
+                    </Modal.Body>
+                    <Modal.Footer>
+                        <Button
+                            variant="contained"
+                            onClick={handleEditSubmit}
+                            style={{ backgroundColor: '#1976d2', color: 'white' }}
+                        >
+                            Update
+                        </Button>
+                    </Modal.Footer>
+                </Modal>
+            )}
 
             {/* View Discount Modal */}
             <Modal show={isViewModalOpen} onHide={() => setIsViewModalOpen(false)} centered size="lg">
@@ -1109,28 +1147,30 @@ const DiscountsTable = () => {
             </Modal>
 
             {/* Delete Confirmation Modal */}
-            <Modal show={isDeleteModalOpen} onHide={() => setIsDeleteModalOpen(false)} centered>
-                <Modal.Header closeButton>
-                    <Modal.Title>Delete Discount</Modal.Title>
-                </Modal.Header>
-                <Modal.Body>
-                    {discountToDelete && (
-                        <>
-                            <h8>Are you sure you want to delete the discount <strong>{discountToDelete.code}</strong>?</h8><br />
-                            <h8>This action cannot be undone.</h8>
-                        </>
-                    )}
-                </Modal.Body>
-                <Modal.Footer>
-                    <Button
-                        variant="contained"
-                        onClick={handleDeleteDiscount}
-                        style={{ backgroundColor: '#d32f2f', color: 'white' }}
-                    >
-                        Delete
-                    </Button>
-                </Modal.Footer>
-            </Modal>
+            {canDelete && (
+                <Modal show={isDeleteModalOpen} onHide={() => setIsDeleteModalOpen(false)} centered>
+                    <Modal.Header closeButton>
+                        <Modal.Title>Delete Discount</Modal.Title>
+                    </Modal.Header>
+                    <Modal.Body>
+                        {discountToDelete && (
+                            <>
+                                <h8>Are you sure you want to delete the discount <strong>{discountToDelete.code}</strong>?</h8><br />
+                                <h8>This action cannot be undone.</h8>
+                            </>
+                        )}
+                    </Modal.Body>
+                    <Modal.Footer>
+                        <Button
+                            variant="contained"
+                            onClick={handleDeleteDiscount}
+                            style={{ backgroundColor: '#d32f2f', color: 'white' }}
+                        >
+                            Delete
+                        </Button>
+                    </Modal.Footer>
+                </Modal>
+            )}
         </>
     );
 };

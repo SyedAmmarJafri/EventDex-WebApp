@@ -47,6 +47,15 @@ const DealsTable = () => {
 
     const authData = JSON.parse(localStorage.getItem("authData"));
     const currencySymbol = authData?.currencySettings?.currencySymbol || '$';
+    const userRole = authData?.role || '';
+    const userPermissions = authData?.permissions || [];
+
+    // Permission checks
+    const canRead = userRole === 'CLIENT_ADMIN' || userPermissions.includes('DEAL_READ');
+    const canWrite = userRole === 'CLIENT_ADMIN' || userPermissions.includes('DEAL_WRITE');
+    const canUpdate = userRole === 'CLIENT_ADMIN' || userPermissions.includes('DEAL_UPDATE');
+    const canDelete = userRole === 'CLIENT_ADMIN' || userPermissions.includes('DEAL_DELETE');
+    const canChangeStatus = userRole === 'CLIENT_ADMIN' || userPermissions.includes('DEAL_UPDATE');
 
     const fetchItems = useCallback(async () => {
         try {
@@ -92,7 +101,9 @@ const DealsTable = () => {
                             <th scope="col">Price</th>
                             <th scope="col">Items</th>
                             <th scope="col">Status</th>
-                            <th scope="col" className="text-end">Actions</th>
+                            {canRead || canUpdate || canDelete ? (
+                                <th scope="col" className="text-end">Actions</th>
+                            ) : null}
                         </tr>
                     </thead>
                     <tbody>
@@ -142,31 +153,33 @@ const DealsTable = () => {
                                         highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
                                     />
                                 </td>
-                                <td>
-                                    <div className="hstack gap-2 justify-content-end">
-                                        <Skeleton
-                                            circle
-                                            width={24}
-                                            height={24}
-                                            baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
-                                            highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
-                                        />
-                                        <Skeleton
-                                            circle
-                                            width={24}
-                                            height={24}
-                                            baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
-                                            highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
-                                        />
-                                        <Skeleton
-                                            circle
-                                            width={24}
-                                            height={24}
-                                            baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
-                                            highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
-                                        />
-                                    </div>
-                                </td>
+                                {canRead || canUpdate || canDelete ? (
+                                    <td>
+                                        <div className="hstack gap-2 justify-content-end">
+                                            <Skeleton
+                                                circle
+                                                width={24}
+                                                height={24}
+                                                baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
+                                                highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
+                                            />
+                                            <Skeleton
+                                                circle
+                                                width={24}
+                                                height={24}
+                                                baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
+                                                highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
+                                            />
+                                            <Skeleton
+                                                circle
+                                                width={24}
+                                                height={24}
+                                                baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
+                                                highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
+                                            />
+                                        </div>
+                                    </td>
+                                ) : null}
                             </tr>
                         ))}
                     </tbody>
@@ -191,14 +204,16 @@ const DealsTable = () => {
                 </div>
                 <h5 className="mb-2">No Deals Found</h5>
                 <p className="text-muted mb-4">You haven't added any deals yet. Start by adding a new deal.</p>
-                <Button
-                    variant="contained"
-                    onClick={() => setIsModalOpen(true)}
-                    className="d-flex align-items-center gap-2 mx-auto"
-                    style={{ backgroundColor: '#0092ff', color: 'white' }}
-                >
-                    <FiPlus /> Add Deal
-                </Button>
+                {canWrite && (
+                    <Button
+                        variant="contained"
+                        onClick={() => setIsModalOpen(true)}
+                        className="d-flex align-items-center gap-2 mx-auto"
+                        style={{ backgroundColor: '#0092ff', color: 'white' }}
+                    >
+                        <FiPlus /> Add Deal
+                    </Button>
+                )}
             </div>
         );
     };
@@ -596,11 +611,15 @@ const DealsTable = () => {
             accessorKey: 'active',
             header: 'Status',
             cell: (info) => (
-                <Switch
-                    checked={info.getValue()}
-                    onChange={() => handleStatusChange(info.row.original)}
-                    color="primary"
-                />
+                canChangeStatus ? (
+                    <Switch
+                        checked={info.getValue()}
+                        onChange={() => handleStatusChange(info.row.original)}
+                        color="primary"
+                    />
+                ) : (
+                    <span>{info.getValue() ? 'Active' : 'Inactive'}</span>
+                )
             )
         },
         {
@@ -608,29 +627,35 @@ const DealsTable = () => {
             header: "Actions",
             cell: ({ row }) => (
                 <div className="hstack gap-2 justify-content-end">
-                    <button
-                        className="avatar-text avatar-md"
-                        onClick={() => handleViewDeal(row.original)}
-                    >
-                        <FiEye />
-                    </button>
-                    <button
-                        className="avatar-text avatar-md"
-                        onClick={() => handleEditDeal(row.original)}
-                    >
-                        <FiEdit />
-                    </button>
-                    <button
-                        className="avatar-text avatar-md"
-                        onClick={() => handleDeleteClick(row.original)}
-                    >
-                        <FiTrash />
-                    </button>
+                    {canRead && (
+                        <button
+                            className="avatar-text avatar-md"
+                            onClick={() => handleViewDeal(row.original)}
+                        >
+                            <FiEye />
+                        </button>
+                    )}
+                    {canUpdate && (
+                        <button
+                            className="avatar-text avatar-md"
+                            onClick={() => handleEditDeal(row.original)}
+                        >
+                            <FiEdit />
+                        </button>
+                    )}
+                    {canDelete && (
+                        <button
+                            className="avatar-text avatar-md"
+                            onClick={() => handleDeleteClick(row.original)}
+                        >
+                            <FiTrash />
+                        </button>
+                    )}
                 </div>
             ),
             meta: { headerClassName: 'text-end' }
         },
-    ], [items]);
+    ], [items, canRead, canUpdate, canDelete, canChangeStatus]);
 
     useEffect(() => {
         fetchDeals();
@@ -666,14 +691,16 @@ const DealsTable = () => {
 
             <div className="d-flex justify-content-between align-items-center mb-4">
                 <h4>Deals</h4>
-                <Button
-                    variant="contained"
-                    onClick={() => setIsModalOpen(true)}
-                    className="d-flex align-items-center gap-2"
-                    style={{ backgroundColor: '#0092ff', color: 'white' }}
-                >
-                    <FiPlus /> Add Deal
-                </Button>
+                {canWrite && (
+                    <Button
+                        variant="contained"
+                        onClick={() => setIsModalOpen(true)}
+                        className="d-flex align-items-center gap-2"
+                        style={{ backgroundColor: '#0092ff', color: 'white' }}
+                    >
+                        <FiPlus /> Add Deal
+                    </Button>
+                )}
             </div>
 
             {loading ? (
@@ -688,394 +715,262 @@ const DealsTable = () => {
                 />
             )}
 
-            {/* Add Deal Modal */}
-            <Modal show={isModalOpen} onHide={() => {
-                setIsModalOpen(false);
-                setNewDeal({ name: '', description: '', price: 0, items: [], imageUrl: '' });
-                setFormErrors({});
-                setSelectedFile(null);
-                setImagePreview('');
-                setSelectedItems([]);
-            }} centered size="lg">
-                <Modal.Header closeButton>
-                    <Modal.Title>Add Deal</Modal.Title>
-                </Modal.Header>
-                <Modal.Body>
-                    <form onSubmit={handleSubmit}>
-                        <div className="mb-3">
-                            <label htmlFor="name" className="form-label">Name</label>
-                            <input
-                                type="text"
-                                className={`form-control ${formErrors.name ? 'is-invalid' : ''}`}
-                                id="name"
-                                name="name"
-                                value={newDeal.name}
-                                onChange={handleInputChange}
-                            />
-                            {formErrors.name && <div className="invalid-feedback">{formErrors.name}</div>}
-                        </div>
-                        <div className="mb-3">
-                            <label htmlFor="description" className="form-label">Description</label>
-                            <textarea
-                                className="form-control"
-                                id="description"
-                                name="description"
-                                value={newDeal.description}
-                                onChange={handleInputChange}
-                                rows="3"
-                            />
-                        </div>
-                        <div className="mb-3">
-                            <label htmlFor="price" className="form-label">Price</label>
-                            <input
-                                type="number"
-                                className={`form-control ${formErrors.price ? 'is-invalid' : ''}`}
-                                id="price"
-                                name="price"
-                                value={newDeal.price}
-                                onChange={handleInputChange}
-                                min="0"
-                                step="0.01"
-                            />
-                            {formErrors.price && <div className="invalid-feedback">{formErrors.price}</div>}
-                        </div>
-                        <div className="mb-3">
-                            <label className="form-label">Items</label>
-                            <Select
-                                isMulti
-                                options={itemOptions}
-                                className="basic-multi-select"
-                                classNamePrefix="select"
-                                onChange={handleItemSelection}
-                                value={selectedItems}
-                                placeholder="Select items..."
-                            />
-                            {formErrors.items && <div className="invalid-feedback d-block">{formErrors.items}</div>}
-
-                            {newDeal.items.length > 0 && (
-                                <div className="mt-3">
-                                    <h6>Selected Items:</h6>
-                                    {newDeal.items.map((item, index) => {
-                                        const itemDetails = getItemDetailsById(item.itemId);
-                                        return (
-                                            <div key={index} className="d-flex align-items-center mb-2">
-                                                <div className="flex-grow-1">
-                                                    <h8>{itemDetails ? itemDetails.name : `Item ID: ${item.itemId}`}</h8>
-                                                    {itemDetails && (
-                                                        <div className="text-muted small">{currencySymbol}{itemDetails.price.toFixed(2)} each</div>
-                                                    )}
-                                                </div>
-                                                <div className="d-flex align-items-center">
-                                                    <h8 className="me-2">Qty:</h8>
-                                                    <input
-                                                        type="number"
-                                                        min="1"
-                                                        className="form-control form-control-sm"
-                                                        style={{ width: '70px' }}
-                                                        value={item.quantity}
-                                                        onChange={(e) => handleQuantityChange(item.itemId, e.target.value)}
-                                                    />
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            )}
-                        </div>
-                        <div className="mb-3">
-                            <label className="form-label">Deal Image</label>
-                            <div className="d-flex flex-wrap gap-3 mb-3">
-                                <div className="position-relative" style={{ width: '100px', height: '100px' }}>
-                                    <div
-                                        className="w-100 h-100 border rounded d-flex flex-column justify-content-center align-items-center cursor-pointer"
-                                        style={{
-                                            borderStyle: imagePreview ? 'solid' : 'dashed',
-                                            backgroundColor: isDarkMode ? '#1e293b' : '#f8f9fa'
-                                        }}
-                                        onClick={() => document.getElementById('add-image-upload').click()}
-                                    >
-                                        {imagePreview ? (
-                                            <img
-                                                src={imagePreview}
-                                                alt="Preview"
-                                                className="w-100 h-100"
-                                                style={{
-                                                    objectFit: 'cover',
-                                                    borderRadius: '4px'
-                                                }}
-                                            />
-                                        ) : (
-                                            <>
-                                                <FiUpload size={20} className="mb-1" />
-                                                <h8 className="small">Add Image</h8>
-                                            </>
-                                        )}
-                                    </div>
-                                    <input
-                                        type="file"
-                                        id="add-image-upload"
-                                        className="d-none"
-                                        accept="image/*"
-                                        onChange={handleFileChange}
-                                    />
-                                </div>
+            {/* Add Deal Modal - Only show if user has write permission */}
+            {canWrite && (
+                <Modal show={isModalOpen} onHide={() => {
+                    setIsModalOpen(false);
+                    setNewDeal({ name: '', description: '', price: 0, items: [], imageUrl: '' });
+                    setFormErrors({});
+                    setSelectedFile(null);
+                    setImagePreview('');
+                    setSelectedItems([]);
+                }} centered size="lg">
+                    <Modal.Header closeButton>
+                        <Modal.Title>Add Deal</Modal.Title>
+                    </Modal.Header>
+                    <Modal.Body>
+                        <form onSubmit={handleSubmit}>
+                            <div className="mb-3">
+                                <label htmlFor="name" className="form-label">Name</label>
+                                <input
+                                    type="text"
+                                    className={`form-control ${formErrors.name ? 'is-invalid' : ''}`}
+                                    id="name"
+                                    name="name"
+                                    value={newDeal.name}
+                                    onChange={handleInputChange}
+                                />
+                                {formErrors.name && <div className="invalid-feedback">{formErrors.name}</div>}
                             </div>
-                        </div>
-                    </form>
-                </Modal.Body>
-                <Modal.Footer>
-                    <Button
-                        variant="contained"
-                        onClick={handleSubmit}
-                        style={{ backgroundColor: '#1976d2', color: 'white' }}
-                        disabled={uploadingImage}
-                    >
-                        {uploadingImage ? (
-                            <>
-                                <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                                Creating...
-                            </>
-                        ) : (
-                            'Create'
-                        )}
-                    </Button>
-                </Modal.Footer>
-            </Modal>
+                            <div className="mb-3">
+                                <label htmlFor="description" className="form-label">Description</label>
+                                <textarea
+                                    className="form-control"
+                                    id="description"
+                                    name="description"
+                                    value={newDeal.description}
+                                    onChange={handleInputChange}
+                                    rows="3"
+                                />
+                            </div>
+                            <div className="mb-3">
+                                <label htmlFor="price" className="form-label">Price</label>
+                                <input
+                                    type="number"
+                                    className={`form-control ${formErrors.price ? 'is-invalid' : ''}`}
+                                    id="price"
+                                    name="price"
+                                    value={newDeal.price}
+                                    onChange={handleInputChange}
+                                    min="0"
+                                    step="0.01"
+                                />
+                                {formErrors.price && <div className="invalid-feedback">{formErrors.price}</div>}
+                            </div>
+                            <div className="mb-3">
+                                <label className="form-label">Items</label>
+                                <Select
+                                    isMulti
+                                    options={itemOptions}
+                                    className="basic-multi-select"
+                                    classNamePrefix="select"
+                                    onChange={handleItemSelection}
+                                    value={selectedItems}
+                                    placeholder="Select items..."
+                                />
+                                {formErrors.items && <div className="invalid-feedback d-block">{formErrors.items}</div>}
 
-            {/* Edit Deal Modal */}
-            <Modal show={isEditModalOpen} onHide={() => {
-                setIsEditModalOpen(false);
-                setEditFormErrors({});
-                setSelectedFile(null);
-                setImagePreview('');
-            }} centered size="lg">
-                <Modal.Header closeButton>
-                    <Modal.Title>Edit Deal</Modal.Title>
-                </Modal.Header>
-                <Modal.Body>
-                    <form onSubmit={handleEditSubmit}>
-                        <div className="mb-3">
-                            <label htmlFor="edit-name" className="form-label">Name</label>
-                            <input
-                                type="text"
-                                className={`form-control ${editFormErrors.name ? 'is-invalid' : ''}`}
-                                id="edit-name"
-                                name="name"
-                                value={editDeal.name}
-                                onChange={handleEditInputChange}
-                            />
-                            {editFormErrors.name && <div className="invalid-feedback">{editFormErrors.name}</div>}
-                        </div>
-                        <div className="mb-3">
-                            <label htmlFor="edit-description" className="form-label">Description</label>
-                            <textarea
-                                className="form-control"
-                                id="edit-description"
-                                name="description"
-                                value={editDeal.description}
-                                onChange={handleEditInputChange}
-                                rows="3"
-                            />
-                        </div>
-                        <div className="mb-3">
-                            <label htmlFor="edit-price" className="form-label">Price</label>
-                            <input
-                                type="number"
-                                className={`form-control ${editFormErrors.price ? 'is-invalid' : ''}`}
-                                id="edit-price"
-                                name="price"
-                                value={editDeal.price}
-                                onChange={handleEditInputChange}
-                                min="0"
-                                step="0.01"
-                            />
-                            {editFormErrors.price && <div className="invalid-feedback">{editFormErrors.price}</div>}
-                        </div>
-                        <div className="mb-3">
-                            <label className="form-label">Items</label>
-                            <Select
-                                isMulti
-                                options={itemOptions}
-                                className="basic-multi-select"
-                                classNamePrefix="select"
-                                onChange={handleEditItemSelection}
-                                value={editSelectedItems}
-                                placeholder="Select items..."
-                            />
-                            {editFormErrors.items && <div className="invalid-feedback d-block">{editFormErrors.items}</div>}
-
-                            {editDeal.items.length > 0 && (
-                                <div className="mt-3">
-                                    <h6>Selected Items:</h6>
-                                    {editDeal.items.map((item, index) => {
-                                        const itemDetails = getItemDetailsById(item.itemId);
-                                        return (
-                                            <div key={index} className="d-flex align-items-center mb-2">
-                                                <div className="flex-grow-1">
-                                                    <h8>{itemDetails ? itemDetails.name : `Item ID: ${item.itemId}`}</h8>
-                                                    {itemDetails && (
-                                                        <div className="text-muted small">{currencySymbol}{itemDetails.price.toFixed(2)} each</div>
-                                                    )}
+                                {newDeal.items.length > 0 && (
+                                    <div className="mt-3">
+                                        <h6>Selected Items:</h6>
+                                        {newDeal.items.map((item, index) => {
+                                            const itemDetails = getItemDetailsById(item.itemId);
+                                            return (
+                                                <div key={index} className="d-flex align-items-center mb-2">
+                                                    <div className="flex-grow-1">
+                                                        <h8>{itemDetails ? itemDetails.name : `Item ID: ${item.itemId}`}</h8>
+                                                        {itemDetails && (
+                                                            <div className="text-muted small">{currencySymbol}{itemDetails.price.toFixed(2)} each</div>
+                                                        )}
+                                                    </div>
+                                                    <div className="d-flex align-items-center">
+                                                        <h8 className="me-2">Qty:</h8>
+                                                        <input
+                                                            type="number"
+                                                            min="1"
+                                                            className="form-control form-control-sm"
+                                                            style={{ width: '70px' }}
+                                                            value={item.quantity}
+                                                            onChange={(e) => handleQuantityChange(item.itemId, e.target.value)}
+                                                        />
+                                                    </div>
                                                 </div>
-                                                <div className="d-flex align-items-center">
-                                                    <h8 className="me-2">Qty:</h8>
-                                                    <input
-                                                        type="number"
-                                                        min="1"
-                                                        className="form-control form-control-sm"
-                                                        style={{ width: '70px' }}
-                                                        value={item.quantity}
-                                                        onChange={(e) => handleEditQuantityChange(item.itemId, e.target.value)}
-                                                    />
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            )}
-                        </div>
-                        <div className="mb-3">
-                            <label className="form-label">Deal Image</label>
-                            <div className="d-flex flex-wrap gap-3 mb-3">
-                                {editDeal.imageUrl && (
-                                    <div className="position-relative" style={{ width: '100px', height: '100px' }}>
-                                        <img
-                                            src={editDeal.imageUrl}
-                                            alt="Deal"
-                                            className="w-100 h-100"
-                                            style={{
-                                                objectFit: 'cover',
-                                                borderRadius: '4px'
-                                            }}
-                                        />
+                                            );
+                                        })}
                                     </div>
                                 )}
-                                <div className="position-relative" style={{ width: '100px', height: '100px' }}>
-                                    <div
-                                        className="w-100 h-100 border rounded d-flex flex-column justify-content-center align-items-center cursor-pointer"
-                                        style={{
-                                            borderStyle: imagePreview ? 'solid' : 'dashed',
-                                            backgroundColor: isDarkMode ? '#1e293b' : '#f8f9fa'
-                                        }}
-                                        onClick={() => document.getElementById('edit-image-upload').click()}
-                                    >
-                                        {imagePreview ? (
-                                            <img
-                                                src={imagePreview}
-                                                alt="Preview"
-                                                className="w-100 h-100"
-                                                style={{
-                                                    objectFit: 'cover',
-                                                    borderRadius: '4px'
-                                                }}
-                                            />
-                                        ) : (
-                                            <>
-                                                <FiUpload size={20} className="mb-1" />
-                                                <h8 className="small">Change Image</h8>
-                                            </>
-                                        )}
+                            </div>
+                            <div className="mb-3">
+                                <label className="form-label">Deal Image</label>
+                                <div className="d-flex flex-wrap gap-3 mb-3">
+                                    <div className="position-relative" style={{ width: '100px', height: '100px' }}>
+                                        <div
+                                            className="w-100 h-100 border rounded d-flex flex-column justify-content-center align-items-center cursor-pointer"
+                                            style={{
+                                                borderStyle: imagePreview ? 'solid' : 'dashed',
+                                                backgroundColor: isDarkMode ? '#1e293b' : '#f8f9fa'
+                                            }}
+                                            onClick={() => document.getElementById('add-image-upload').click()}
+                                        >
+                                            {imagePreview ? (
+                                                <img
+                                                    src={imagePreview}
+                                                    alt="Preview"
+                                                    className="w-100 h-100"
+                                                    style={{
+                                                        objectFit: 'cover',
+                                                        borderRadius: '4px'
+                                                    }}
+                                                />
+                                            ) : (
+                                                <>
+                                                    <FiUpload size={20} className="mb-1" />
+                                                    <h8 className="small">Add Image</h8>
+                                                </>
+                                            )}
+                                        </div>
+                                        <input
+                                            type="file"
+                                            id="add-image-upload"
+                                            className="d-none"
+                                            accept="image/*"
+                                            onChange={handleFileChange}
+                                        />
                                     </div>
-                                    <input
-                                        type="file"
-                                        id="edit-image-upload"
-                                        className="d-none"
-                                        accept="image/*"
-                                        onChange={handleFileChange}
-                                    />
                                 </div>
                             </div>
-                        </div>
-                    </form>
-                </Modal.Body>
-                <Modal.Footer>
-                    <Button
-                        variant="contained"
-                        onClick={handleEditSubmit}
-                        style={{ backgroundColor: '#1976d2', color: 'white' }}
-                        disabled={uploadingImage}
-                    >
-                        {uploadingImage ? (
-                            <>
-                                <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                                Updating...
-                            </>
-                        ) : (
-                            'Update'
-                        )}
-                    </Button>
-                </Modal.Footer>
-            </Modal>
+                        </form>
+                    </Modal.Body>
+                    <Modal.Footer>
+                        <Button
+                            variant="contained"
+                            onClick={handleSubmit}
+                            style={{ backgroundColor: '#1976d2', color: 'white' }}
+                            disabled={uploadingImage}
+                        >
+                            {uploadingImage ? (
+                                <>
+                                    <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                    Creating...
+                                </>
+                            ) : (
+                                'Create'
+                            )}
+                        </Button>
+                    </Modal.Footer>
+                </Modal>
+            )}
 
-            {/* View Deal Modal */}
-            <Modal show={isViewModalOpen} onHide={() => setIsViewModalOpen(false)} centered size="lg">
-                <Modal.Header closeButton>
-                    <Modal.Title>Deal Details</Modal.Title>
-                </Modal.Header>
-                <Modal.Body>
-                    {selectedDeal && (
-                        <div>
+            {/* Edit Deal Modal - Only show if user has update permission */}
+            {canUpdate && (
+                <Modal show={isEditModalOpen} onHide={() => {
+                    setIsEditModalOpen(false);
+                    setEditFormErrors({});
+                    setSelectedFile(null);
+                    setImagePreview('');
+                }} centered size="lg">
+                    <Modal.Header closeButton>
+                        <Modal.Title>Edit Deal</Modal.Title>
+                    </Modal.Header>
+                    <Modal.Body>
+                        <form onSubmit={handleEditSubmit}>
                             <div className="mb-3">
-                                <h5>Name</h5>
-                                <h8>{selectedDeal.name}</h8>
+                                <label htmlFor="edit-name" className="form-label">Name</label>
+                                <input
+                                    type="text"
+                                    className={`form-control ${editFormErrors.name ? 'is-invalid' : ''}`}
+                                    id="edit-name"
+                                    name="name"
+                                    value={editDeal.name}
+                                    onChange={handleEditInputChange}
+                                />
+                                {editFormErrors.name && <div className="invalid-feedback">{editFormErrors.name}</div>}
                             </div>
                             <div className="mb-3">
-                                <h5>Description</h5>
-                                <h8>{selectedDeal.description || '-'}</h8>
+                                <label htmlFor="edit-description" className="form-label">Description</label>
+                                <textarea
+                                    className="form-control"
+                                    id="edit-description"
+                                    name="description"
+                                    value={editDeal.description}
+                                    onChange={handleEditInputChange}
+                                    rows="3"
+                                />
                             </div>
                             <div className="mb-3">
-                                <h5>Price</h5>
-                                <h8>{currencySymbol}{selectedDeal.price.toFixed(2)}</h8>
+                                <label htmlFor="edit-price" className="form-label">Price</label>
+                                <input
+                                    type="number"
+                                    className={`form-control ${editFormErrors.price ? 'is-invalid' : ''}`}
+                                    id="edit-price"
+                                    name="price"
+                                    value={editDeal.price}
+                                    onChange={handleEditInputChange}
+                                    min="0"
+                                    step="0.01"
+                                />
+                                {editFormErrors.price && <div className="invalid-feedback">{editFormErrors.price}</div>}
                             </div>
                             <div className="mb-3">
-                                <h5>Status</h5>
-                                <h8>{selectedDeal.active ? 'Active' : 'Inactive'}</h8>
-                            </div>
-                            <div className="mb-3">
-                                <h5>Items</h5>
-                                <ul className="list-unstyled">
-                                    {selectedDeal.items.map((item, index) => {
-                                        const itemDetails = getItemDetailsById(item.itemId);
-                                        return (
-                                            <li key={index} className="mb-2">
-                                                {itemDetails ? (
-                                                    <>
-                                                        <div className="d-flex justify-content-between">
-                                                            <h8>{itemDetails.name}</h8>
-                                                            <h8>Qty: {item.quantity}</h8>
-                                                        </div>
-                                                        <div className="text-muted small">{currencySymbol}{itemDetails.price.toFixed(2)} each</div>
-                                                    </>
-                                                ) : (
-                                                    <div className="d-flex justify-content-between">
-                                                        <span>Item ID: {item.itemId}</span>
-                                                        <span>Qty: {item.quantity}</span>
+                                <label className="form-label">Items</label>
+                                <Select
+                                    isMulti
+                                    options={itemOptions}
+                                    className="basic-multi-select"
+                                    classNamePrefix="select"
+                                    onChange={handleEditItemSelection}
+                                    value={editSelectedItems}
+                                    placeholder="Select items..."
+                                />
+                                {editFormErrors.items && <div className="invalid-feedback d-block">{editFormErrors.items}</div>}
+
+                                {editDeal.items.length > 0 && (
+                                    <div className="mt-3">
+                                        <h6>Selected Items:</h6>
+                                        {editDeal.items.map((item, index) => {
+                                            const itemDetails = getItemDetailsById(item.itemId);
+                                            return (
+                                                <div key={index} className="d-flex align-items-center mb-2">
+                                                    <div className="flex-grow-1">
+                                                        <h8>{itemDetails ? itemDetails.name : `Item ID: ${item.itemId}`}</h8>
+                                                        {itemDetails && (
+                                                            <div className="text-muted small">{currencySymbol}{itemDetails.price.toFixed(2)} each</div>
+                                                        )}
                                                     </div>
-                                                )}
-                                            </li>
-                                        );
-                                    })}
-                                </ul>
+                                                    <div className="d-flex align-items-center">
+                                                        <h8 className="me-2">Qty:</h8>
+                                                        <input
+                                                            type="number"
+                                                            min="1"
+                                                            className="form-control form-control-sm"
+                                                            style={{ width: '70px' }}
+                                                            value={item.quantity}
+                                                            onChange={(e) => handleEditQuantityChange(item.itemId, e.target.value)}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
                             </div>
                             <div className="mb-3">
-                                <h5>Image</h5>
-                                <div className="d-flex flex-wrap gap-3">
-                                    {selectedDeal.imageUrl ? (
-                                        <div style={{ width: '200px', height: '200px' }}>
+                                <label className="form-label">Deal Image</label>
+                                <div className="d-flex flex-wrap gap-3 mb-3">
+                                    {editDeal.imageUrl && (
+                                        <div className="position-relative" style={{ width: '100px', height: '100px' }}>
                                             <img
-                                                src={selectedDeal.imageUrl}
-                                                alt="Deal"
-                                                className="w-100 h-100"
-                                                style={{
-                                                    objectFit: 'cover',
-                                                    borderRadius: '4px'
-                                                }}
-                                            />
-                                        </div>
-                                    ) : (
-                                        <div style={{ width: '200px', height: '200px' }}>
-                                            <img
-                                                src="/images/avatar/1.png"
+                                                src={editDeal.imageUrl}
                                                 alt="Deal"
                                                 className="w-100 h-100"
                                                 style={{
@@ -1085,36 +980,177 @@ const DealsTable = () => {
                                             />
                                         </div>
                                     )}
+                                    <div className="position-relative" style={{ width: '100px', height: '100px' }}>
+                                        <div
+                                            className="w-100 h-100 border rounded d-flex flex-column justify-content-center align-items-center cursor-pointer"
+                                            style={{
+                                                borderStyle: imagePreview ? 'solid' : 'dashed',
+                                                backgroundColor: isDarkMode ? '#1e293b' : '#f8f9fa'
+                                            }}
+                                            onClick={() => document.getElementById('edit-image-upload').click()}
+                                        >
+                                            {imagePreview ? (
+                                                <img
+                                                    src={imagePreview}
+                                                    alt="Preview"
+                                                    className="w-100 h-100"
+                                                    style={{
+                                                        objectFit: 'cover',
+                                                        borderRadius: '4px'
+                                                    }}
+                                                />
+                                            ) : (
+                                                <>
+                                                    <FiUpload size={20} className="mb-1" />
+                                                    <h8 className="small">Change Image</h8>
+                                                </>
+                                            )}
+                                        </div>
+                                        <input
+                                            type="file"
+                                            id="edit-image-upload"
+                                            className="d-none"
+                                            accept="image/*"
+                                            onChange={handleFileChange}
+                                        />
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    )}
-                </Modal.Body>
-            </Modal>
+                        </form>
+                    </Modal.Body>
+                    <Modal.Footer>
+                        <Button
+                            variant="contained"
+                            onClick={handleEditSubmit}
+                            style={{ backgroundColor: '#1976d2', color: 'white' }}
+                            disabled={uploadingImage}
+                        >
+                            {uploadingImage ? (
+                                <>
+                                    <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                    Updating...
+                                </>
+                            ) : (
+                                'Update'
+                            )}
+                        </Button>
+                    </Modal.Footer>
+                </Modal>
+            )}
+
+            {/* View Deal Modal */}
+            {canRead && (
+                <Modal show={isViewModalOpen} onHide={() => setIsViewModalOpen(false)} centered size="lg">
+                    <Modal.Header closeButton>
+                        <Modal.Title>Deal Details</Modal.Title>
+                    </Modal.Header>
+                    <Modal.Body>
+                        {selectedDeal && (
+                            <div>
+                                <div className="mb-3">
+                                    <h5>Name</h5>
+                                    <h8>{selectedDeal.name}</h8>
+                                </div>
+                                <div className="mb-3">
+                                    <h5>Description</h5>
+                                    <h8>{selectedDeal.description || '-'}</h8>
+                                </div>
+                                <div className="mb-3">
+                                    <h5>Price</h5>
+                                    <h8>{currencySymbol}{selectedDeal.price.toFixed(2)}</h8>
+                                </div>
+                                <div className="mb-3">
+                                    <h5>Status</h5>
+                                    <h8>{selectedDeal.active ? 'Active' : 'Inactive'}</h8>
+                                </div>
+                                <div className="mb-3">
+                                    <h5>Items</h5>
+                                    <ul className="list-unstyled">
+                                        {selectedDeal.items.map((item, index) => {
+                                            const itemDetails = getItemDetailsById(item.itemId);
+                                            return (
+                                                <li key={index} className="mb-2">
+                                                    {itemDetails ? (
+                                                        <>
+                                                            <div className="d-flex justify-content-between">
+                                                                <h8>{itemDetails.name}</h8>
+                                                                <h8>Qty: {item.quantity}</h8>
+                                                            </div>
+                                                            <div className="text-muted small">{currencySymbol}{itemDetails.price.toFixed(2)} each</div>
+                                                        </>
+                                                    ) : (
+                                                        <div className="d-flex justify-content-between">
+                                                            <span>Item ID: {item.itemId}</span>
+                                                            <span>Qty: {item.quantity}</span>
+                                                        </div>
+                                                    )}
+                                                </li>
+                                            );
+                                        })}
+                                    </ul>
+                                </div>
+                                <div className="mb-3">
+                                    <h5>Image</h5>
+                                    <div className="d-flex flex-wrap gap-3">
+                                        {selectedDeal.imageUrl ? (
+                                            <div style={{ width: '200px', height: '200px' }}>
+                                                <img
+                                                    src={selectedDeal.imageUrl}
+                                                    alt="Deal"
+                                                    className="w-100 h-100"
+                                                    style={{
+                                                        objectFit: 'cover',
+                                                        borderRadius: '4px'
+                                                    }}
+                                                />
+                                            </div>
+                                        ) : (
+                                            <div style={{ width: '200px', height: '200px' }}>
+                                                <img
+                                                    src="/images/avatar/1.png"
+                                                    alt="Deal"
+                                                    className="w-100 h-100"
+                                                    style={{
+                                                        objectFit: 'cover',
+                                                        borderRadius: '4px'
+                                                    }}
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </Modal.Body>
+                </Modal>
+            )}
 
             {/* Delete Confirmation Modal */}
-            <Modal show={isDeleteModalOpen} onHide={() => setIsDeleteModalOpen(false)} centered>
-                <Modal.Header closeButton>
-                    <Modal.Title>Delete Deal</Modal.Title>
-                </Modal.Header>
-                <Modal.Body>
-                    {dealToDelete && (
-                        <>
-                            <h8>Are you sure you want to delete the deal <strong>{dealToDelete.name}</strong>? </h8>
-                            <h8>This action cannot be undone.</h8>
-                        </>
-                    )}
-                </Modal.Body>
-                <Modal.Footer>
-                    <Button
-                        variant="contained"
-                        onClick={handleDeleteDeal}
-                        style={{ backgroundColor: '#d32f2f', color: 'white' }}
-                    >
-                        Delete
-                    </Button>
-                </Modal.Footer>
-            </Modal>
+            {canDelete && (
+                <Modal show={isDeleteModalOpen} onHide={() => setIsDeleteModalOpen(false)} centered>
+                    <Modal.Header closeButton>
+                        <Modal.Title>Delete Deal</Modal.Title>
+                    </Modal.Header>
+                    <Modal.Body>
+                        {dealToDelete && (
+                            <>
+                                <h8>Are you sure you want to delete the deal <strong>{dealToDelete.name}</strong>? </h8>
+                                <h8>This action cannot be undone.</h8>
+                            </>
+                        )}
+                    </Modal.Body>
+                    <Modal.Footer>
+                        <Button
+                            variant="contained"
+                            onClick={handleDeleteDeal}
+                            style={{ backgroundColor: '#d32f2f', color: 'white' }}
+                        >
+                            Delete
+                        </Button>
+                    </Modal.Footer>
+                </Modal>
+            )}
+
         </>
     );
 };

@@ -43,6 +43,12 @@ const TeamTable = () => {
     const skinTheme = localStorage.getItem('skinTheme') || 'light';
     const isDarkMode = skinTheme === 'dark';
 
+    // Get user permissions from authData
+    const authData = JSON.parse(localStorage.getItem("authData"));
+    const userRole = authData?.role;
+    const userPermissions = authData?.permissions || [];
+    const canManageStaff = userRole === 'CLIENT_ADMIN' || userPermissions.includes('STAFF_MANAGEMENT');
+
     const SkeletonLoader = () => {
         return (
             <div className="table-responsive">
@@ -53,7 +59,7 @@ const TeamTable = () => {
                             <th scope="col">Email</th>
                             <th scope="col">Phone</th>
                             <th scope="col">Status</th>
-                            <th scope="col" className="text-end">Actions</th>
+                            {canManageStaff && <th scope="col" className="text-end">Actions</th>}
                         </tr>
                     </thead>
                     <tbody>
@@ -87,31 +93,33 @@ const TeamTable = () => {
                                         highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
                                     />
                                 </td>
-                                <td>
-                                    <div className="hstack gap-2 justify-content-end">
-                                        <Skeleton
-                                            circle
-                                            width={24}
-                                            height={24}
-                                            baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
-                                            highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
-                                        />
-                                        <Skeleton
-                                            circle
-                                            width={24}
-                                            height={24}
-                                            baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
-                                            highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
-                                        />
-                                        <Skeleton
-                                            circle
-                                            width={24}
-                                            height={24}
-                                            baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
-                                            highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
-                                        />
-                                    </div>
-                                </td>
+                                {canManageStaff && (
+                                    <td>
+                                        <div className="hstack gap-2 justify-content-end">
+                                            <Skeleton
+                                                circle
+                                                width={24}
+                                                height={24}
+                                                baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
+                                                highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
+                                            />
+                                            <Skeleton
+                                                circle
+                                                width={24}
+                                                height={24}
+                                                baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
+                                                highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
+                                            />
+                                            <Skeleton
+                                                circle
+                                                width={24}
+                                                height={24}
+                                                baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
+                                                highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
+                                            />
+                                        </div>
+                                    </td>
+                                )}
                             </tr>
                         ))}
                     </tbody>
@@ -136,14 +144,16 @@ const TeamTable = () => {
                 </div>
                 <h5 className="mb-2">No Team Members Found</h5>
                 <p className="text-muted mb-4">You haven't added any team members yet. Start by adding a new team member.</p>
-                <Button
-                    variant="contained"
-                    onClick={() => setIsModalOpen(true)}
-                    className="d-flex align-items-center gap-2 mx-auto"
-                    style={{ backgroundColor: '#0092ff', color: 'white' }}
-                >
-                    <FiPlus /> Add Team Member
-                </Button>
+                {canManageStaff && (
+                    <Button
+                        variant="contained"
+                        onClick={() => setIsModalOpen(true)}
+                        className="d-flex align-items-center gap-2 mx-auto"
+                        style={{ backgroundColor: '#0092ff', color: 'white' }}
+                    >
+                        <FiPlus /> Add Team Member
+                    </Button>
+                )}
             </div>
         );
     };
@@ -254,7 +264,6 @@ const TeamTable = () => {
         if (!formData.phone.trim()) errors.phone = 'Phone is required';
         if (!formData.roleId) errors.roleId = 'Role is required';
         
-        // Only validate password for new team (edit form might not change password)
         if (formData === newTeam && !formData.password.trim()) {
             errors.password = 'Password is required';
         }
@@ -325,7 +334,6 @@ const TeamTable = () => {
                 active: editTeam.active
             };
 
-            // Only include password if it's been changed
             if (editTeam.password) {
                 requestBody.password = editTeam.password;
             }
@@ -381,7 +389,6 @@ const TeamTable = () => {
         try {
             const authData = JSON.parse(localStorage.getItem("authData"));
 
-            // Optimistic update
             setTeam(prev => prev.filter(team => team.id !== teamToDelete.id));
             setIsDeleteModalOpen(false);
 
@@ -399,9 +406,8 @@ const TeamTable = () => {
             }
 
             toast.success('Team member deleted successfully');
-            await fetchTeam(); // Refresh data to ensure consistency
+            await fetchTeam();
         } catch (err) {
-            // Revert on error
             setTeam(prev => [...prev, teamToDelete]);
             toast.error(err.message);
         } finally {
@@ -414,69 +420,76 @@ const TeamTable = () => {
         return role ? role.name : 'Unknown Role';
     };
 
-    const columns = React.useMemo(() => [
-        {
-            accessorKey: 'name',
-            header: 'Name',
-            cell: (info) => info.getValue()
-        },
-        {
-            accessorKey: 'email',
-            header: 'Email',
-            cell: (info) => info.getValue()
-        },
-        {
-            accessorKey: 'phone',
-            header: 'Phone',
-            cell: (info) => info.getValue()
-        },
-        {
-            accessorKey: 'roleId',
-            header: 'Role',
-            cell: (info) => getRoleName(info.getValue())
-        },
-        {
-            accessorKey: 'active',
-            header: 'Status',
-            cell: (info) => (
-                <div className="d-flex align-items-center gap-2">
-                    <h8 className={`badge ${info.getValue() ? 'bg-success' : 'bg-danger'}`}>
-                        {info.getValue() ? 'Active' : 'Inactive'}
-                    </h8>
-                </div>
-            )
-        },
-        {
-            accessorKey: 'actions',
-            header: "Actions",
-            cell: ({ row }) => (
-                <div className="hstack gap-2 justify-content-end">
-                    <button
-                        className="avatar-text avatar-md"
-                        onClick={() => handleViewTeam(row.original)}
-                        title="View"
-                    >
-                        <FiEye />
-                    </button>
-                    <button
-                        className="avatar-text avatar-md"
-                        onClick={() => handleEditTeam(row.original)}
-                        title="Edit"
-                    >
-                        <FiEdit />
-                    </button>
-                    <button
-                        className="avatar-text avatar-md"
-                        onClick={() => handleDeleteClick(row.original)}
-                        title="Delete"
-                    >
-                        <FiTrash />
-                    </button>
-                </div>
-            ),
-            meta: { headerClassName: 'text-end' }
-        },
-    ], [roles]);
+    const columns = React.useMemo(() => {
+        const baseColumns = [
+            {
+                accessorKey: 'name',
+                header: 'Name',
+                cell: (info) => info.getValue()
+            },
+            {
+                accessorKey: 'email',
+                header: 'Email',
+                cell: (info) => info.getValue()
+            },
+            {
+                accessorKey: 'phone',
+                header: 'Phone',
+                cell: (info) => info.getValue()
+            },
+            {
+                accessorKey: 'roleId',
+                header: 'Role',
+                cell: (info) => getRoleName(info.getValue())
+            },
+            {
+                accessorKey: 'active',
+                header: 'Status',
+                cell: (info) => (
+                    <div className="d-flex align-items-center gap-2">
+                        <h8 className={`badge ${info.getValue() ? 'bg-success' : 'bg-danger'}`}>
+                            {info.getValue() ? 'Active' : 'Inactive'}
+                        </h8>
+                    </div>
+                )
+            }
+        ];
+
+        if (canManageStaff) {
+            baseColumns.push({
+                accessorKey: 'actions',
+                header: "Actions",
+                cell: ({ row }) => (
+                    <div className="hstack gap-2 justify-content-end">
+                        <button
+                            className="avatar-text avatar-md"
+                            onClick={() => handleViewTeam(row.original)}
+                            title="View"
+                        >
+                            <FiEye />
+                        </button>
+                        <button
+                            className="avatar-text avatar-md"
+                            onClick={() => handleEditTeam(row.original)}
+                            title="Edit"
+                        >
+                            <FiEdit />
+                        </button>
+                        <button
+                            className="avatar-text avatar-md"
+                            onClick={() => handleDeleteClick(row.original)}
+                            title="Delete"
+                        >
+                            <FiTrash />
+                        </button>
+                    </div>
+                ),
+                meta: { headerClassName: 'text-end' }
+            });
+        }
+
+        return baseColumns;
+    }, [roles, canManageStaff]);
 
     useEffect(() => {
         fetchTeam();
@@ -500,14 +513,16 @@ const TeamTable = () => {
 
             <div className="d-flex justify-content-between align-items-center mb-4">
                 <h4>Team Management</h4>
-                <Button
-                    variant="contained"
-                    onClick={() => setIsModalOpen(true)}
-                    className="d-flex align-items-center gap-2"
-                    style={{ backgroundColor: '#0092ff', color: 'white' }}
-                >
-                    <FiPlus /> Add Team
-                </Button>
+                {canManageStaff && (
+                    <Button
+                        variant="contained"
+                        onClick={() => setIsModalOpen(true)}
+                        className="d-flex align-items-center gap-2"
+                        style={{ backgroundColor: '#0092ff', color: 'white' }}
+                    >
+                        <FiPlus /> Add Team
+                    </Button>
+                )}
             </div>
 
             {loading ? (

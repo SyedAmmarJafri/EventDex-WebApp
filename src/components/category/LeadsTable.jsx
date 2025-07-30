@@ -39,6 +39,18 @@ const CategoriesTable = () => {
     const skinTheme = localStorage.getItem('skinTheme') || 'light';
     const isDarkMode = skinTheme === 'dark';
 
+    // Get user permissions from authData
+    const authData = JSON.parse(localStorage.getItem("authData")) || {};
+    const userRole = authData?.role || '';
+    const userPermissions = authData?.permissions || [];
+    
+    // Permission checks
+    const canRead = userRole === 'CLIENT_ADMIN' || userPermissions.includes('CATEGORY_READ');
+    const canWrite = userRole === 'CLIENT_ADMIN' || userPermissions.includes('CATEGORY_WRITE');
+    const canUpdate = userRole === 'CLIENT_ADMIN' || userPermissions.includes('CATEGORY_UPDATE');
+    const canDelete = userRole === 'CLIENT_ADMIN' || userPermissions.includes('CATEGORY_DELETE');
+    const canToggleStatus = userRole === 'CLIENT_ADMIN' || userPermissions.includes('CATEGORY_UPDATE');
+
     const SkeletonLoader = () => {
         return (
             <div className="table-responsive">
@@ -142,14 +154,16 @@ const CategoriesTable = () => {
                 </div>
                 <h5 className="mb-2">No Categories Found</h5>
                 <p className="text-muted mb-4">You haven't added any categories yet. Start by adding a new category.</p>
-                <Button
-                    variant="contained"
-                    onClick={() => setIsModalOpen(true)}
-                    className="d-flex align-items-center gap-2 mx-auto"
-                    style={{ backgroundColor: '#0092ff', color: 'white' }}
-                >
-                    <FiPlus /> Add Category
-                </Button>
+                {canWrite && (
+                    <Button
+                        variant="contained"
+                        onClick={() => setIsModalOpen(true)}
+                        className="d-flex align-items-center gap-2 mx-auto"
+                        style={{ backgroundColor: '#0092ff', color: 'white' }}
+                    >
+                        <FiPlus /> Add Category
+                    </Button>
+                )}
             </div>
         );
     };
@@ -496,6 +510,8 @@ const CategoriesTable = () => {
     };
 
     const handleStatusChange = async (category) => {
+        if (!canToggleStatus) return;
+
         try {
             const authData = JSON.parse(localStorage.getItem("authData"));
             const newStatus = !category.active;
@@ -550,11 +566,13 @@ const CategoriesTable = () => {
     };
 
     const handleViewCategory = (category) => {
+        if (!canRead) return;
         setSelectedCategory(category);
         setIsViewModalOpen(true);
     };
 
     const handleEditCategory = (category) => {
+        if (!canUpdate) return;
         setEditCategory({
             id: category.id,
             name: category.name,
@@ -568,6 +586,7 @@ const CategoriesTable = () => {
     };
 
     const handleDeleteClick = (category) => {
+        if (!canDelete) return;
         setCategoryToDelete(category);
         setIsDeleteModalOpen(true);
     };
@@ -660,6 +679,7 @@ const CategoriesTable = () => {
                     checked={info.getValue()}
                     onChange={() => handleStatusChange(info.row.original)}
                     color="primary"
+                    disabled={!canToggleStatus}
                 />
             )
         },
@@ -668,29 +688,35 @@ const CategoriesTable = () => {
             header: "Actions",
             cell: ({ row }) => (
                 <div className="hstack gap-2 justify-content-end">
-                    <button
-                        className="avatar-text avatar-md"
-                        onClick={() => handleViewCategory(row.original)}
-                    >
-                        <FiEye />
-                    </button>
-                    <button
-                        className="avatar-text avatar-md"
-                        onClick={() => handleEditCategory(row.original)}
-                    >
-                        <FiEdit />
-                    </button>
-                    <button
-                        className="avatar-text avatar-md"
-                        onClick={() => handleDeleteClick(row.original)}
-                    >
-                        <FiTrash />
-                    </button>
+                    {canRead && (
+                        <button
+                            className="avatar-text avatar-md"
+                            onClick={() => handleViewCategory(row.original)}
+                        >
+                            <FiEye />
+                        </button>
+                    )}
+                    {canUpdate && (
+                        <button
+                            className="avatar-text avatar-md"
+                            onClick={() => handleEditCategory(row.original)}
+                        >
+                            <FiEdit />
+                        </button>
+                    )}
+                    {canDelete && (
+                        <button
+                            className="avatar-text avatar-md"
+                            onClick={() => handleDeleteClick(row.original)}
+                        >
+                            <FiTrash />
+                        </button>
+                    )}
                 </div>
             ),
             meta: { headerClassName: 'text-end' }
         },
-    ], []);
+    ], [canRead, canUpdate, canDelete]);
 
     useEffect(() => {
         fetchCategories();
@@ -713,14 +739,16 @@ const CategoriesTable = () => {
 
             <div className="d-flex justify-content-between align-items-center mb-4">
                 <h4>Category</h4>
-                <Button
-                    variant="contained"
-                    onClick={() => setIsModalOpen(true)}
-                    className="d-flex align-items-center gap-2"
-                    style={{ backgroundColor: '#0092ff', color: 'white' }}
-                >
-                    <FiPlus /> Add Category
-                </Button>
+                {canWrite && (
+                    <Button
+                        variant="contained"
+                        onClick={() => setIsModalOpen(true)}
+                        className="d-flex align-items-center gap-2"
+                        style={{ backgroundColor: '#0092ff', color: 'white' }}
+                    >
+                        <FiPlus /> Add Category
+                    </Button>
+                )}
             </div>
 
             {loading ? (
@@ -736,326 +764,334 @@ const CategoriesTable = () => {
             )}
 
             {/* Add Category Modal */}
-            <Modal show={isModalOpen} onHide={() => {
-                setIsModalOpen(false);
-                setNewCategory({ name: '', description: '', primaryImageUrl: '' });
-                setFormErrors({});
-                setSelectedFile(null);
-                setImagePreview('');
-            }} centered size="lg">
-                <Modal.Header closeButton>
-                    <Modal.Title>Add Category</Modal.Title>
-                </Modal.Header>
-                <Modal.Body>
-                    <form onSubmit={handleSubmit}>
-                        <div className="mb-3">
-                            <label htmlFor="name" className="form-label">Name</label>
-                            <input
-                                type="text"
-                                className={`form-control ${formErrors.name ? 'is-invalid' : ''}`}
-                                id="name"
-                                name="name"
-                                value={newCategory.name}
-                                onChange={handleInputChange}
-                            />
-                            {formErrors.name && <div className="invalid-feedback">{formErrors.name}</div>}
-                        </div>
-                        <div className="mb-3">
-                            <label htmlFor="description" className="form-label">Description</label>
-                            <textarea
-                                className={`form-control ${formErrors.description ? 'is-invalid' : ''}`}
-                                id="description"
-                                name="description"
-                                value={newCategory.description}
-                                onChange={handleInputChange}
-                                rows="3"
-                            />
-                            {formErrors.description && <div className="invalid-feedback">{formErrors.description}</div>}
-                        </div>
-                        <div className="mb-3">
-                            <label className="form-label">Category Image</label>
-                            <div className="d-flex flex-wrap gap-3 mb-3">
-                                <div className="position-relative" style={{ width: '100px', height: '100px' }}>
-                                    <div
-                                        className="w-100 h-100 border rounded d-flex flex-column justify-content-center align-items-center cursor-pointer"
-                                        style={{
-                                            borderStyle: imagePreview ? 'solid' : 'dashed',
-                                            backgroundColor: isDarkMode ? '#1e293b' : '#f8f9fa'
-                                        }}
-                                        onClick={() => document.getElementById('add-image-upload').click()}
-                                    >
-                                        {imagePreview ? (
-                                            <img
-                                                src={imagePreview}
-                                                alt="Preview"
-                                                className="w-100 h-100"
-                                                style={{
-                                                    objectFit: 'cover',
-                                                    borderRadius: '4px'
-                                                }}
-                                            />
-                                        ) : (
-                                            <>
-                                                <FiUpload size={20} className="mb-1" />
-                                                <h8 className="small">Add Image</h8>
-                                            </>
-                                        )}
-                                    </div>
-                                    <input
-                                        type="file"
-                                        id="add-image-upload"
-                                        className="d-none"
-                                        accept="image/*"
-                                        onChange={handleFileChange}
-                                    />
-                                </div>
+            {canWrite && (
+                <Modal show={isModalOpen} onHide={() => {
+                    setIsModalOpen(false);
+                    setNewCategory({ name: '', description: '', primaryImageUrl: '' });
+                    setFormErrors({});
+                    setSelectedFile(null);
+                    setImagePreview('');
+                }} centered size="lg">
+                    <Modal.Header closeButton>
+                        <Modal.Title>Add Category</Modal.Title>
+                    </Modal.Header>
+                    <Modal.Body>
+                        <form onSubmit={handleSubmit}>
+                            <div className="mb-3">
+                                <label htmlFor="name" className="form-label">Name</label>
+                                <input
+                                    type="text"
+                                    className={`form-control ${formErrors.name ? 'is-invalid' : ''}`}
+                                    id="name"
+                                    name="name"
+                                    value={newCategory.name}
+                                    onChange={handleInputChange}
+                                />
+                                {formErrors.name && <div className="invalid-feedback">{formErrors.name}</div>}
                             </div>
-                        </div>
-                    </form>
-                </Modal.Body>
-                <Modal.Footer>
-                    <Button
-                        variant="contained"
-                        onClick={handleSubmit}
-                        style={{ backgroundColor: '#1976d2', color: 'white' }}
-                        disabled={uploadingImage}
-                    >
-                        {uploadingImage ? (
-                            <>
-                                <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                                Creating...
-                            </>
-                        ) : (
-                            'Create'
-                        )}
-                    </Button>
-                </Modal.Footer>
-            </Modal>
-
-            {/* Edit Category Modal */}
-            <Modal show={isEditModalOpen} onHide={() => {
-                setIsEditModalOpen(false);
-                setEditFormErrors({});
-                setSelectedFile(null);
-                setImagePreview('');
-            }} centered size="lg">
-                <Modal.Header closeButton>
-                    <Modal.Title>Edit Category</Modal.Title>
-                </Modal.Header>
-                <Modal.Body>
-                    <form onSubmit={handleEditSubmit}>
-                        <div className="mb-3">
-                            <label htmlFor="edit-name" className="form-label">Name</label>
-                            <input
-                                type="text"
-                                className={`form-control ${editFormErrors.name ? 'is-invalid' : ''}`}
-                                id="edit-name"
-                                name="name"
-                                value={editCategory.name}
-                                onChange={handleEditInputChange}
-                            />
-                            {editFormErrors.name && <div className="invalid-feedback">{editFormErrors.name}</div>}
-                        </div>
-                        <div className="mb-3">
-                            <label htmlFor="edit-description" className="form-label">Description</label>
-                            <textarea
-                                className={`form-control ${editFormErrors.description ? 'is-invalid' : ''}`}
-                                id="edit-description"
-                                name="description"
-                                value={editCategory.description}
-                                onChange={handleEditInputChange}
-                                rows="3"
-                            />
-                            {editFormErrors.description && <div className="invalid-feedback">{editFormErrors.description}</div>}
-                        </div>
-                        <div className="mb-3">
-                            <label className="form-label">Category Images</label>
-                            <div className="d-flex flex-wrap gap-3 mb-3">
-                                {editCategory.imageUrls?.map((imageUrl, index) => (
-                                    <div
-                                        key={index}
-                                        className="position-relative"
-                                        style={{ width: '100px', height: '100px' }}
-                                        onClick={() => setEditCategory(prev => ({ ...prev, primaryImageUrl: imageUrl }))}
-                                    >
-                                        <img
-                                            src={imageUrl}
-                                            alt={`Category ${index}`}
-                                            className="w-100 h-100 cursor-pointer"
+                            <div className="mb-3">
+                                <label htmlFor="description" className="form-label">Description</label>
+                                <textarea
+                                    className={`form-control ${formErrors.description ? 'is-invalid' : ''}`}
+                                    id="description"
+                                    name="description"
+                                    value={newCategory.description}
+                                    onChange={handleInputChange}
+                                    rows="3"
+                                />
+                                {formErrors.description && <div className="invalid-feedback">{formErrors.description}</div>}
+                            </div>
+                            <div className="mb-3">
+                                <label className="form-label">Category Image</label>
+                                <div className="d-flex flex-wrap gap-3 mb-3">
+                                    <div className="position-relative" style={{ width: '100px', height: '100px' }}>
+                                        <div
+                                            className="w-100 h-100 border rounded d-flex flex-column justify-content-center align-items-center cursor-pointer"
                                             style={{
-                                                objectFit: 'cover',
-                                                borderRadius: '4px',
-                                                border: imageUrl === editCategory.primaryImageUrl ? '2px solid #1976d2' : '1px solid #dee2e6'
+                                                borderStyle: imagePreview ? 'solid' : 'dashed',
+                                                backgroundColor: isDarkMode ? '#1e293b' : '#f8f9fa'
                                             }}
-                                        />
-                                        <div className="position-absolute top-0 end-0 p-1">
-                                            <button
-                                                type="button"
-                                                className="btn btn-danger btn-sm p-1"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    handleDeleteImage(imageUrl);
-                                                }}
-                                                style={{ width: '24px', height: '24px' }}
-                                            >
-                                                <FiTrash size={12} />
-                                            </button>
-                                        </div>
-                                        {imageUrl === editCategory.primaryImageUrl && (
-                                            <div className="position-absolute bottom-0 start-0 bg-primary text-white px-2 py-1 small">
-                                                Primary
-                                            </div>
-                                        )}
-                                    </div>
-                                ))}
-
-                                <div className="position-relative" style={{ width: '100px', height: '100px' }}>
-                                    <div
-                                        className="w-100 h-100 border rounded d-flex flex-column justify-content-center align-items-center cursor-pointer"
-                                        style={{
-                                            borderStyle: imagePreview ? 'solid' : 'dashed',
-                                            backgroundColor: isDarkMode ? '#1e293b' : '#f8f9fa'
-                                        }}
-                                        onClick={() => document.getElementById('edit-image-upload').click()}
-                                    >
-                                        {imagePreview ? (
-                                            <img
-                                                src={imagePreview}
-                                                alt="Preview"
-                                                className="w-100 h-100"
-                                                style={{
-                                                    objectFit: 'cover',
-                                                    borderRadius: '4px'
-                                                }}
-                                            />
-                                        ) : (
-                                            <>
-                                                <FiUpload size={20} className="mb-1" />
-                                                <h8 className="small">Add Image</h8>
-                                            </>
-                                        )}
-                                    </div>
-                                    <input
-                                        type="file"
-                                        id="edit-image-upload"
-                                        className="d-none"
-                                        accept="image/*"
-                                        onChange={handleFileChange}
-                                    />
-                                </div>
-                            </div>
-                        </div>
-                    </form>
-                </Modal.Body>
-                <Modal.Footer>
-                    <Button
-                        variant="contained"
-                        onClick={handleEditSubmit}
-                        style={{ backgroundColor: '#1976d2', color: 'white' }}
-                        disabled={uploadingImage}
-                    >
-                        {uploadingImage ? (
-                            <>
-                                <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                                Updating...
-                            </>
-                        ) : (
-                            'Update'
-                        )}
-                    </Button>
-                </Modal.Footer>
-            </Modal>
-
-            {/* View Category Modal */}
-            <Modal show={isViewModalOpen} onHide={() => setIsViewModalOpen(false)} centered size="lg">
-                <Modal.Header closeButton>
-                    <Modal.Title>Category Details</Modal.Title>
-                </Modal.Header>
-                <Modal.Body>
-                    {selectedCategory && (
-                        <div>
-                            <div className="mb-3">
-                                <h5>Name</h5>
-                                <h8>{selectedCategory.name}</h8>
-                            </div>
-                            <div className="mb-3">
-                                <h5>Description</h5>
-                                <h8>{selectedCategory.description || '-'}</h8>
-                            </div>
-                            <div className="mb-3">
-                                <h5>Status</h5>
-                                <h8>{selectedCategory.active ? 'Active' : 'Inactive'}</h8>
-                            </div>
-                            <div className="mb-3">
-                                <h5>Item Count</h5>
-                                <h8>{selectedCategory.itemCount}</h8>
-                            </div>
-                            <div className="mb-3">
-                                <h5>Images</h5>
-                                <div className="d-flex flex-wrap gap-3">
-                                    {selectedCategory.imageUrls?.length > 0 ? (
-                                        selectedCategory.imageUrls.map((imageUrl, index) => (
-                                            <div key={index} className="position-relative" style={{ width: '100px', height: '100px' }}>
+                                            onClick={() => document.getElementById('add-image-upload').click()}
+                                        >
+                                            {imagePreview ? (
                                                 <img
-                                                    src={imageUrl}
-                                                    alt={`Category ${index}`}
+                                                    src={imagePreview}
+                                                    alt="Preview"
                                                     className="w-100 h-100"
                                                     style={{
                                                         objectFit: 'cover',
-                                                        borderRadius: '4px',
-                                                        border: imageUrl === selectedCategory.primaryImageUrl ? '2px solid #1976d2' : '1px solid #dee2e6'
+                                                        borderRadius: '4px'
                                                     }}
                                                 />
-                                                {imageUrl === selectedCategory.primaryImageUrl && (
-                                                    <div className="position-absolute bottom-0 start-0 bg-primary text-white px-2 py-1 small">
-                                                        Primary
-                                                    </div>
-                                                )}
-                                            </div>
-                                        ))
-                                    ) : (
-                                        <div style={{ width: '100px', height: '100px' }}>
-                                            <img
-                                                src="/images/avatar/1.png"
-                                                alt="Category"
-                                                className="w-100 h-100"
-                                                style={{
-                                                    objectFit: 'cover',
-                                                    borderRadius: '4px'
-                                                }}
-                                            />
+                                            ) : (
+                                                <>
+                                                    <FiUpload size={20} className="mb-1" />
+                                                    <h8 className="small">Add Image</h8>
+                                                </>
+                                            )}
                                         </div>
-                                    )}
+                                        <input
+                                            type="file"
+                                            id="add-image-upload"
+                                            className="d-none"
+                                            accept="image/*"
+                                            onChange={handleFileChange}
+                                        />
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    )}
-                </Modal.Body>
-            </Modal>
+                        </form>
+                    </Modal.Body>
+                    <Modal.Footer>
+                        <Button
+                            variant="contained"
+                            onClick={handleSubmit}
+                            style={{ backgroundColor: '#1976d2', color: 'white' }}
+                            disabled={uploadingImage}
+                        >
+                            {uploadingImage ? (
+                                <>
+                                    <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                    Creating...
+                                </>
+                            ) : (
+                                'Create'
+                            )}
+                        </Button>
+                    </Modal.Footer>
+                </Modal>
+            )}
+
+            {/* Edit Category Modal */}
+            {canUpdate && (
+                <Modal show={isEditModalOpen} onHide={() => {
+                    setIsEditModalOpen(false);
+                    setEditFormErrors({});
+                    setSelectedFile(null);
+                    setImagePreview('');
+                }} centered size="lg">
+                    <Modal.Header closeButton>
+                        <Modal.Title>Edit Category</Modal.Title>
+                    </Modal.Header>
+                    <Modal.Body>
+                        <form onSubmit={handleEditSubmit}>
+                            <div className="mb-3">
+                                <label htmlFor="edit-name" className="form-label">Name</label>
+                                <input
+                                    type="text"
+                                    className={`form-control ${editFormErrors.name ? 'is-invalid' : ''}`}
+                                    id="edit-name"
+                                    name="name"
+                                    value={editCategory.name}
+                                    onChange={handleEditInputChange}
+                                />
+                                {editFormErrors.name && <div className="invalid-feedback">{editFormErrors.name}</div>}
+                            </div>
+                            <div className="mb-3">
+                                <label htmlFor="edit-description" className="form-label">Description</label>
+                                <textarea
+                                    className={`form-control ${editFormErrors.description ? 'is-invalid' : ''}`}
+                                    id="edit-description"
+                                    name="description"
+                                    value={editCategory.description}
+                                    onChange={handleEditInputChange}
+                                    rows="3"
+                                />
+                                {editFormErrors.description && <div className="invalid-feedback">{editFormErrors.description}</div>}
+                            </div>
+                            <div className="mb-3">
+                                <label className="form-label">Category Images</label>
+                                <div className="d-flex flex-wrap gap-3 mb-3">
+                                    {editCategory.imageUrls?.map((imageUrl, index) => (
+                                        <div
+                                            key={index}
+                                            className="position-relative"
+                                            style={{ width: '100px', height: '100px' }}
+                                            onClick={() => setEditCategory(prev => ({ ...prev, primaryImageUrl: imageUrl }))}
+                                        >
+                                            <img
+                                                src={imageUrl}
+                                                alt={`Category ${index}`}
+                                                className="w-100 h-100 cursor-pointer"
+                                                style={{
+                                                    objectFit: 'cover',
+                                                    borderRadius: '4px',
+                                                    border: imageUrl === editCategory.primaryImageUrl ? '2px solid #1976d2' : '1px solid #dee2e6'
+                                                }}
+                                            />
+                                            <div className="position-absolute top-0 end-0 p-1">
+                                                <button
+                                                    type="button"
+                                                    className="btn btn-danger btn-sm p-1"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleDeleteImage(imageUrl);
+                                                    }}
+                                                    style={{ width: '24px', height: '24px' }}
+                                                >
+                                                    <FiTrash size={12} />
+                                                </button>
+                                            </div>
+                                            {imageUrl === editCategory.primaryImageUrl && (
+                                                <div className="position-absolute bottom-0 start-0 bg-primary text-white px-2 py-1 small">
+                                                    Primary
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+
+                                    <div className="position-relative" style={{ width: '100px', height: '100px' }}>
+                                        <div
+                                            className="w-100 h-100 border rounded d-flex flex-column justify-content-center align-items-center cursor-pointer"
+                                            style={{
+                                                borderStyle: imagePreview ? 'solid' : 'dashed',
+                                                backgroundColor: isDarkMode ? '#1e293b' : '#f8f9fa'
+                                            }}
+                                            onClick={() => document.getElementById('edit-image-upload').click()}
+                                        >
+                                            {imagePreview ? (
+                                                <img
+                                                    src={imagePreview}
+                                                    alt="Preview"
+                                                    className="w-100 h-100"
+                                                    style={{
+                                                        objectFit: 'cover',
+                                                        borderRadius: '4px'
+                                                    }}
+                                                />
+                                            ) : (
+                                                <>
+                                                    <FiUpload size={20} className="mb-1" />
+                                                    <h8 className="small">Add Image</h8>
+                                                </>
+                                            )}
+                                        </div>
+                                        <input
+                                            type="file"
+                                            id="edit-image-upload"
+                                            className="d-none"
+                                            accept="image/*"
+                                            onChange={handleFileChange}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </form>
+                    </Modal.Body>
+                    <Modal.Footer>
+                        <Button
+                            variant="contained"
+                            onClick={handleEditSubmit}
+                            style={{ backgroundColor: '#1976d2', color: 'white' }}
+                            disabled={uploadingImage}
+                        >
+                            {uploadingImage ? (
+                                <>
+                                    <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                    Updating...
+                                </>
+                            ) : (
+                                'Update'
+                            )}
+                        </Button>
+                    </Modal.Footer>
+                </Modal>
+            )}
+
+            {/* View Category Modal */}
+            {canRead && (
+                <Modal show={isViewModalOpen} onHide={() => setIsViewModalOpen(false)} centered size="lg">
+                    <Modal.Header closeButton>
+                        <Modal.Title>Category Details</Modal.Title>
+                    </Modal.Header>
+                    <Modal.Body>
+                        {selectedCategory && (
+                            <div>
+                                <div className="mb-3">
+                                    <h5>Name</h5>
+                                    <h8>{selectedCategory.name}</h8>
+                                </div>
+                                <div className="mb-3">
+                                    <h5>Description</h5>
+                                    <h8>{selectedCategory.description || '-'}</h8>
+                                </div>
+                                <div className="mb-3">
+                                    <h5>Status</h5>
+                                    <h8>{selectedCategory.active ? 'Active' : 'Inactive'}</h8>
+                                </div>
+                                <div className="mb-3">
+                                    <h5>Item Count</h5>
+                                    <h8>{selectedCategory.itemCount}</h8>
+                                </div>
+                                <div className="mb-3">
+                                    <h5>Images</h5>
+                                    <div className="d-flex flex-wrap gap-3">
+                                        {selectedCategory.imageUrls?.length > 0 ? (
+                                            selectedCategory.imageUrls.map((imageUrl, index) => (
+                                                <div key={index} className="position-relative" style={{ width: '100px', height: '100px' }}>
+                                                    <img
+                                                        src={imageUrl}
+                                                        alt={`Category ${index}`}
+                                                        className="w-100 h-100"
+                                                        style={{
+                                                            objectFit: 'cover',
+                                                            borderRadius: '4px',
+                                                            border: imageUrl === selectedCategory.primaryImageUrl ? '2px solid #1976d2' : '1px solid #dee2e6'
+                                                        }}
+                                                    />
+                                                    {imageUrl === selectedCategory.primaryImageUrl && (
+                                                        <div className="position-absolute bottom-0 start-0 bg-primary text-white px-2 py-1 small">
+                                                            Primary
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <div style={{ width: '100px', height: '100px' }}>
+                                                <img
+                                                    src="/images/avatar/1.png"
+                                                    alt="Category"
+                                                    className="w-100 h-100"
+                                                    style={{
+                                                        objectFit: 'cover',
+                                                        borderRadius: '4px'
+                                                    }}
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </Modal.Body>
+                </Modal>
+            )}
 
             {/* Delete Confirmation Modal */}
-            <Modal show={isDeleteModalOpen} onHide={() => setIsDeleteModalOpen(false)} centered>
-                <Modal.Header closeButton>
-                    <Modal.Title>Delete Category</Modal.Title>
-                </Modal.Header>
-                <Modal.Body>
-                    {categoryToDelete && (
-                        <>
-                            <h8>Are you sure you want to delete the category <strong>{categoryToDelete.name}</strong>? </h8>
-                            <h8>This action cannot be undone.</h8>
-                        </>
-                    )}
-                </Modal.Body>
-                <Modal.Footer>
-                    <Button
-                        variant="contained"
-                        onClick={handleDeleteCategory}
-                        style={{ backgroundColor: '#d32f2f', color: 'white' }}
-                    >
-                        Delete
-                    </Button>
-                </Modal.Footer>
-            </Modal>
+            {canDelete && (
+                <Modal show={isDeleteModalOpen} onHide={() => setIsDeleteModalOpen(false)} centered>
+                    <Modal.Header closeButton>
+                        <Modal.Title>Delete Category</Modal.Title>
+                    </Modal.Header>
+                    <Modal.Body>
+                        {categoryToDelete && (
+                            <>
+                                <h8>Are you sure you want to delete the category <strong>{categoryToDelete.name}</strong>? </h8>
+                                <h8>This action cannot be undone.</h8>
+                            </>
+                        )}
+                    </Modal.Body>
+                    <Modal.Footer>
+                        <Button
+                            variant="contained"
+                            onClick={handleDeleteCategory}
+                            style={{ backgroundColor: '#d32f2f', color: 'white' }}
+                        >
+                            Delete
+                        </Button>
+                    </Modal.Footer>
+                </Modal>
+            )}
         </>
     );
 };

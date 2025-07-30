@@ -141,7 +141,7 @@ const LoginForm = ({ registerPath, resetPath }) => {
                 };
                 localStorage.setItem("authData", JSON.stringify(authData));
             } else {
-                // Team login - save the specific fields
+                // Updated Team login - save the specific fields
                 const teamAuthData = {
                     token: data.token,
                     role: data.role,
@@ -153,7 +153,21 @@ const LoginForm = ({ registerPath, resetPath }) => {
                     email: data.email,
                     contactNumber: data.contactNumber,
                     profilePicture: data.profilePicture,
-                    permissions: data.permissions || []
+                    permissions: data.permissions || [],
+                    tabPermissions: data.tabPermissions || {},
+                    currencySettings: {
+                        currency: data.currencySettings?.currency,
+                        currencySymbol: data.currencySettings?.currencySymbol,
+                        currencyCode: data.currencySettings?.currencyCode
+                    },
+                    taxDetails: {
+                        gstRate: data.taxDetails?.gstRate,
+                        sstRate: data.taxDetails?.sstRate,
+                        gstEnabled: data.taxDetails?.gstEnabled,
+                        sstEnabled: data.taxDetails?.sstEnabled,
+                        discountRate: data.taxDetails?.discountRate,
+                        discountEnabled: data.taxDetails?.discountEnabled
+                    }
                 };
                 localStorage.setItem("authData", JSON.stringify(teamAuthData));
             }

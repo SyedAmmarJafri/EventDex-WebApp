@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import Table from '@/components/shared/table/Table';
 import { FiTrash, FiBook, FiEdit, FiPlus, FiEye, FiMail } from 'react-icons/fi';
 import Button from '@mui/material/Button';
@@ -8,32 +8,6 @@ import { BASE_URL } from '/src/constants.js';
 import Skeleton from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
 import Modal from 'react-bootstrap/Modal';
-
-// Initialize IndexedDB
-const initIndexedDB = () => {
-    return new Promise((resolve, reject) => {
-        const request = indexedDB.open('MarketingDB', 2);
-
-        request.onerror = (event) => {
-            console.error('IndexedDB error:', event.target.error);
-            reject('Failed to open IndexedDB');
-        };
-
-        request.onsuccess = (event) => {
-            resolve(event.target.result);
-        };
-
-        request.onupgradeneeded = (event) => {
-            const db = event.target.result;
-            if (!db.objectStoreNames.contains('templates')) {
-                db.createObjectStore('templates', { keyPath: 'id' });
-            }
-            if (!db.objectStoreNames.contains('emailConfig')) {
-                db.createObjectStore('emailConfig', { keyPath: 'id' });
-            }
-        };
-    });
-};
 
 const TemplatesTable = () => {
     const [templates, setTemplates] = useState([]);
@@ -65,106 +39,41 @@ const TemplatesTable = () => {
     const [configFormErrors, setConfigFormErrors] = useState({});
     const [activeTab, setActiveTab] = useState('edit');
     const [editActiveTab, setEditActiveTab] = useState('edit');
-    const [db, setDb] = useState(null);
     const skinTheme = localStorage.getItem('skinTheme') || 'light';
     const isDarkMode = skinTheme === 'dark';
 
-    // Initialize IndexedDB on component mount
+    // Get user permissions from authData
+    const authData = JSON.parse(localStorage.getItem("authData"));
+    const userRole = authData?.role || '';
+    const userPermissions = authData?.permissions || [];
+    
+    // Permission checks
+    const canRead = userRole === 'CLIENT_ADMIN' || userPermissions.includes('TEMPLATE_READ');
+    const canWrite = userRole === 'CLIENT_ADMIN' || userPermissions.includes('TEMPLATE_WRITE');
+    const canUpdate = userRole === 'CLIENT_ADMIN' || userPermissions.includes('TEMPLATE_UPDATE');
+    const canDelete = userRole === 'CLIENT_ADMIN' || userPermissions.includes('TEMPLATE_DELETE');
+    const canConfigureEmail = userRole === 'CLIENT_ADMIN' || userPermissions.includes('EMAIL_SETTINGS_WRITE');
+
+    // Load initial data from API
     useEffect(() => {
-        initIndexedDB().then(database => {
-            setDb(database);
-            // Load initial data
-            loadInitialData(database);
-        }).catch(error => {
-            console.error('IndexedDB initialization failed:', error);
-            // Fallback to API calls
-            fetchTemplatesFromAPI();
-            fetchEmailConfigFromAPI();
-        });
+        const loadInitialData = async () => {
+            try {
+                setLoading(true);
+                await fetchTemplatesFromAPI();
+                await fetchEmailConfigFromAPI();
+            } catch (error) {
+                console.error('Error loading initial data:', error);
+                toast.error('Failed to load initial data');
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        loadInitialData();
     }, []);
 
-    // Load initial data from cache or API
-    const loadInitialData = async (database) => {
+    const fetchTemplatesFromAPI = async () => {
         try {
-            setLoading(true);
-
-            // Check if we have cached templates
-            const cachedTemplates = await getFromIndexedDB(database, 'templates');
-            if (cachedTemplates && cachedTemplates.length > 0) {
-                setTemplates(cachedTemplates);
-
-                // Check if data is stale (older than 1 hour)
-                const lastSync = localStorage.getItem('templatesLastSync') || 0;
-                if (Date.now() - lastSync > 3600000) {
-                    await fetchTemplatesFromAPI(database);
-                }
-            } else {
-                await fetchTemplatesFromAPI(database);
-            }
-
-            // Load email config
-            const cachedConfig = await getFromIndexedDB(database, 'emailConfig', 'config');
-            if (cachedConfig) {
-                setEmailConfig({
-                    fromEmail: cachedConfig.fromEmail,
-                    appPassword: ''
-                });
-            } else {
-                await fetchEmailConfigFromAPI(database);
-            }
-        } catch (error) {
-            console.error('Error loading initial data:', error);
-            toast.error('Failed to load initial data');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    // Generic function to get data from IndexedDB
-    const getFromIndexedDB = (database, storeName, key = null) => {
-        return new Promise((resolve) => {
-            const transaction = database.transaction([storeName], 'readonly');
-            const store = transaction.objectStore(storeName);
-
-            const request = key ? store.get(key) : store.getAll();
-
-            request.onsuccess = () => {
-                resolve(request.result);
-            };
-
-            request.onerror = () => {
-                resolve(null);
-            };
-        });
-    };
-
-    // Generic function to save data to IndexedDB
-    const saveToIndexedDB = (database, storeName, data, key = null) => {
-        return new Promise((resolve) => {
-            const transaction = database.transaction([storeName], 'readwrite');
-            const store = transaction.objectStore(storeName);
-
-            if (key) {
-                store.put({ ...data, id: key });
-            } else {
-                // Clear existing data if storing array
-                store.clear();
-                data.forEach(item => store.put(item));
-            }
-
-            transaction.oncomplete = () => {
-                resolve(true);
-            };
-
-            transaction.onerror = () => {
-                resolve(false);
-            };
-        });
-    };
-
-    const fetchTemplatesFromAPI = async (database = db) => {
-        try {
-            const authData = JSON.parse(localStorage.getItem("authData"));
             if (!authData?.token) {
                 throw new Error("Authentication token not found");
             }
@@ -185,10 +94,6 @@ const TemplatesTable = () => {
             const data = await response.json();
             if (data && Array.isArray(data)) {
                 setTemplates(data);
-                if (database) {
-                    await saveToIndexedDB(database, 'templates', data);
-                    localStorage.setItem('templatesLastSync', Date.now());
-                }
             } else {
                 throw new Error('Invalid data format received from server');
             }
@@ -197,9 +102,8 @@ const TemplatesTable = () => {
         }
     };
 
-    const fetchEmailConfigFromAPI = async (database = db) => {
+    const fetchEmailConfigFromAPI = async () => {
         try {
-            const authData = JSON.parse(localStorage.getItem("authData"));
             if (!authData?.token) {
                 throw new Error("Authentication token not found");
             }
@@ -222,10 +126,6 @@ const TemplatesTable = () => {
                 fromEmail: data.fromEmail,
                 appPassword: ''
             });
-
-            if (database) {
-                await saveToIndexedDB(database, 'emailConfig', data, 'config');
-            }
         } catch (err) {
             toast.error(err.message);
         }
@@ -247,14 +147,16 @@ const TemplatesTable = () => {
                 </div>
                 <h5 className="mb-2">No Templates Found</h5>
                 <p className="text-muted mb-4">You haven't created any templates yet. Start by adding a new template.</p>
-                <Button
-                    variant="contained"
-                    onClick={() => setIsModalOpen(true)}
-                    className="d-flex align-items-center gap-2 mx-auto"
-                    style={{ backgroundColor: '#0092ff', color: 'white' }}
-                >
-                    <FiPlus /> Add Template
-                </Button>
+                {canWrite && (
+                    <Button
+                        variant="contained"
+                        onClick={() => setIsModalOpen(true)}
+                        className="d-flex align-items-center gap-2 mx-auto"
+                        style={{ backgroundColor: '#0092ff', color: 'white' }}
+                    >
+                        <FiPlus /> Add Template
+                    </Button>
+                )}
             </div>
         );
     };
@@ -269,7 +171,9 @@ const TemplatesTable = () => {
                             <th scope="col">Subject</th>
                             <th scope="col">Created At</th>
                             <th scope="col">Updated At</th>
-                            <th scope="col" className="text-end">Actions</th>
+                            {(canRead || canUpdate || canDelete) && (
+                                <th scope="col" className="text-end">Actions</th>
+                            )}
                         </tr>
                     </thead>
                     <tbody>
@@ -303,31 +207,33 @@ const TemplatesTable = () => {
                                         highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
                                     />
                                 </td>
-                                <td>
-                                    <div className="hstack gap-2 justify-content-end">
-                                        <Skeleton
-                                            circle
-                                            width={24}
-                                            height={24}
-                                            baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
-                                            highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
-                                        />
-                                        <Skeleton
-                                            circle
-                                            width={24}
-                                            height={24}
-                                            baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
-                                            highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
-                                        />
-                                        <Skeleton
-                                            circle
-                                            width={24}
-                                            height={24}
-                                            baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
-                                            highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
-                                        />
-                                    </div>
-                                </td>
+                                {(canRead || canUpdate || canDelete) && (
+                                    <td>
+                                        <div className="hstack gap-2 justify-content-end">
+                                            <Skeleton
+                                                circle
+                                                width={24}
+                                                height={24}
+                                                baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
+                                                highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
+                                            />
+                                            <Skeleton
+                                                circle
+                                                width={24}
+                                                height={24}
+                                                baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
+                                                highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
+                                            />
+                                            <Skeleton
+                                                circle
+                                                width={24}
+                                                height={24}
+                                                baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
+                                                highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
+                                            />
+                                        </div>
+                                    </td>
+                                )}
                             </tr>
                         ))}
                     </tbody>
@@ -382,8 +288,6 @@ const TemplatesTable = () => {
         if (!validateConfigForm(emailConfig)) return;
 
         try {
-            const authData = JSON.parse(localStorage.getItem("authData"));
-
             const response = await fetch(`${BASE_URL}/api/admin/marketing/email-configuration`, {
                 method: 'POST',
                 headers: {
@@ -403,13 +307,8 @@ const TemplatesTable = () => {
 
             toast.success('Email configuration updated successfully');
 
-            // Update local state and IndexedDB
-            const newConfig = { fromEmail: emailConfig.fromEmail };
+            // Update local state
             setEmailConfig(prev => ({ ...prev, appPassword: '' }));
-            if (db) {
-                await saveToIndexedDB(db, 'emailConfig', newConfig, 'config');
-            }
-
             setIsConfigModalOpen(false);
         } catch (err) {
             toast.error(err.message);
@@ -421,8 +320,6 @@ const TemplatesTable = () => {
         if (!validateForm(newTemplate, setFormErrors)) return;
 
         try {
-            const authData = JSON.parse(localStorage.getItem("authData"));
-
             const response = await fetch(`${BASE_URL}/api/admin/marketing/templates`, {
                 method: 'POST',
                 headers: {
@@ -439,13 +336,8 @@ const TemplatesTable = () => {
 
             toast.success('Template created successfully');
 
-            // Update local state and IndexedDB
-            const updatedTemplates = [...templates, data];
-            setTemplates(updatedTemplates);
-            if (db) {
-                await saveToIndexedDB(db, 'templates', updatedTemplates);
-            }
-
+            // Update local state
+            setTemplates(prev => [...prev, data]);
             setIsModalOpen(false);
             setNewTemplate({
                 name: '',
@@ -463,8 +355,6 @@ const TemplatesTable = () => {
         if (!validateForm(editTemplate, setEditFormErrors)) return;
 
         try {
-            const authData = JSON.parse(localStorage.getItem("authData"));
-
             const response = await fetch(`${BASE_URL}/api/admin/marketing/templates/${editTemplate.id}`, {
                 method: 'PUT',
                 headers: {
@@ -485,15 +375,8 @@ const TemplatesTable = () => {
 
             toast.success('Template updated successfully');
 
-            // Update local state and IndexedDB
-            const updatedTemplates = templates.map(t =>
-                t.id === editTemplate.id ? data : t
-            );
-            setTemplates(updatedTemplates);
-            if (db) {
-                await saveToIndexedDB(db, 'templates', updatedTemplates);
-            }
-
+            // Update local state
+            setTemplates(prev => prev.map(t => t.id === editTemplate.id ? data : t));
             setIsEditModalOpen(false);
             setEditActiveTab('edit');
         } catch (err) {
@@ -523,14 +406,9 @@ const TemplatesTable = () => {
 
     const handleDeleteTemplate = async () => {
         try {
-            const authData = JSON.parse(localStorage.getItem("authData"));
-
             // Optimistically update the UI
             const updatedTemplates = templates.filter(t => t.id !== templateToDelete.id);
             setTemplates(updatedTemplates);
-            if (db) {
-                await saveToIndexedDB(db, 'templates', updatedTemplates);
-            }
 
             const response = await fetch(`${BASE_URL}/api/admin/marketing/templates/${templateToDelete.id}`, {
                 method: 'DELETE',
@@ -560,10 +438,6 @@ const TemplatesTable = () => {
         } catch (err) {
             // Revert the UI change if the API call fails
             setTemplates(templates);
-            if (db) {
-                await saveToIndexedDB(db, 'templates', templates);
-            }
-
             toast.error(err.message, {
                 position: "bottom-center",
                 autoClose: 5000,
@@ -617,29 +491,35 @@ const TemplatesTable = () => {
             header: "Actions",
             cell: ({ row }) => (
                 <div className="hstack gap-2 justify-content-end">
-                    <button
-                        className="avatar-text avatar-md"
-                        onClick={() => handleViewTemplate(row.original)}
-                    >
-                        <FiEye />
-                    </button>
-                    <button
-                        className="avatar-text avatar-md"
-                        onClick={() => handleEditTemplate(row.original)}
-                    >
-                        <FiEdit />
-                    </button>
-                    <button
-                        className="avatar-text avatar-md"
-                        onClick={() => handleDeleteClick(row.original)}
-                    >
-                        <FiTrash />
-                    </button>
+                    {canRead && (
+                        <button
+                            className="avatar-text avatar-md"
+                            onClick={() => handleViewTemplate(row.original)}
+                        >
+                            <FiEye />
+                        </button>
+                    )}
+                    {canUpdate && (
+                        <button
+                            className="avatar-text avatar-md"
+                            onClick={() => handleEditTemplate(row.original)}
+                        >
+                            <FiEdit />
+                        </button>
+                    )}
+                    {canDelete && (
+                        <button
+                            className="avatar-text avatar-md"
+                            onClick={() => handleDeleteClick(row.original)}
+                        >
+                            <FiTrash />
+                        </button>
+                    )}
                 </div>
             ),
             meta: { headerClassName: 'text-end' }
         },
-    ], []);
+    ], [canRead, canUpdate, canDelete]);
 
     return (
         <>
@@ -659,32 +539,38 @@ const TemplatesTable = () => {
             <div className="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4 gap-3">
                 <h4 className="mb-0 me-md-3">Marketing Templates</h4>
                 <div className="ms-auto d-flex flex-column flex-sm-row gap-2">
-                    <Button
-                        variant="contained"
-                        onClick={handleOpenConfigModal}
-                        className="d-flex align-items-center gap-2 justify-content-center"
-                        style={{ backgroundColor: '#0092ff', color: 'white' }}
-                    >
-                        <FiMail /> Email Configure
-                    </Button>
-                    <Button
-                        variant="contained"
-                        href="https://www.google.com"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="d-flex align-items-center gap-2 justify-content-center"
-                        style={{ backgroundColor: '#0092ff', color: 'white' }}
-                    >
-                        <FiBook /> Template Library
-                    </Button>
-                    <Button
-                        variant="contained"
-                        onClick={() => setIsModalOpen(true)}
-                        className="d-flex align-items-center gap-2 justify-content-center"
-                        style={{ backgroundColor: '#0092ff', color: 'white' }}
-                    >
-                        <FiPlus /> Add Template
-                    </Button>
+                    {canConfigureEmail && (
+                        <Button
+                            variant="contained"
+                            onClick={handleOpenConfigModal}
+                            className="d-flex align-items-center gap-2 justify-content-center"
+                            style={{ backgroundColor: '#0092ff', color: 'white' }}
+                        >
+                            <FiMail /> Email Configure
+                        </Button>
+                    )}
+                    {canWrite && (
+                        <>
+                            <Button
+                                variant="contained"
+                                href="https://www.google.com"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="d-flex align-items-center gap-2 justify-content-center"
+                                style={{ backgroundColor: '#0092ff', color: 'white' }}
+                            >
+                                <FiBook /> Template Library
+                            </Button>
+                            <Button
+                                variant="contained"
+                                onClick={() => setIsModalOpen(true)}
+                                className="d-flex align-items-center gap-2 justify-content-center"
+                                style={{ backgroundColor: '#0092ff', color: 'white' }}
+                            >
+                                <FiPlus /> Add Template
+                            </Button>
+                        </>
+                    )}
                 </div>
             </div>
 
@@ -701,304 +587,314 @@ const TemplatesTable = () => {
             )}
 
             {/* Add Template Modal */}
-            <Modal show={isModalOpen} onHide={() => {
-                setIsModalOpen(false);
-                setNewTemplate({ name: '', subject: '', content: '' });
-                setFormErrors({});
-                setActiveTab('edit');
-            }} centered size="lg">
-                <Modal.Header closeButton>
-                    <Modal.Title>Add Template</Modal.Title>
-                </Modal.Header>
-                <Modal.Body>
-                    <form onSubmit={handleSubmit}>
-                        <div className="mb-3">
-                            <label htmlFor="name" className="form-label">Name</label>
-                            <input
-                                type="text"
-                                className={`form-control ${formErrors.name ? 'is-invalid' : ''}`}
-                                id="name"
-                                name="name"
-                                value={newTemplate.name}
-                                onChange={handleInputChange}
-                            />
-                            {formErrors.name && <div className="invalid-feedback">{formErrors.name}</div>}
-                        </div>
-                        <div className="mb-3">
-                            <label htmlFor="subject" className="form-label">Subject</label>
-                            <input
-                                type="text"
-                                className={`form-control ${formErrors.subject ? 'is-invalid' : ''}`}
-                                id="subject"
-                                name="subject"
-                                value={newTemplate.subject}
-                                onChange={handleInputChange}
-                            />
-                            {formErrors.subject && <div className="invalid-feedback">{formErrors.subject}</div>}
-                        </div>
-                        <div className="mb-3">
-                            <label htmlFor="content" className="form-label">Content</label>
-                            <ul className="nav nav-tabs mb-3">
-                                <li className="nav-item">
-                                    <button
-                                        className={`nav-link ${activeTab === 'edit' ? 'active' : ''}`}
-                                        onClick={handleTabChange('edit')}
-                                        type="button"
-                                    >
-                                        Edit
-                                    </button>
-                                </li>
-                                <li className="nav-item">
-                                    <button
-                                        className={`nav-link ${activeTab === 'preview' ? 'active' : ''}`}
-                                        onClick={handleTabChange('preview')}
-                                        type="button"
-                                    >
-                                        Preview
-                                    </button>
-                                </li>
-                            </ul>
-
-                            {activeTab === 'edit' ? (
-                                <textarea
-                                    className={`form-control ${formErrors.content ? 'is-invalid' : ''}`}
-                                    id="content"
-                                    name="content"
-                                    value={newTemplate.content}
+            {canWrite && (
+                <Modal show={isModalOpen} onHide={() => {
+                    setIsModalOpen(false);
+                    setNewTemplate({ name: '', subject: '', content: '' });
+                    setFormErrors({});
+                    setActiveTab('edit');
+                }} centered size="lg">
+                    <Modal.Header closeButton>
+                        <Modal.Title>Add Template</Modal.Title>
+                    </Modal.Header>
+                    <Modal.Body>
+                        <form onSubmit={handleSubmit}>
+                            <div className="mb-3">
+                                <label htmlFor="name" className="form-label">Name</label>
+                                <input
+                                    type="text"
+                                    className={`form-control ${formErrors.name ? 'is-invalid' : ''}`}
+                                    id="name"
+                                    name="name"
+                                    value={newTemplate.name}
                                     onChange={handleInputChange}
-                                    rows="7"
                                 />
-                            ) : (
-                                <div
-                                    className="border p-3 bg-light"
-                                    style={{ minHeight: '200px' }}
-                                    dangerouslySetInnerHTML={{ __html: newTemplate.content }}
+                                {formErrors.name && <div className="invalid-feedback">{formErrors.name}</div>}
+                            </div>
+                            <div className="mb-3">
+                                <label htmlFor="subject" className="form-label">Subject</label>
+                                <input
+                                    type="text"
+                                    className={`form-control ${formErrors.subject ? 'is-invalid' : ''}`}
+                                    id="subject"
+                                    name="subject"
+                                    value={newTemplate.subject}
+                                    onChange={handleInputChange}
                                 />
-                            )}
-                            {formErrors.content && <div className="invalid-feedback">{formErrors.content}</div>}
-                        </div>
-                    </form>
-                    <h8 className="form-text mb-2">
-                        HTML code is supported. Switch between tabs to edit and preview.
-                    </h8>
-                </Modal.Body>
-                <Modal.Footer>
-                    <Button
-                        variant="contained"
-                        onClick={handleSubmit}
-                        style={{ backgroundColor: '#1976d2', color: 'white' }}
-                    >
-                        Create
-                    </Button>
-                </Modal.Footer>
-            </Modal>
+                                {formErrors.subject && <div className="invalid-feedback">{formErrors.subject}</div>}
+                            </div>
+                            <div className="mb-3">
+                                <label htmlFor="content" className="form-label">Content</label>
+                                <ul className="nav nav-tabs mb-3">
+                                    <li className="nav-item">
+                                        <button
+                                            className={`nav-link ${activeTab === 'edit' ? 'active' : ''}`}
+                                            onClick={handleTabChange('edit')}
+                                            type="button"
+                                        >
+                                            Edit
+                                        </button>
+                                    </li>
+                                    <li className="nav-item">
+                                        <button
+                                            className={`nav-link ${activeTab === 'preview' ? 'active' : ''}`}
+                                            onClick={handleTabChange('preview')}
+                                            type="button"
+                                        >
+                                            Preview
+                                        </button>
+                                    </li>
+                                </ul>
+
+                                {activeTab === 'edit' ? (
+                                    <textarea
+                                        className={`form-control ${formErrors.content ? 'is-invalid' : ''}`}
+                                        id="content"
+                                        name="content"
+                                        value={newTemplate.content}
+                                        onChange={handleInputChange}
+                                        rows="7"
+                                    />
+                                ) : (
+                                    <div
+                                        className="border p-3 bg-light"
+                                        style={{ minHeight: '200px' }}
+                                        dangerouslySetInnerHTML={{ __html: newTemplate.content }}
+                                    />
+                                )}
+                                {formErrors.content && <div className="invalid-feedback">{formErrors.content}</div>}
+                            </div>
+                        </form>
+                        <h8 className="form-text mb-2">
+                            HTML code is supported. Switch between tabs to edit and preview.
+                        </h8>
+                    </Modal.Body>
+                    <Modal.Footer>
+                        <Button
+                            variant="contained"
+                            onClick={handleSubmit}
+                            style={{ backgroundColor: '#1976d2', color: 'white' }}
+                        >
+                            Create
+                        </Button>
+                    </Modal.Footer>
+                </Modal>
+            )}
 
             {/* Edit Template Modal */}
-            <Modal show={isEditModalOpen} onHide={() => {
-                setIsEditModalOpen(false);
-                setEditFormErrors({});
-                setEditActiveTab('edit');
-            }} centered size="lg">
-                <Modal.Header closeButton>
-                    <Modal.Title>Edit Template</Modal.Title>
-                </Modal.Header>
-                <Modal.Body>
-                    <form onSubmit={handleEditSubmit}>
-                        <div className="mb-3">
-                            <label htmlFor="edit-name" className="form-label">Name</label>
-                            <input
-                                type="text"
-                                className={`form-control ${editFormErrors.name ? 'is-invalid' : ''}`}
-                                id="edit-name"
-                                name="name"
-                                value={editTemplate.name}
-                                onChange={handleEditInputChange}
-                            />
-                            {editFormErrors.name && <div className="invalid-feedback">{editFormErrors.name}</div>}
-                        </div>
-                        <div className="mb-3">
-                            <label htmlFor="edit-subject" className="form-label">Subject</label>
-                            <input
-                                type="text"
-                                className={`form-control ${editFormErrors.subject ? 'is-invalid' : ''}`}
-                                id="edit-subject"
-                                name="subject"
-                                value={editTemplate.subject}
-                                onChange={handleEditInputChange}
-                            />
-                            {editFormErrors.subject && <div className="invalid-feedback">{editFormErrors.subject}</div>}
-                        </div>
-                        <div className="mb-3">
-                            <label htmlFor="edit-content" className="form-label">Content</label>
-                            <ul className="nav nav-tabs mb-3">
-                                <li className="nav-item">
-                                    <button
-                                        className={`nav-link ${editActiveTab === 'edit' ? 'active' : ''}`}
-                                        onClick={handleEditTabChange('edit')}
-                                        type="button"
-                                    >
-                                        Edit
-                                    </button>
-                                </li>
-                                <li className="nav-item">
-                                    <button
-                                        className={`nav-link ${editActiveTab === 'preview' ? 'active' : ''}`}
-                                        onClick={handleEditTabChange('preview')}
-                                        type="button"
-                                    >
-                                        Preview
-                                    </button>
-                                </li>
-                            </ul>
-
-                            {editActiveTab === 'edit' ? (
-                                <textarea
-                                    className={`form-control ${editFormErrors.content ? 'is-invalid' : ''}`}
-                                    id="edit-content"
-                                    name="content"
-                                    value={editTemplate.content}
+            {canUpdate && (
+                <Modal show={isEditModalOpen} onHide={() => {
+                    setIsEditModalOpen(false);
+                    setEditFormErrors({});
+                    setEditActiveTab('edit');
+                }} centered size="lg">
+                    <Modal.Header closeButton>
+                        <Modal.Title>Edit Template</Modal.Title>
+                    </Modal.Header>
+                    <Modal.Body>
+                        <form onSubmit={handleEditSubmit}>
+                            <div className="mb-3">
+                                <label htmlFor="edit-name" className="form-label">Name</label>
+                                <input
+                                    type="text"
+                                    className={`form-control ${editFormErrors.name ? 'is-invalid' : ''}`}
+                                    id="edit-name"
+                                    name="name"
+                                    value={editTemplate.name}
                                     onChange={handleEditInputChange}
-                                    rows="7"
                                 />
-                            ) : (
-                                <div
-                                    className="border p-3 bg-light"
-                                    style={{ minHeight: '200px' }}
-                                    dangerouslySetInnerHTML={{ __html: editTemplate.content }}
+                                {editFormErrors.name && <div className="invalid-feedback">{editFormErrors.name}</div>}
+                            </div>
+                            <div className="mb-3">
+                                <label htmlFor="edit-subject" className="form-label">Subject</label>
+                                <input
+                                    type="text"
+                                    className={`form-control ${editFormErrors.subject ? 'is-invalid' : ''}`}
+                                    id="edit-subject"
+                                    name="subject"
+                                    value={editTemplate.subject}
+                                    onChange={handleEditInputChange}
                                 />
-                            )}
-                            {editFormErrors.content && <div className="invalid-feedback">{editFormErrors.content}</div>}
-                        </div>
-                    </form>
-                    <h8 className="form-text mb-2">
-                        HTML code is supported. Switch between tabs to edit and preview.
-                    </h8>
-                </Modal.Body>
-                <Modal.Footer>
-                    <Button
-                        variant="contained"
-                        onClick={handleEditSubmit}
-                        style={{ backgroundColor: '#1976d2', color: 'white' }}
-                    >
-                        Update
-                    </Button>
-                </Modal.Footer>
-            </Modal>
+                                {editFormErrors.subject && <div className="invalid-feedback">{editFormErrors.subject}</div>}
+                            </div>
+                            <div className="mb-3">
+                                <label htmlFor="edit-content" className="form-label">Content</label>
+                                <ul className="nav nav-tabs mb-3">
+                                    <li className="nav-item">
+                                        <button
+                                            className={`nav-link ${editActiveTab === 'edit' ? 'active' : ''}`}
+                                            onClick={handleEditTabChange('edit')}
+                                            type="button"
+                                        >
+                                            Edit
+                                        </button>
+                                    </li>
+                                    <li className="nav-item">
+                                        <button
+                                            className={`nav-link ${editActiveTab === 'preview' ? 'active' : ''}`}
+                                            onClick={handleEditTabChange('preview')}
+                                            type="button"
+                                        >
+                                            Preview
+                                        </button>
+                                    </li>
+                                </ul>
+
+                                {editActiveTab === 'edit' ? (
+                                    <textarea
+                                        className={`form-control ${editFormErrors.content ? 'is-invalid' : ''}`}
+                                        id="edit-content"
+                                        name="content"
+                                        value={editTemplate.content}
+                                        onChange={handleEditInputChange}
+                                        rows="7"
+                                    />
+                                ) : (
+                                    <div
+                                        className="border p-3 bg-light"
+                                        style={{ minHeight: '200px' }}
+                                        dangerouslySetInnerHTML={{ __html: editTemplate.content }}
+                                    />
+                                )}
+                                {editFormErrors.content && <div className="invalid-feedback">{editFormErrors.content}</div>}
+                            </div>
+                        </form>
+                        <h8 className="form-text mb-2">
+                            HTML code is supported. Switch between tabs to edit and preview.
+                        </h8>
+                    </Modal.Body>
+                    <Modal.Footer>
+                        <Button
+                            variant="contained"
+                            onClick={handleEditSubmit}
+                            style={{ backgroundColor: '#1976d2', color: 'white' }}
+                        >
+                            Update
+                        </Button>
+                    </Modal.Footer>
+                </Modal>
+            )}
 
             {/* View Template Modal */}
-            <Modal show={isViewModalOpen} onHide={() => setIsViewModalOpen(false)} centered size="lg">
-                <Modal.Header closeButton>
-                    <Modal.Title>Template Details</Modal.Title>
-                </Modal.Header>
-                <Modal.Body>
-                    {selectedTemplate && (
-                        <div>
-                            <div className="mb-4">
-                                <h5>Name</h5>
-                                <h8>{selectedTemplate.name}</h8>
-                            </div>
-                            <div className="mb-4">
-                                <h5>Subject</h5>
-                                <h8>{selectedTemplate.subject}</h8>
-                            </div>
-                            <div className="mb-4">
-                                <h5>Content</h5>
-                                <div
-                                    className="border p-3 bg-light"
-                                    style={{ minHeight: '200px' }}
-                                    dangerouslySetInnerHTML={{ __html: selectedTemplate.content }}
-                                />
-                            </div>
-                            <div className="row mb-4">
-                                <div className="col-md-6">
-                                    <h5>Created At</h5>
-                                    <h8>{new Date(selectedTemplate.createdAt).toLocaleString()}</h8>
+            {canRead && (
+                <Modal show={isViewModalOpen} onHide={() => setIsViewModalOpen(false)} centered size="lg">
+                    <Modal.Header closeButton>
+                        <Modal.Title>Template Details</Modal.Title>
+                    </Modal.Header>
+                    <Modal.Body>
+                        {selectedTemplate && (
+                            <div>
+                                <div className="mb-4">
+                                    <h5>Name</h5>
+                                    <h8>{selectedTemplate.name}</h8>
                                 </div>
-                                <div className="col-md-6">
-                                    <h5>Updated At</h5>
-                                    <h8>{new Date(selectedTemplate.updatedAt).toLocaleString()}</h8>
+                                <div className="mb-4">
+                                    <h5>Subject</h5>
+                                    <h8>{selectedTemplate.subject}</h8>
+                                </div>
+                                <div className="mb-4">
+                                    <h5>Content</h5>
+                                    <div
+                                        className="border p-3 bg-light"
+                                        style={{ minHeight: '200px' }}
+                                        dangerouslySetInnerHTML={{ __html: selectedTemplate.content }}
+                                    />
+                                </div>
+                                <div className="row mb-4">
+                                    <div className="col-md-6">
+                                        <h5>Created At</h5>
+                                        <h8>{new Date(selectedTemplate.createdAt).toLocaleString()}</h8>
+                                    </div>
+                                    <div className="col-md-6">
+                                        <h5>Updated At</h5>
+                                        <h8>{new Date(selectedTemplate.updatedAt).toLocaleString()}</h8>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    )}
-                </Modal.Body>
-            </Modal>
+                        )}
+                    </Modal.Body>
+                </Modal>
+            )}
 
             {/* Delete Confirmation Modal */}
-            <Modal show={isDeleteModalOpen} onHide={() => setIsDeleteModalOpen(false)} centered>
-                <Modal.Header closeButton>
-                    <Modal.Title>Delete Template</Modal.Title>
-                </Modal.Header>
-                <Modal.Body>
-                    {templateToDelete && (
-                        <>
-                            <h8>Are you sure you want to delete the template <strong>{templateToDelete.name}</strong>? </h8>
-                            <h8>This action cannot be undone.</h8>
-                        </>
-                    )}
-                </Modal.Body>
-                <Modal.Footer>
-                    <Button
-                        variant="contained"
-                        onClick={handleDeleteTemplate}
-                        style={{ backgroundColor: '#d32f2f', color: 'white' }}
-                    >
-                        Delete
-                    </Button>
-                </Modal.Footer>
-            </Modal>
+            {canDelete && (
+                <Modal show={isDeleteModalOpen} onHide={() => setIsDeleteModalOpen(false)} centered>
+                    <Modal.Header closeButton>
+                        <Modal.Title>Delete Template</Modal.Title>
+                    </Modal.Header>
+                    <Modal.Body>
+                        {templateToDelete && (
+                            <>
+                                <h8>Are you sure you want to delete the template <strong>{templateToDelete.name}</strong>? </h8>
+                                <h8>This action cannot be undone.</h8>
+                            </>
+                        )}
+                    </Modal.Body>
+                    <Modal.Footer>
+                        <Button
+                            variant="contained"
+                            onClick={handleDeleteTemplate}
+                            style={{ backgroundColor: '#d32f2f', color: 'white' }}
+                        >
+                            Delete
+                        </Button>
+                    </Modal.Footer>
+                </Modal>
+            )}
 
             {/* Email Configuration Modal */}
-            <Modal show={isConfigModalOpen} onHide={() => {
-                setIsConfigModalOpen(false);
-                setEmailConfig({ fromEmail: '', appPassword: '' });
-                setConfigFormErrors({});
-            }} centered>
-                <Modal.Header closeButton>
-                    <Modal.Title>Email Configuration</Modal.Title>
-                </Modal.Header>
-                <Modal.Body>
-                    <form onSubmit={handleConfigSubmit}>
-                        <div className="mb-3">
-                            <label htmlFor="fromEmail" className="form-label">From Email</label>
-                            <input
-                                type="email"
-                                className={`form-control ${configFormErrors.fromEmail ? 'is-invalid' : ''}`}
-                                id="fromEmail"
-                                name="fromEmail"
-                                value={emailConfig.fromEmail}
-                                onChange={handleConfigInputChange}
-                            />
-                            {configFormErrors.fromEmail && <div className="invalid-feedback">{configFormErrors.fromEmail}</div>}
-                        </div>
-                        <div className="mb-3">
-                            <label htmlFor="appPassword" className="form-label">App Password</label>
-                            <input
-                                type="password"
-                                className={`form-control ${configFormErrors.appPassword ? 'is-invalid' : ''}`}
-                                id="appPassword"
-                                name="appPassword"
-                                value={emailConfig.appPassword}
-                                onChange={handleConfigInputChange}
-                                placeholder="Enter new app password"
-                            />
-                            {configFormErrors.appPassword && <div className="invalid-feedback">{configFormErrors.appPassword}</div>}
-                            <h8 className="form-text">
-                                Note: This is the app-specific password for your email account, not your regular password.
-                            </h8>
-                        </div>
-                    </form>
-                </Modal.Body>
-                <Modal.Footer>
-                    <Button
-                        variant="contained"
-                        onClick={handleConfigSubmit}
-                        style={{ backgroundColor: '#1976d2', color: 'white' }}
-                    >
-                        Save Configuration
-                    </Button>
-                </Modal.Footer>
-            </Modal>
+            {canConfigureEmail && (
+                <Modal show={isConfigModalOpen} onHide={() => {
+                    setIsConfigModalOpen(false);
+                    setEmailConfig({ fromEmail: '', appPassword: '' });
+                    setConfigFormErrors({});
+                }} centered>
+                    <Modal.Header closeButton>
+                        <Modal.Title>Email Configuration</Modal.Title>
+                    </Modal.Header>
+                    <Modal.Body>
+                        <form onSubmit={handleConfigSubmit}>
+                            <div className="mb-3">
+                                <label htmlFor="fromEmail" className="form-label">From Email</label>
+                                <input
+                                    type="email"
+                                    className={`form-control ${configFormErrors.fromEmail ? 'is-invalid' : ''}`}
+                                    id="fromEmail"
+                                    name="fromEmail"
+                                    value={emailConfig.fromEmail}
+                                    onChange={handleConfigInputChange}
+                                />
+                                {configFormErrors.fromEmail && <div className="invalid-feedback">{configFormErrors.fromEmail}</div>}
+                            </div>
+                            <div className="mb-3">
+                                <label htmlFor="appPassword" className="form-label">App Password</label>
+                                <input
+                                    type="password"
+                                    className={`form-control ${configFormErrors.appPassword ? 'is-invalid' : ''}`}
+                                    id="appPassword"
+                                    name="appPassword"
+                                    value={emailConfig.appPassword}
+                                    onChange={handleConfigInputChange}
+                                    placeholder="Enter new app password"
+                                />
+                                {configFormErrors.appPassword && <div className="invalid-feedback">{configFormErrors.appPassword}</div>}
+                                <h8 className="form-text">
+                                    Note: This is the app-specific password for your email account, not your regular password.
+                                </h8>
+                            </div>
+                        </form>
+                    </Modal.Body>
+                    <Modal.Footer>
+                        <Button
+                            variant="contained"
+                            onClick={handleConfigSubmit}
+                            style={{ backgroundColor: '#1976d2', color: 'white' }}
+                        >
+                            Save Configuration
+                        </Button>
+                    </Modal.Footer>
+                </Modal>
+            )}
         </>
     );
 };

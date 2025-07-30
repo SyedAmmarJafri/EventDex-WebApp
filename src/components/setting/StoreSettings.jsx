@@ -115,24 +115,47 @@ const StoreSettingsForm = () => {
 
     // Fetch alert bars
     const fetchAlertBars = async () => {
-        const authData = JSON.parse(localStorage.getItem("authData"));
-
-        const response = await fetch(`${BASE_URL}/api/alert-bars/all`, {
-            method: 'GET',
-            headers: {
-                'Authorization': `Bearer ${authData.token}`,
-                'Content-Type': 'application/json'
+        try {
+            const authData = JSON.parse(localStorage.getItem("authData"));
+            if (!authData?.token) {
+                console.log("No authentication token found");
+                return;
             }
-        });
 
-        const data = await response.json();
+            const response = await fetch(`${BASE_URL}/api/alert-bars/all`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${authData.token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
 
-        if (Array.isArray(data)) {
-            setAlertBars(data);
-        } else if (data && typeof data === 'object') {
-            setAlertBars([data]);
-        } else {
-            setAlertBars([]);
+            if (!response.ok) {
+                console.log('Failed to fetch alert bars');
+                return;
+            }
+
+            const data = await response.json();
+
+            // Handle different response structures
+            if (data.data) {
+                // If response has a data field (single alert bar or array)
+                if (Array.isArray(data.data)) {
+                    setAlertBars(data.data);
+                } else {
+                    setAlertBars([data.data]);
+                }
+            } else if (Array.isArray(data)) {
+                // If response is directly an array
+                setAlertBars(data);
+            } else if (data && typeof data === 'object') {
+                // If response is a single object
+                setAlertBars([data]);
+            } else {
+                setAlertBars([]);
+            }
+        } catch (error) {
+            console.log('Error fetching alert bars:', error.message);
         }
     };
 
@@ -305,21 +328,33 @@ const StoreSettingsForm = () => {
 
     // Handle delete alert bar
     const handleDeleteAlertBar = async (id) => {
-        setUpdatingAlertBar(true);
-        const authData = JSON.parse(localStorage.getItem("authData"));
+        try {
+            setUpdatingAlertBar(true);
+            const authData = JSON.parse(localStorage.getItem("authData"));
+            if (!authData?.token) {
+                throw new Error("No authentication token found");
+            }
 
-        await fetch(`${BASE_URL}/api/alert-bars`, {
-            method: 'DELETE',
-            headers: {
-                'Authorization': `Bearer ${authData.token}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ id })
-        });
+            const response = await fetch(`${BASE_URL}/api/alert-bars`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${authData.token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ id })
+            });
 
-        showToast('Alert bar deleted successfully');
-        fetchAlertBars();
-        setUpdatingAlertBar(false);
+            if (!response.ok) {
+                throw new Error('Failed to delete alert bar');
+            }
+
+            showToast('Alert bar deleted successfully');
+            fetchAlertBars();
+        } catch (error) {
+            showToast(error.message, 'error');
+        } finally {
+            setUpdatingAlertBar(false);
+        }
     };
 
     // Handle input changes
@@ -866,7 +901,7 @@ const StoreSettingsForm = () => {
                         </Card.Header>
                         <Card.Body>
                             {alertBars.length === 0 ? (
-                                <h8>No alert bars configured</h8>
+                                <p>No alert bars configured</p>
                             ) : (
                                 <div className="alert-bars-list">
                                     {alertBars.map((alert) => (
@@ -874,17 +909,17 @@ const StoreSettingsForm = () => {
                                             <Card.Body>
                                                 <div className="d-flex justify-content-between align-items-start">
                                                     <div>
-                                                        <h8 className="mb-1"><strong>Message:</strong> {alert.message}</h8><br />
-                                                        <h8 className="mb-1"><small>
+                                                        <p className="mb-1"><strong>Message:</strong> {alert.message}</p>
+                                                        <p className="mb-1"><small>
                                                             <strong>Status:</strong>
                                                             <Badge bg={alert.active ? "success" : "secondary"} className="ms-2">
                                                                 {alert.active ? "Active" : "Inactive"}
                                                             </Badge>
-                                                        </small></h8><br />
-                                                        <h8 className="mb-1"><small>
-                                                            <strong>Active:</strong> {new Date(alert.startTime).toLocaleString()} - {new Date(alert.endTime).toLocaleString()}
-                                                        </small></h8><br />
-                                                        <h8 className="mb-1"><small>
+                                                        </small></p>
+                                                        <p className="mb-1"><small>
+                                                            <strong>Active Period:</strong> {new Date(alert.startTime).toLocaleString()} - {new Date(alert.endTime).toLocaleString()}
+                                                        </small></p>
+                                                        <p className="mb-1"><small>
                                                             <strong>Colors:</strong>
                                                             <span className="d-inline-block ms-2" style={{
                                                                 width: '15px',
@@ -898,10 +933,10 @@ const StoreSettingsForm = () => {
                                                                 backgroundColor: alert.textColor,
                                                                 border: '1px solid #ddd'
                                                             }}></span>
-                                                        </small></h8><br />
-                                                        <h8 className="mb-0"><small>
+                                                        </small></p>
+                                                        <p className="mb-0"><small>
                                                             <strong>Dismissible:</strong> {alert.dismissible ? 'Yes' : 'No'}
-                                                        </small></h8>
+                                                        </small></p>
                                                     </div>
                                                     <Button
                                                         variant="danger"
