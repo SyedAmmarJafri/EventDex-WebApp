@@ -860,13 +860,34 @@ const TransactionsTable = () => {
                         </Form.Group>
 
                         <Form.Group className="mb-3">
-                            <Form.Label>Type</Form.Label>
+                            <Form.Label style={{
+                                color: '#0092ff',
+                                fontWeight: '500',
+                                marginBottom: '0.5rem',
+                                fontSize: '0.875rem'
+                            }}>
+                                Type
+                            </Form.Label>
                             <Form.Select
                                 value={newPaymentMethod.type}
                                 onChange={(e) => setNewPaymentMethod({ ...newPaymentMethod, type: e.target.value })}
+                                style={{
+                                    backgroundColor: 'transparent', cursor: 'pointer', paddingRight: '2.5rem', backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'16\' height=\'16\' fill=\'%230092ff\' viewBox=\'0 0 16 16\'%3E%3Cpath d=\'M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z\'/%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.75rem center', backgroundSize: '16px 12px', appearance: 'none',
+                                }}
                             >
                                 {paymentMethodTypes.map((type) => (
-                                    <option key={type.value} value={type.value}>{type.label}</option>
+                                    <option
+                                        key={type.value}
+                                        value={type.value}
+                                        style={{
+                                            color: '#000000ff',
+                                            backgroundColor: 'white',
+                                            padding: '0.5rem 1rem',
+                                            fontSize: '0.875rem'
+                                        }}
+                                    >
+                                        {type.label}
+                                    </option>
                                 ))}
                             </Form.Select>
                         </Form.Group>
@@ -935,15 +956,43 @@ const TransactionsTable = () => {
                             </div>
                             <div className="col-md-6">
                                 <Form.Group className="mb-3">
-                                    <Form.Label>Payment Method</Form.Label>
+                                    <Form.Label style={{
+                                        color: '#0092ff',
+                                        fontWeight: '600',
+                                        fontSize: '0.9rem',
+                                        marginBottom: '0.5rem'
+                                    }}>
+                                        Payment Method
+                                    </Form.Label>
                                     <Form.Select
                                         value={newTransaction.paymentMethodId}
                                         onChange={(e) => setNewTransaction({ ...newTransaction, paymentMethodId: e.target.value })}
                                         required
+                                        style={{
+                                            backgroundColor: 'transparent', cursor: 'pointer', paddingRight: '2.5rem', backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'16\' height=\'16\' fill=\'%230092ff\' viewBox=\'0 0 16 16\'%3E%3Cpath d=\'M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z\'/%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.75rem center', backgroundSize: '16px 12px', appearance: 'none',
+                                        }}
                                     >
-                                        <option value="">Select payment method</option>
+                                        <option value="" style={{
+                                            color: '#6c757d',
+                                            backgroundColor: '#fff',
+                                            fontSize: '0.9rem',
+                                            padding: '0.5rem 1rem'
+                                        }}>
+                                            Select payment method
+                                        </option>
                                         {paymentMethods.map((method) => (
-                                            <option key={method.id} value={method.id}>{method.name}</option>
+                                            <option
+                                                key={method.id}
+                                                value={method.id}
+                                                style={{
+                                                    color: '#000000ff',
+                                                    backgroundColor: '#fff',
+                                                    fontSize: '0.9rem',
+                                                    padding: '0.5rem 1rem'
+                                                }}
+                                            >
+                                                {method.name}
+                                            </option>
                                         ))}
                                     </Form.Select>
                                 </Form.Group>
@@ -965,15 +1014,44 @@ const TransactionsTable = () => {
                         <div className="row">
                             <div className="col-md-6">
                                 <Form.Group className="mb-3">
-                                    <Form.Label>Category</Form.Label>
+                                    <Form.Label style={{
+                                        color: '#0092ff',
+                                        fontWeight: '600',
+                                        fontSize: '0.9rem',
+                                        marginBottom: '0.5rem',
+                                        display: 'block'
+                                    }}>
+                                        Category
+                                    </Form.Label>
                                     <Form.Select
                                         value={newTransaction.category}
                                         onChange={(e) => setNewTransaction({ ...newTransaction, category: e.target.value })}
                                         required
+                                        style={{
+                                            backgroundColor: 'transparent', cursor: 'pointer', paddingRight: '2.5rem', backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'16\' height=\'16\' fill=\'%230092ff\' viewBox=\'0 0 16 16\'%3E%3Cpath d=\'M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z\'/%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.75rem center', backgroundSize: '16px 12px', appearance: 'none',
+                                        }}
                                     >
-                                        <option value="">Select category</option>
+                                        <option value="" style={{
+                                            color: '#6c757d',
+                                            backgroundColor: '#fff',
+                                            fontSize: '0.9rem',
+                                            padding: '0.5rem 1rem'
+                                        }}>
+                                            Select category
+                                        </option>
                                         {transactionCategories.map((category) => (
-                                            <option key={category.value} value={category.value}>{category.label}</option>
+                                            <option
+                                                key={category.value}
+                                                value={category.value}
+                                                style={{
+                                                    color: '#000000ff',
+                                                    backgroundColor: '#fff',
+                                                    fontSize: '0.9rem',
+                                                    padding: '0.5rem 1rem'
+                                                }}
+                                            >
+                                                {category.label}
+                                            </option>
                                         ))}
                                     </Form.Select>
                                 </Form.Group>
@@ -1034,15 +1112,44 @@ const TransactionsTable = () => {
                             </div>
                             <div className="col-md-6">
                                 <Form.Group className="mb-3">
-                                    <Form.Label>Payment Method</Form.Label>
+                                    <Form.Label style={{
+                                        color: '#0092ff',
+                                        fontWeight: '600',
+                                        fontSize: '0.9rem',
+                                        marginBottom: '0.5rem',
+                                        display: 'block'
+                                    }}>
+                                        Payment Method
+                                    </Form.Label>
                                     <Form.Select
                                         value={newTransaction.paymentMethodId}
                                         onChange={(e) => setNewTransaction({ ...newTransaction, paymentMethodId: e.target.value })}
                                         required
+                                        style={{
+                                            backgroundColor: 'transparent', cursor: 'pointer', paddingRight: '2.5rem', backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'16\' height=\'16\' fill=\'%230092ff\' viewBox=\'0 0 16 16\'%3E%3Cpath d=\'M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z\'/%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.75rem center', backgroundSize: '16px 12px', appearance: 'none',
+                                        }}
                                     >
-                                        <option value="">Select payment method</option>
+                                        <option value="" style={{
+                                            color: '#6c757d',
+                                            backgroundColor: '#fff',
+                                            fontSize: '0.9rem',
+                                            padding: '0.5rem 1rem'
+                                        }}>
+                                            Select payment method
+                                        </option>
                                         {paymentMethods.map((method) => (
-                                            <option key={method.id} value={method.id}>{method.name}</option>
+                                            <option
+                                                key={method.id}
+                                                value={method.id}
+                                                style={{
+                                                    color: '#000000ff',
+                                                    backgroundColor: '#fff',
+                                                    fontSize: '0.9rem',
+                                                    padding: '0.5rem 1rem'
+                                                }}
+                                            >
+                                                {method.name}
+                                            </option>
                                         ))}
                                     </Form.Select>
                                 </Form.Group>
@@ -1064,15 +1171,44 @@ const TransactionsTable = () => {
                         <div className="row">
                             <div className="col-md-6">
                                 <Form.Group className="mb-3">
-                                    <Form.Label>Category</Form.Label>
+                                    <Form.Label style={{
+                                        color: '#0092ff',
+                                        fontWeight: '600',
+                                        fontSize: '0.9rem',
+                                        marginBottom: '0.5rem',
+                                        display: 'block'
+                                    }}>
+                                        Category
+                                    </Form.Label>
                                     <Form.Select
                                         value={newTransaction.category}
                                         onChange={(e) => setNewTransaction({ ...newTransaction, category: e.target.value })}
                                         required
+                                        style={{
+                                            backgroundColor: 'transparent', cursor: 'pointer', paddingRight: '2.5rem', backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'16\' height=\'16\' fill=\'%230092ff\' viewBox=\'0 0 16 16\'%3E%3Cpath d=\'M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z\'/%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.75rem center', backgroundSize: '16px 12px', appearance: 'none',
+                                        }}
                                     >
-                                        <option value="">Select category</option>
+                                        <option value="" style={{
+                                            color: '#6c757d',
+                                            backgroundColor: '#fff',
+                                            fontSize: '0.9rem',
+                                            padding: '0.5rem 1rem'
+                                        }}>
+                                            Select category
+                                        </option>
                                         {transactionCategories.map((category) => (
-                                            <option key={category.value} value={category.value}>{category.label}</option>
+                                            <option
+                                                key={category.value}
+                                                value={category.value}
+                                                style={{
+                                                    color: '#000000ff',
+                                                    backgroundColor: '#fff',
+                                                    fontSize: '0.9rem',
+                                                    padding: '0.5rem 1rem'
+                                                }}
+                                            >
+                                                {category.label}
+                                            </option>
                                         ))}
                                     </Form.Select>
                                 </Form.Group>
@@ -1133,15 +1269,44 @@ const TransactionsTable = () => {
                             </div>
                             <div className="col-md-6">
                                 <Form.Group className="mb-3">
-                                    <Form.Label>Payment Method</Form.Label>
+                                    <Form.Label style={{
+                                        color: '#0092ff',
+                                        fontWeight: '600',
+                                        fontSize: '0.9rem',
+                                        marginBottom: '0.5rem',
+                                        display: 'block'
+                                    }}>
+                                        Payment Method
+                                    </Form.Label>
                                     <Form.Select
                                         value={newTransaction.paymentMethodId}
                                         onChange={(e) => setNewTransaction({ ...newTransaction, paymentMethodId: e.target.value })}
                                         required
+                                        style={{
+                                            backgroundColor: 'transparent', cursor: 'pointer', paddingRight: '2.5rem', backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'16\' height=\'16\' fill=\'%230092ff\' viewBox=\'0 0 16 16\'%3E%3Cpath d=\'M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z\'/%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.75rem center', backgroundSize: '16px 12px', appearance: 'none',
+                                        }}
                                     >
-                                        <option value="">Select payment method</option>
+                                        <option value="" style={{
+                                            color: '#6c757d',
+                                            backgroundColor: '#fff',
+                                            fontSize: '0.9rem',
+                                            padding: '0.5rem 1rem'
+                                        }}>
+                                            Select payment method
+                                        </option>
                                         {paymentMethods.map((method) => (
-                                            <option key={method.id} value={method.id}>{method.name}</option>
+                                            <option
+                                                key={method.id}
+                                                value={method.id}
+                                                style={{
+                                                    color: '#000000ff',
+                                                    backgroundColor: '#fff',
+                                                    fontSize: '0.9rem',
+                                                    padding: '0.5rem 1rem'
+                                                }}
+                                            >
+                                                {method.name}
+                                            </option>
                                         ))}
                                     </Form.Select>
                                 </Form.Group>
@@ -1163,15 +1328,53 @@ const TransactionsTable = () => {
                         <div className="row">
                             <div className="col-md-6">
                                 <Form.Group className="mb-3">
-                                    <Form.Label>Category</Form.Label>
+                                    <Form.Label style={{
+                                        color: '#0092ff',
+                                        fontWeight: '600',
+                                        fontSize: '0.9rem',
+                                        marginBottom: '0.5rem',
+                                        display: 'block'
+                                    }}>
+                                        Category
+                                    </Form.Label>
                                     <Form.Select
                                         value={newTransaction.category}
                                         onChange={(e) => setNewTransaction({ ...newTransaction, category: e.target.value })}
                                         required
+                                        style={{
+                                            backgroundColor: 'transparent', cursor: 'pointer', paddingRight: '2.5rem', backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'16\' height=\'16\' fill=\'%230092ff\' viewBox=\'0 0 16 16\'%3E%3Cpath d=\'M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z\'/%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.75rem center', backgroundSize: '16px 12px', appearance: 'none',
+                                        }}
                                     >
-                                        <option value="">Select category</option>
-                                        <option value="PERSONAL">Personal</option>
-                                        <option value="OTHER">Other</option>
+                                        <option value="" style={{
+                                            color: '#6c757d',
+                                            backgroundColor: '#fff',
+                                            fontSize: '0.9rem',
+                                            padding: '0.5rem 1rem'
+                                        }}>
+                                            Select category
+                                        </option>
+                                        <option
+                                            value="PERSONAL"
+                                            style={{
+                                                color: '#000000ff',
+                                                backgroundColor: '#fff',
+                                                fontSize: '0.9rem',
+                                                padding: '0.5rem 1rem'
+                                            }}
+                                        >
+                                            Personal
+                                        </option>
+                                        <option
+                                            value="OTHER"
+                                            style={{
+                                                color: '#000000ff',
+                                                backgroundColor: '#fff',
+                                                fontSize: '0.9rem',
+                                                padding: '0.5rem 1rem'
+                                            }}
+                                        >
+                                            Other
+                                        </option>
                                     </Form.Select>
                                 </Form.Group>
                             </div>
@@ -1219,45 +1422,92 @@ const TransactionsTable = () => {
             ) : summary ? (
                 <>
                     <div className="row mb-4">
+                        {/* Current Balance Card */}
                         <div className="col-md-3 col-sm-6 mb-3">
                             <div className="card text-white h-100" style={{
-                                background: 'linear-gradient(to top left, #33ccff 0%, #0000cc 100%',
-                                border: 'none'
+                                background: 'linear-gradient(135deg, #0092ff 0%, #005ece 100%)',
+                                borderRadius: '12px',
+                                border: 'none',
+                                overflow: 'hidden',
+                                position: 'relative',
+                                boxShadow: '0 4px 20px rgba(0, 146, 255, 0.2)'
                             }}>
-                                <div className="card-body d-flex flex-column">
+                                <div style={{
+                                    position: 'absolute',
+                                    top: '-50px',
+                                    right: '-50px',
+                                    width: '200px',
+                                    height: '200px',
+                                    borderRadius: '50%',
+                                    background: 'rgba(255, 255, 255, 0.1)'
+                                }} />
+                                <div style={{
+                                    position: 'absolute',
+                                    bottom: '-80px',
+                                    right: '0',
+                                    width: '160px',
+                                    height: '160px',
+                                    borderRadius: '50%',
+                                    background: 'rgba(255, 255, 255, 0.1)'
+                                }} />
+                                <div className="card-body d-flex flex-column" style={{ padding: '24px', zIndex: 1 }}>
                                     <div className="d-flex justify-content-between align-items-center mb-3">
                                         <div className="d-flex align-items-center">
-                                            <h6 className="card-title mb-0">Current Balance</h6>
+                                            <h6 className="card-title mb-0" style={{ fontWeight: 600 }}>Current Balance</h6>
                                             <FaSync
                                                 className="ms-2"
                                                 size={16}
-                                                style={{ cursor: 'pointer' }}
+                                                style={{ cursor: 'pointer', opacity: 0.8 }}
                                                 onClick={handleForceRefresh}
                                                 title="Refresh data"
                                             />
                                         </div>
-                                        <FaWallet size={24} />
+                                        <FaWallet size={24} style={{ opacity: 0.8 }} />
                                     </div>
-                                    <h3 className="text-light mb-0">{currencySymbol}{summary.currentBalance.toFixed(2)}</h3>
-                                    <div className="mt-auto text-white" style={{ fontSize: '0.8rem', opacity: 0.9 }}>
+                                    <h3 className="text-light mb-0" style={{ fontSize: '28px', fontWeight: 600 }}>
+                                        {currencySymbol}{summary.currentBalance.toFixed(2)}
+                                    </h3>
+                                    <div className="mt-auto text-white" style={{
+                                        fontSize: '0.8rem',
+                                        opacity: 0.9,
+                                        marginTop: '16px'
+                                    }}>
                                         Overall available balance
                                     </div>
                                 </div>
                             </div>
                         </div>
+
                         <div className="col-md-3 col-sm-6 mb-3">
                             <div className="card text-white h-100" style={{
-                                background: 'linear-gradient(to top left, #33ccff 0%, #0000cc 100%)',
+                                background: 'linear-gradient(135deg, #0092ff 0%, #005ece 100%)',
+                                borderRadius: '12px',
                                 border: 'none',
-                                boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                                overflow: 'hidden',
+                                position: 'relative',
+                                boxShadow: '0 4px 20px rgba(0, 146, 255, 0.2)'
                             }}>
-                                <div className="card-body d-flex flex-column">
+                                <div style={{
+                                    position: 'absolute',
+                                    top: '-50px',
+                                    right: '-50px',
+                                    width: '200px',
+                                    height: '200px',
+                                    borderRadius: '50%',
+                                    background: 'rgba(255, 255, 255, 0.1)'
+                                }} />
+                                <div className="card-body d-flex flex-column" style={{ padding: '24px', zIndex: 1 }}>
                                     <div className="d-flex justify-content-between align-items-center mb-3">
-                                        <h6 className="card-title mb-0">Total Income</h6>
-                                        <FaArrowUp size={24} />
+                                        <h6 className="card-title mb-0" style={{ fontWeight: 600 }}>Total Income</h6>
+                                        <FaArrowUp size={24} style={{ opacity: 0.8 }} />
                                     </div>
-                                    <h3 className="text-light mb-2">{currencySymbol}{summary.totalIncome.toFixed(2)}</h3>
-                                    <div className="text-white mb-3" style={{ fontSize: '0.8rem', opacity: 0.9 }}>
+                                    <h3 className="text-light mb-2" style={{ fontSize: '28px', fontWeight: 600 }}>
+                                        {currencySymbol}{summary.totalIncome.toFixed(2)}
+                                    </h3>
+                                    <div className="text-white mb-3" style={{
+                                        fontSize: '0.8rem',
+                                        opacity: 0.9
+                                    }}>
                                         All-time income
                                     </div>
                                     <div className="mt-auto">
@@ -1267,11 +1517,12 @@ const TransactionsTable = () => {
                                                 className="me-2"
                                                 onClick={() => setShowAddIncome(true)}
                                                 style={{
-                                                    borderRadius: '25px',
-                                                    border: '2px solid #fff',
+                                                    borderRadius: '6px',
+                                                    border: '1px solid rgba(255, 255, 255, 0.2)',
                                                     fontWeight: '500',
                                                     padding: '8px 16px',
-                                                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                                                    background: 'rgba(255, 255, 255, 1)',
+                                                    backdropFilter: 'blur(4px)'
                                                 }}
                                             >
                                                 <FaPlus className="me-1" /> Add Income
@@ -1281,19 +1532,37 @@ const TransactionsTable = () => {
                                 </div>
                             </div>
                         </div>
+
                         <div className="col-md-3 col-sm-6 mb-3">
                             <div className="card text-white h-100" style={{
-                                background: 'linear-gradient(to top left, #33ccff 0%, #0000cc 100%)',
+                                background: 'linear-gradient(135deg, #0092ff 0%, #005ece 100%)',
+                                borderRadius: '12px',
                                 border: 'none',
-                                boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                                overflow: 'hidden',
+                                position: 'relative',
+                                boxShadow: '0 4px 20px rgba(0, 146, 255, 0.2)'
                             }}>
-                                <div className="card-body d-flex flex-column">
+                                <div style={{
+                                    position: 'absolute',
+                                    top: '-50px',
+                                    right: '-50px',
+                                    width: '200px',
+                                    height: '200px',
+                                    borderRadius: '50%',
+                                    background: 'rgba(255, 255, 255, 0.1)'
+                                }} />
+                                <div className="card-body d-flex flex-column" style={{ padding: '24px', zIndex: 1 }}>
                                     <div className="d-flex justify-content-between align-items-center mb-3">
-                                        <h6 className="card-title mb-0">Total Expenses</h6>
-                                        <FaArrowDown size={24} />
+                                        <h6 className="card-title mb-0" style={{ fontWeight: 600 }}>Total Expenses</h6>
+                                        <FaArrowDown size={24} style={{ opacity: 0.8 }} />
                                     </div>
-                                    <h3 className="text-light mb-2">{currencySymbol}{summary.totalExpenses.toFixed(2)}</h3>
-                                    <div className="text-white mb-3" style={{ fontSize: '0.8rem', opacity: 0.9 }}>
+                                    <h3 className="text-light mb-2" style={{ fontSize: '28px', fontWeight: 600 }}>
+                                        {currencySymbol}{summary.totalExpenses.toFixed(2)}
+                                    </h3>
+                                    <div className="text-white mb-3" style={{
+                                        fontSize: '0.8rem',
+                                        opacity: 0.9
+                                    }}>
                                         All-time expenses
                                     </div>
                                     <div className="mt-auto">
@@ -1303,11 +1572,12 @@ const TransactionsTable = () => {
                                                 className="me-2"
                                                 onClick={() => setShowAddExpense(true)}
                                                 style={{
-                                                    borderRadius: '25px',
-                                                    border: '2px solid #fff',
+                                                    borderRadius: '6px',
+                                                    border: '1px solid rgba(255, 255, 255, 0.2)',
                                                     fontWeight: '500',
                                                     padding: '8px 16px',
-                                                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                                                    background: 'rgba(255, 255, 255, 1)',
+                                                    backdropFilter: 'blur(4px)'
                                                 }}
                                             >
                                                 <FaPlus className="me-1" /> Add Expense
@@ -1317,19 +1587,37 @@ const TransactionsTable = () => {
                                 </div>
                             </div>
                         </div>
+
                         <div className="col-md-3 col-sm-6 mb-3">
                             <div className="card text-white h-100" style={{
-                                background: 'linear-gradient(to top left, #33ccff 0%, #0000cc 100%)',
+                                background: 'linear-gradient(135deg, #0092ff 0%, #005ece 100%)',
+                                borderRadius: '12px',
                                 border: 'none',
-                                boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                                overflow: 'hidden',
+                                position: 'relative',
+                                boxShadow: '0 4px 20px rgba(0, 146, 255, 0.2)'
                             }}>
-                                <div className="card-body d-flex flex-column">
+                                <div style={{
+                                    position: 'absolute',
+                                    top: '-50px',
+                                    right: '-50px',
+                                    width: '200px',
+                                    height: '200px',
+                                    borderRadius: '50%',
+                                    background: 'rgba(255, 255, 255, 0.1)'
+                                }} />
+                                <div className="card-body d-flex flex-column" style={{ padding: '24px', zIndex: 1 }}>
                                     <div className="d-flex justify-content-between align-items-center mb-3">
-                                        <h6 className="card-title mb-0 text-white">Total Withdrawals</h6>
-                                        <FaMoneyBillWave size={24} className="text-white" />
+                                        <h6 className="card-title mb-0" style={{ fontWeight: 600 }}>Total Withdrawals</h6>
+                                        <FaMoneyBillWave size={24} style={{ opacity: 0.8 }} />
                                     </div>
-                                    <h3 className="text-white mb-2">{currencySymbol}{summary.totalWithdrawals.toFixed(2)}</h3>
-                                    <div className="text-white mb-3" style={{ fontSize: '0.8rem', opacity: 0.9 }}>
+                                    <h3 className="text-light mb-2" style={{ fontSize: '28px', fontWeight: 600 }}>
+                                        {currencySymbol}{summary.totalWithdrawals.toFixed(2)}
+                                    </h3>
+                                    <div className="text-white mb-3" style={{
+                                        fontSize: '0.8rem',
+                                        opacity: 0.9
+                                    }}>
                                         All-time withdrawals
                                     </div>
                                     <div className="mt-auto">
@@ -1339,11 +1627,12 @@ const TransactionsTable = () => {
                                                 className="me-2"
                                                 onClick={() => setShowAddWithdrawal(true)}
                                                 style={{
-                                                    borderRadius: '25px',
-                                                    border: '2px solid #fff',
+                                                    borderRadius: '6px',
+                                                    border: '1px solid rgba(255, 255, 255, 0.2)',
                                                     fontWeight: '500',
                                                     padding: '8px 16px',
-                                                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                                                    background: 'rgba(255, 255, 255, 1)',
+                                                    backdropFilter: 'blur(4px)'
                                                 }}
                                             >
                                                 <FaPlus className="me-1" /> Add Withdrawal
@@ -1354,80 +1643,161 @@ const TransactionsTable = () => {
                             </div>
                         </div>
                     </div>
+
                     <div className="row mb-4">
+                        {/* Monthly Income Card */}
                         <div className="col-md-3 col-sm-6 mb-3">
                             <div className="card text-white h-100" style={{
-                                background: 'linear-gradient(to top left, #33ccff 0%, #0000cc 100%)',
+                                background: 'linear-gradient(135deg, #0092ff 0%, #005ece 100%)',
+                                borderRadius: '12px',
                                 border: 'none',
-                                boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
+                                overflow: 'hidden',
+                                position: 'relative',
+                                boxShadow: '0 4px 20px rgba(0, 146, 255, 0.2)'
                             }}>
-                                <div className="card-body d-flex flex-column">
+                                <div style={{
+                                    position: 'absolute',
+                                    top: '-50px',
+                                    right: '-50px',
+                                    width: '200px',
+                                    height: '200px',
+                                    borderRadius: '50%',
+                                    background: 'rgba(255, 255, 255, 0.1)'
+                                }} />
+                                <div className="card-body d-flex flex-column" style={{ padding: '24px', zIndex: 1 }}>
                                     <div className="d-flex justify-content-between align-items-center mb-3">
-                                        <h6 className="text-white mb-0">Monthly Income</h6>
-                                        <FaChartLine size={24} className="text-white" />
+                                        <h6 className="card-title mb-0" style={{ fontWeight: 600 }}>Monthly Income</h6>
+                                        <FaChartLine size={24} style={{ opacity: 0.8 }} />
                                     </div>
-                                    <h3 className="text-white mb-0">{currencySymbol}{summary.monthlyIncome.toFixed(2)}</h3>
-                                    <div className="mt-auto text-white" style={{ fontSize: '0.8rem', opacity: 0.9 }}>
+                                    <h3 className="text-light mb-0" style={{ fontSize: '28px', fontWeight: 600 }}>
+                                        {currencySymbol}{summary.monthlyIncome.toFixed(2)}
+                                    </h3>
+                                    <div className="mt-auto text-white" style={{
+                                        fontSize: '0.8rem',
+                                        opacity: 0.9,
+                                        marginTop: '16px'
+                                    }}>
                                         This month's income
                                     </div>
                                 </div>
                             </div>
                         </div>
+
+                        {/* Monthly Expenses Card */}
                         <div className="col-md-3 col-sm-6 mb-3">
                             <div className="card text-white h-100" style={{
-                                background: 'linear-gradient(to top left, #33ccff 0%, #0000cc 100%)',
+                                background: 'linear-gradient(135deg, #0092ff 0%, #005ece 100%)',
+                                borderRadius: '12px',
                                 border: 'none',
-                                boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
+                                overflow: 'hidden',
+                                position: 'relative',
+                                boxShadow: '0 4px 20px rgba(0, 146, 255, 0.2)'
                             }}>
-                                <div className="card-body d-flex flex-column">
+                                <div style={{
+                                    position: 'absolute',
+                                    top: '-50px',
+                                    right: '-50px',
+                                    width: '200px',
+                                    height: '200px',
+                                    borderRadius: '50%',
+                                    background: 'rgba(255, 255, 255, 0.1)'
+                                }} />
+                                <div className="card-body d-flex flex-column" style={{ padding: '24px', zIndex: 1 }}>
                                     <div className="d-flex justify-content-between align-items-center mb-3">
-                                        <h6 className="text-white mb-0">Monthly Expenses</h6>
-                                        <FaChartBar size={24} className="text-white" />
+                                        <h6 className="card-title mb-0" style={{ fontWeight: 600 }}>Monthly Expenses</h6>
+                                        <FaChartBar size={24} style={{ opacity: 0.8 }} />
                                     </div>
-                                    <h3 className="text-white mb-0">{currencySymbol}{summary.monthlyExpenses.toFixed(2)}</h3>
-                                    <div className="mt-auto text-white" style={{ fontSize: '0.8rem', opacity: 0.9 }}>
+                                    <h3 className="text-light mb-0" style={{ fontSize: '28px', fontWeight: 600 }}>
+                                        {currencySymbol}{summary.monthlyExpenses.toFixed(2)}
+                                    </h3>
+                                    <div className="mt-auto text-white" style={{
+                                        fontSize: '0.8rem',
+                                        opacity: 0.9,
+                                        marginTop: '16px'
+                                    }}>
                                         This month's expenses
                                     </div>
                                 </div>
                             </div>
                         </div>
+
+                        {/* Profit Card */}
                         <div className="col-md-3 col-sm-6 mb-3">
                             <div className="card text-white h-100" style={{
-                                background: 'linear-gradient(to top left, #33ccff 0%, #0000cc 100%)',
+                                background: 'linear-gradient(135deg, #0092ff 0%, #005ece 100%)',
+                                borderRadius: '12px',
                                 border: 'none',
-                                boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
+                                overflow: 'hidden',
+                                position: 'relative',
+                                boxShadow: '0 4px 20px rgba(0, 146, 255, 0.2)'
                             }}>
-                                <div className="card-body d-flex flex-column">
+                                <div style={{
+                                    position: 'absolute',
+                                    top: '-50px',
+                                    right: '-50px',
+                                    width: '200px',
+                                    height: '200px',
+                                    borderRadius: '50%',
+                                    background: 'rgba(255, 255, 255, 0.1)'
+                                }} />
+                                <div className="card-body d-flex flex-column" style={{ padding: '24px', zIndex: 1 }}>
                                     <div className="d-flex justify-content-between align-items-center mb-3">
-                                        <h6 className="text-white mb-0">Profit</h6>
-                                        <FaArrowUp size={24} className="text-white" />
+                                        <h6 className="card-title mb-0" style={{ fontWeight: 600 }}>Profit</h6>
+                                        <FaArrowUp size={24} style={{ opacity: 0.8 }} />
                                     </div>
-                                    <h3 className="text-white mb-0">{currencySymbol}{summary.profit.toFixed(2)}</h3>
-                                    <div className="mt-auto text-white" style={{ fontSize: '0.8rem', opacity: 0.9 }}>
+                                    <h3 className="text-light mb-0" style={{ fontSize: '28px', fontWeight: 600 }}>
+                                        {currencySymbol}{summary.profit.toFixed(2)}
+                                    </h3>
+                                    <div className="mt-auto text-white" style={{
+                                        fontSize: '0.8rem',
+                                        opacity: 0.9,
+                                        marginTop: '16px'
+                                    }}>
                                         Net profit
                                     </div>
                                 </div>
                             </div>
                         </div>
+
+                        {/* Loss Card */}
                         <div className="col-md-3 col-sm-6 mb-3">
                             <div className="card text-white h-100" style={{
-                                background: 'linear-gradient(to top left, #33ccff 0%, #0000cc 100%)',
+                                background: 'linear-gradient(135deg, #0092ff 0%, #005ece 100%)',
+                                borderRadius: '12px',
                                 border: 'none',
-                                boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
+                                overflow: 'hidden',
+                                position: 'relative',
+                                boxShadow: '0 4px 20px rgba(0, 146, 255, 0.2)'
                             }}>
-                                <div className="card-body d-flex flex-column">
+                                <div style={{
+                                    position: 'absolute',
+                                    top: '-50px',
+                                    right: '-50px',
+                                    width: '200px',
+                                    height: '200px',
+                                    borderRadius: '50%',
+                                    background: 'rgba(255, 255, 255, 0.1)'
+                                }} />
+                                <div className="card-body d-flex flex-column" style={{ padding: '24px', zIndex: 1 }}>
                                     <div className="d-flex justify-content-between align-items-center mb-3">
-                                        <h6 className="text-white mb-0">Loss</h6>
-                                        <FaArrowDown size={24} className="text-white" />
+                                        <h6 className="card-title mb-0" style={{ fontWeight: 600 }}>Loss</h6>
+                                        <FaArrowDown size={24} style={{ opacity: 0.8 }} />
                                     </div>
-                                    <h3 className="text-white mb-0">{currencySymbol}{summary.loss.toFixed(2)}</h3>
-                                    <div className="mt-auto text-white" style={{ fontSize: '0.8rem', opacity: 0.9 }}>
+                                    <h3 className="text-light mb-0" style={{ fontSize: '28px', fontWeight: 600 }}>
+                                        {currencySymbol}{summary.loss.toFixed(2)}
+                                    </h3>
+                                    <div className="mt-auto text-white" style={{
+                                        fontSize: '0.8rem',
+                                        opacity: 0.9,
+                                        marginTop: '16px'
+                                    }}>
                                         Net loss
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
+
                     <div className="d-flex justify-content-between align-items-center mb-4">
                         <h4>Payment Methods</h4>
                     </div>
@@ -1469,19 +1839,35 @@ const TransactionsTable = () => {
                     <div className="row mb-4">
                         {summary.paymentMethodBalances?.map((method, index) => {
                             const paymentMethod = paymentMethods.find(pm => pm.name === method.paymentMethodName);
+                            const isActive = paymentMethod?.active;
                             return (
                                 <div className="col-md-3 col-sm-6 mb-3" key={index}>
-                                    <div className={`card text-white h-100`} style={paymentMethod?.active ? {
-                                        background: 'linear-gradient(to top left, #cc00cc 0%, #6600cc 100%',
+                                    <div className={`card text-white h-100`} style={isActive ? {
+                                        background: 'linear-gradient(135deg, #ff00c8ff 0%, #4d00a4ff 100%)',
+                                        borderRadius: '12px',
                                         border: 'none',
-                                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                                        overflow: 'hidden',
+                                        position: 'relative',
+                                        boxShadow: '0 4px 20px rgba(247, 0, 255, 0.2)'
                                     } : {
                                         background: '#6c757d',
+                                        borderRadius: '12px',
                                         border: 'none'
                                     }}>
-                                        <div className="card-body d-flex flex-column">
+                                        {isActive && (
+                                            <div style={{
+                                                position: 'absolute',
+                                                top: '-50px',
+                                                right: '-50px',
+                                                width: '200px',
+                                                height: '200px',
+                                                borderRadius: '50%',
+                                                background: 'rgba(255, 255, 255, 0.1)'
+                                            }} />
+                                        )}
+                                        <div className="card-body d-flex flex-column" style={{ padding: '24px', zIndex: 1 }}>
                                             <div className="d-flex justify-content-between align-items-center mb-3">
-                                                <h6 className="card-title mb-0 d-flex align-items-center">
+                                                <h6 className="card-title mb-0 d-flex align-items-center" style={{ fontWeight: 600 }}>
                                                     <FaWallet size={20} className="me-2" />
                                                     <span className="ms-2">{method.paymentMethodName}</span>
                                                 </h6>
@@ -1495,22 +1881,22 @@ const TransactionsTable = () => {
                                                         }}
                                                         style={{ cursor: 'pointer' }}
                                                     >
-                                                        {paymentMethod?.active ? (
-                                                            <FaToggleOn size={24} style={{ color: 'white' }} />
+                                                        {isActive ? (
+                                                            <FaToggleOn size={24} style={{ color: 'white', opacity: 0.8 }} />
                                                         ) : (
-                                                            <FaToggleOff size={24} className="text-light" />
+                                                            <FaToggleOff size={24} className="text-light" style={{ opacity: 0.8 }} />
                                                         )}
                                                     </div>
                                                 )}
                                             </div>
                                             <h3 className={`mb-0 ${method.balance > 0 ? 'text-light' :
                                                 method.balance < 0 ? 'text-danger' : 'text-light'
-                                                }`}>
+                                                }`} style={{ fontSize: '28px', fontWeight: 600 }}>
                                                 {currencySymbol}{method.balance.toFixed(2)}
                                             </h3>
                                             <div className="mt-auto d-flex justify-content-between align-items-center">
                                                 <span style={{ fontSize: '0.8rem', opacity: 0.9 }}>
-                                                    {paymentMethod?.active ? 'Active' : 'Inactive'}
+                                                    {isActive ? 'Active' : 'Inactive'}
                                                 </span>
                                                 {paymentMethod && !paymentMethod.default && canDelete && (
                                                     <FaTrash
@@ -1543,7 +1929,8 @@ const TransactionsTable = () => {
                                         background: 'transparent',
                                         height: '115px',
                                         transition: 'all 0.2s ease',
-                                        minHeight: '115px'
+                                        minHeight: '115px',
+                                        borderRadius: '12px'
                                     }}
                                     onClick={() => setShowAddPaymentMethod(true)}
                                 >

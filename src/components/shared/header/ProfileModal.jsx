@@ -99,14 +99,14 @@ const ProfileModal = () => {
         showNotification(message, 'info');
         setTimeout(() => {
             handleLogout();
-        }, 2000);
+        }, 1000);
     };
 
     const showNotification = (message, type) => {
         setNotification({ message, type });
         setTimeout(() => {
             setNotification(null);
-        }, 2000);
+        }, 1000);
     };
 
     const closeNotification = () => {
@@ -143,7 +143,7 @@ const ProfileModal = () => {
             setTimeout(() => {
                 navigate('/authentication/login/cover')
                 window.location.reload()
-            }, 2000)
+            }, 1000)
 
         } catch (error) {
             showNotification(error.message || 'Logout failed', 'error')

@@ -46,13 +46,20 @@ const OrderTable = () => {
     const skinTheme = localStorage.getItem('skinTheme') || 'light';
     const isDarkMode = skinTheme === 'dark';
 
-    // Get currency settings from localStorage
+    // Get auth data from localStorage
     const authData = JSON.parse(localStorage.getItem("authData"));
     const currencySymbol = authData?.currencySettings?.currencySymbol || '$';
+    const userRole = authData?.role || '';
+    const userPermissions = authData?.permissions || [];
+
+    // Check permissions
+    const hasPermission = (permission) => {
+        return userRole === 'CLIENT_ADMIN' || userPermissions.includes(permission);
+    };
 
     // WebSocket configuration
     const WS_CONFIG = {
-        maxReconnectAttempts: 3,
+        maxReconnectAttempts: 5,
         reconnectDelay: 5000,
         connectionTimeout: 15000,
     };
@@ -69,13 +76,12 @@ const OrderTable = () => {
             const authData = localStorage.getItem('authData');
             if (authData) {
                 const parsedData = JSON.parse(authData);
-                const clientId = parsedData.clientId || parsedData.id || parsedData.userId;
-                return clientId;
+                return parsedData.clientId || parsedData.id || parsedData.userId;
             }
         } catch (error) {
             console.error('Error getting client ID', error);
         }
-        return "686faaeda2c5d3eee0137da1"; // Fallback client ID
+        return null;
     }, []);
 
     // Get auth token
@@ -145,25 +151,20 @@ const OrderTable = () => {
 
             const data = await response.json();
             if (data.status === 200 && data.data) {
-                // Only update orders if WebSocket is not connected to avoid conflicts
-                if (!wsConnected) {
-                    setOrders(data.data);
-                }
+                setOrders(data.data);
                 return data.data;
             } else {
                 throw new Error(data.message || 'Failed to fetch orders');
             }
         } catch (err) {
             console.error('Error fetching orders', err);
-            if (!wsConnected) {
-                showErrorToast(err.message);
-                setOrders([]);
-            }
+            showErrorToast(err.message);
+            setOrders([]);
             return [];
         } finally {
             setLoading(false);
         }
-    }, [wsConnected, getAuthToken]);
+    }, [getAuthToken]);
 
     // WebSocket connection with dynamic imports
     const connectWebSocket = useCallback(async () => {
@@ -223,7 +224,6 @@ const OrderTable = () => {
                         setLoading(false);
 
                         // Subscribe to orders topic for all order updates
-                        // In the WebSocket subscription handler, modify the order update logic:
                         const subscription = stompClient.subscribe(
                             `/topic/orders/${clientId}`,
                             (message) => {
@@ -234,44 +234,50 @@ const OrderTable = () => {
                                             order => order.id === orderUpdate.id || order.orderNumber === orderUpdate.orderNumber
                                         );
 
-                                        let updatedOrders;
-
                                         if (existingIndex >= 0) {
-                                            // Update existing order while preserving all properties
-                                            updatedOrders = [...prevOrders];
+                                            const updatedOrders = [...prevOrders];
                                             updatedOrders[existingIndex] = {
-                                                ...updatedOrders[existingIndex], // Keep existing properties
-                                                ...orderUpdate,                  // Apply updates
-                                                // Ensure critical fields are preserved if not in update
-                                                orderType: orderUpdate.orderType || updatedOrders[existingIndex].orderType,
-                                                fulfillmentType: orderUpdate.fulfillmentType || updatedOrders[existingIndex].fulfillmentType,
-                                                items: orderUpdate.items || updatedOrders[existingIndex].items,
-                                                customerName: orderUpdate.customerName || updatedOrders[existingIndex].customerName
+                                                ...updatedOrders[existingIndex],
+                                                ...orderUpdate,
+                                                status: orderUpdate.status,
+                                                currentRiderId: orderUpdate.currentRiderId,
+                                                riderName: orderUpdate.riderName || 'Not Assigned Yet',
+                                                updatedAt: orderUpdate.updatedAt
                                             };
+                                            return updatedOrders;
                                         } else {
-                                            // Add new order at the beginning
-                                            updatedOrders = [orderUpdate, ...prevOrders];
+                                            return [orderUpdate, ...prevOrders];
                                         }
-
-                                        return updatedOrders;
                                     });
+
                                 } catch (parseError) {
                                     console.error('Error parsing WebSocket message', parseError);
                                 }
                             }
                         );
 
-                        // Subscribe to order deletions/cancellations
-                        const deletionSubscription = stompClient.subscribe(
-                            `/topic/orders/${clientId}/deleted`,
+                        // Subscribe to order assignments
+                        const assignmentSubscription = stompClient.subscribe(
+                            `/topic/assignments/${clientId}`,
                             (message) => {
                                 try {
-                                    const deletedOrderId = JSON.parse(message.body);
-                                    setOrders(prevOrders =>
-                                        prevOrders.filter(order => order.id !== deletedOrderId)
-                                    );
+                                    const assignmentUpdate = JSON.parse(message.body);
+                                    setOrders(prevOrders => {
+                                        return prevOrders.map(order => {
+                                            if (order.id === assignmentUpdate.orderId) {
+                                                return {
+                                                    ...order,
+                                                    currentRiderId: assignmentUpdate.riderId,
+                                                    riderName: assignmentUpdate.riderName || 'Not Assigned Yet',
+                                                    status: assignmentUpdate.orderStatus
+                                                };
+                                            }
+                                            return order;
+                                        });
+                                    });
+                                    showSuccessToast(`Rider assigned to order ${assignmentUpdate.orderNumber}`);
                                 } catch (parseError) {
-                                    console.error('Error parsing WebSocket deletion message', parseError);
+                                    console.error('Error parsing assignment message', parseError);
                                 }
                             }
                         );
@@ -379,7 +385,7 @@ const OrderTable = () => {
         if (!isMapModalOpen || mapScriptLoaded) return;
 
         const script = document.createElement('script');
-        script.src = `https://maps.gomaps.pro/maps/api/js?key=AlzaSyNWmbqBT69lAW7bQ3RKsK37imGf2v6fhcy&libraries=places&callback=initMap`;
+        script.src = 'https://maps.gomaps.pro/maps/api/js?key=AlzaSyBIjymAxfyobCBnk3FI8jJ1DJ6RBsCPEtg&libraries=places&callback=initMap';
         script.async = true;
         script.defer = true;
         script.onload = () => setMapScriptLoaded(true);
@@ -464,9 +470,9 @@ const OrderTable = () => {
                         </div>
                         <div style="display: flex; margin-bottom: 4px;">
                             <span style="flex: 1; font-weight: 500; color: ${isDarkMode ? '#bbb' : '#666'}">Status:</span>
-                            <span style="flex: 1; color: ${selectedOrder.status === 'Completed' ? '#0f9d58' :
-                    selectedOrder.status === 'Pending' ? '#f4b400' :
-                        selectedOrder.status === 'Cancelled' ? '#db4437' :
+                            <span style="flex: 1; color: ${selectedOrder.status === 'COMPLETED' ? '#0f9d58' :
+                    selectedOrder.status === 'PENDING' ? '#f4b400' :
+                        selectedOrder.status === 'CANCELLED' ? '#db4437' :
                             isDarkMode ? '#fff' : '#333'
                 }">
                                 ${selectedOrder.status}
@@ -675,7 +681,7 @@ const OrderTable = () => {
                 throw new Error("No authentication token found");
             }
 
-            const response = await fetch(`${BASE_URL}/api/client-admin/staff-users`, {
+            const response = await fetch(`${BASE_URL}/api/client-admin/staff-users/online-riders`, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${authData.token}`,
@@ -690,11 +696,15 @@ const OrderTable = () => {
 
             const data = await response.json();
             if (Array.isArray(data)) {
-                const riderRoles = ['rider', 'delivery', 'delivery partner'];
-                const filteredRiders = data.filter(staff =>
-                    riderRoles.includes(staff.roleName?.toLowerCase())
-                );
-                setRiders(filteredRiders);
+                // Map the response to match the expected format
+                const formattedRiders = data.map(rider => ({
+                    id: rider.riderId,
+                    name: rider.riderName,
+                    phone: '', // Phone not available in the new API
+                    online: rider.online,
+                    status: rider.status
+                }));
+                setRiders(formattedRiders);
             } else {
                 throw new Error('Invalid riders data format');
             }
@@ -813,7 +823,10 @@ const OrderTable = () => {
                     'Authorization': `Bearer ${authData.token}`,
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ status: selectedStatus })
+                body: JSON.stringify({
+                    status: selectedStatus,
+                    sendNotification: true // Add this flag to indicate this is a manual update
+                })
             });
 
             if (!response.ok) {
@@ -1174,64 +1187,74 @@ const OrderTable = () => {
 
                 return (
                     <div className="hstack gap-2 justify-content-end">
-                        {/* Hide edit button for POS orders or completed/delivered/rejected/cancelled orders */}
-                        {!row.original.orderType?.toLowerCase().includes('pos') &&
-                            !['COMPLETED', 'DELIVERED', 'REJECTED', 'CANCELLED'].includes(currentStatus) && (
+                        {/* Update Status button - visible if user is CLIENT_ADMIN or has ORDER_UPDATE permission */}
+                        {(userRole === 'CLIENT_ADMIN' || hasPermission('ORDER_UPDATE')) && (
+                            <>
+                                {/* Hide edit button for POS orders or completed/delivered/rejected/cancelled orders */}
+                                {!row.original.orderType?.toLowerCase().includes('pos') &&
+                                    !['COMPLETED', 'DELIVERED', 'REJECTED', 'CANCELLED'].includes(currentStatus) && (
+                                        <button
+                                            className="avatar-text avatar-md"
+                                            onClick={() => handleEditOrder(row.original)}
+                                            title="Update Status"
+                                        >
+                                            <FiEdit />
+                                        </button>
+                                    )}
+
+                                {/* Assign Rider button for delivery orders in READY, DISPATCHED, or ON_THE_WAY status */}
+                                {showAssignRider && (
+                                    <button
+                                        className="avatar-text avatar-md bg-primary text-white"
+                                        onClick={() => {
+                                            setSelectedOrder(row.original);
+                                            setIsRiderModalOpen(true);
+                                            fetchRiders();
+                                        }}
+                                        title="Assign Rider"
+                                    >
+                                        <FiUserPlus />
+                                    </button>
+                                )}
+                            </>
+                        )}
+
+                        {/* View buttons - visible if user is CLIENT_ADMIN or has ORDER_READ permission */}
+                        {(userRole === 'CLIENT_ADMIN' || hasPermission('ORDER_READ')) && (
+                            <>
+                                {/* View on Map button for orders with delivery coordinates */}
+                                {hasDeliveryLocation(row.original) && (
+                                    <button
+                                        className="avatar-text avatar-md"
+                                        onClick={() => handleViewOnMap(row.original)}
+                                        title="View on Map"
+                                    >
+                                        <FiMap />
+                                    </button>
+                                )}
+
                                 <button
                                     className="avatar-text avatar-md"
-                                    onClick={() => handleEditOrder(row.original)}
-                                    title="Update Status"
+                                    onClick={() => handleViewOrder(row.original)}
+                                    title="View Order"
                                 >
-                                    <FiEdit />
+                                    <FiEye />
                                 </button>
-                            )}
-
-                        {/* Assign Rider button for delivery orders in READY, DISPATCHED, or ON_THE_WAY status */}
-                        {showAssignRider && (
-                            <button
-                                className="avatar-text avatar-md bg-primary text-white"
-                                onClick={() => {
-                                    setSelectedOrder(row.original);
-                                    setIsRiderModalOpen(true);
-                                    fetchRiders();
-                                }}
-                                title="Assign Rider"
-                            >
-                                <FiUserPlus />
-                            </button>
+                                <button
+                                    className="avatar-text avatar-md"
+                                    onClick={() => handleDownloadInvoice(row.original)}
+                                    title="Download Invoice"
+                                >
+                                    <FiDownload />
+                                </button>
+                            </>
                         )}
-
-                        {/* View on Map button for orders with delivery coordinates */}
-                        {hasDeliveryLocation(row.original) && (
-                            <button
-                                className="avatar-text avatar-md"
-                                onClick={() => handleViewOnMap(row.original)}
-                                title="View on Map"
-                            >
-                                <FiMap />
-                            </button>
-                        )}
-
-                        <button
-                            className="avatar-text avatar-md"
-                            onClick={() => handleViewOrder(row.original)}
-                            title="View Order"
-                        >
-                            <FiEye />
-                        </button>
-                        <button
-                            className="avatar-text avatar-md"
-                            onClick={() => handleDownloadInvoice(row.original)}
-                            title="Download Invoice"
-                        >
-                            <FiDownload />
-                        </button>
                     </div>
                 );
             },
             meta: { headerClassName: 'text-end' }
         },
-    ], [currencySymbol]);
+    ], [currencySymbol, userRole, userPermissions]);
 
     try {
         return (
@@ -1260,6 +1283,7 @@ const OrderTable = () => {
                         >
                             <FiRefreshCw size={16} className={loading ? 'spin' : ''} />
                         </button>
+                        <ConnectionStatus wsConnected={wsConnected} wsError={wsError} />
                     </div>
                 </div>
 
@@ -1454,7 +1478,7 @@ const OrderTable = () => {
                     className={isDarkMode ? 'dark-modal' : ''}
                 >
                     <Modal.Header closeButton>
-                        <Modal.Title>Order Details</Modal.Title>
+                        <Modal.Title>Order Details - #{selectedOrder?.orderNumber}</Modal.Title>
                     </Modal.Header>
                     <Modal.Body>
                         {selectedOrder && (
@@ -1473,6 +1497,9 @@ const OrderTable = () => {
                                     <div className="col-md-6">
                                         <h5>Customer</h5>
                                         <p>{selectedOrder.customerName || 'Walk-in Customer'}</p>
+                                        {selectedOrder.customerContact && (
+                                            <p className="text-muted small">{selectedOrder.customerContact}</p>
+                                        )}
                                     </div>
                                     <div className="col-md-6">
                                         <h5>Status</h5>
@@ -1482,7 +1509,11 @@ const OrderTable = () => {
                                 <div className="row mb-3">
                                     <div className="col-md-6">
                                         <h5>Fulfillment Type</h5>
-                                        <p>{getFulfillmentBadge(selectedOrder.fulfillmentType)}</p>
+                                        <p>
+                                            {selectedOrder.orderType === 'POS'
+                                                ? getFulfillmentBadge('In house')
+                                                : getFulfillmentBadge(selectedOrder.fulfillmentType)}
+                                        </p>
                                     </div>
                                     <div className="col-md-6">
                                         <h5>Order Type</h5>
@@ -1492,8 +1523,26 @@ const OrderTable = () => {
                                 <div className="row mb-3">
                                     <div className="col-md-6">
                                         <h5>Payment Method</h5>
-                                        <p>{selectedOrder.paymentMethod ? selectedOrder.paymentMethod.charAt(0).toUpperCase() + selectedOrder.paymentMethod.slice(1).toLowerCase() : 'N/A'}</p>
+                                        <p>
+                                            {selectedOrder.paymentMethod ?
+                                                selectedOrder.paymentMethod.charAt(0).toUpperCase() +
+                                                selectedOrder.paymentMethod.slice(1).toLowerCase()
+                                                : 'N/A'}
+                                        </p>
+                                        {selectedOrder.paymentMethodType && (
+                                            <p className="text-muted small">
+                                                {selectedOrder.paymentMethodType}
+                                            </p>
+                                        )}
                                     </div>
+                                    {selectedOrder.orderType !== 'POS' && (
+                                        <div className="col-md-6">
+                                            <h5>Rider</h5>
+                                            <p>{selectedOrder.riderName || 'Not Assigned Yet'}</p>
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="row mb-3">
                                     <div className="col-md-6">
                                         <h5>Notes</h5>
                                         <p>{selectedOrder.notes || 'N/A'}</p>
@@ -1541,17 +1590,11 @@ const OrderTable = () => {
                                                         <tr>
                                                             <td>
                                                                 {item.name}
-                                                                {item.variants && item.variants.length > 0 && (
+                                                                {item.selectedVariants && item.selectedVariants.length > 0 && (
                                                                     <div className="mt-1">
-                                                                        {item.variants.map((variant, vIndex) => (
+                                                                        {item.selectedVariants.map((variant, vIndex) => (
                                                                             <div key={vIndex} className="text-muted small">
-                                                                                <strong>{variant.name}:</strong>
-                                                                                {variant.options.map((opt, oIndex) => (
-                                                                                    <span key={oIndex}>
-                                                                                        {oIndex > 0 && ', '}
-                                                                                        {opt.name} (+{currencySymbol}{opt.priceModifier.toFixed(2)})
-                                                                                    </span>
-                                                                                ))}
+                                                                                <strong>{variant.variantName}:</strong> {variant.selectedOption}
                                                                             </div>
                                                                         ))}
                                                                     </div>
@@ -1568,17 +1611,49 @@ const OrderTable = () => {
                                     </div>
                                 </div>
 
+                                {selectedOrder.deals && selectedOrder.deals.length > 0 && (
+                                    <div className="mb-3">
+                                        <h5>Deals</h5>
+                                        <div className="table-responsive">
+                                            <table className="table table-bordered">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Deal</th>
+                                                        <th>Price</th>
+                                                        <th>Qty</th>
+                                                        <th>Total</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {selectedOrder.deals.map((deal, index) => (
+                                                        <tr key={`deal-${index}`}>
+                                                            <td>{deal.name}</td>
+                                                            <td>{currencySymbol}{deal.price.toFixed(2)}</td>
+                                                            <td>{deal.quantity}</td>
+                                                            <td>{currencySymbol}{(deal.price * deal.quantity).toFixed(2)}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                )}
+
                                 <div className="row mb-3">
                                     <div className="col-md-6">
                                         <h5>Subtotal</h5>
                                         <p>{currencySymbol}{selectedOrder.subtotal?.toFixed(2) || '0.00'}</p>
                                     </div>
                                     <div className="col-md-6">
+                                        <h5>Discount</h5>
+                                        <p>{currencySymbol}{selectedOrder.discountAmount?.toFixed(2) || '0.00'}</p>
+                                    </div>
+                                </div>
+                                <div className="row mb-3">
+                                    <div className="col-md-6">
                                         <h5>Taxes</h5>
                                         <p>{currencySymbol}{selectedOrder.totalTaxAmount?.toFixed(2) || '0.00'}</p>
                                     </div>
-                                </div>
-                                <div className="row mb-4">
                                     <div className="col-md-6">
                                         <h5>Total Amount</h5>
                                         <p className="fw-bold">{currencySymbol}{selectedOrder.totalAmount?.toFixed(2) || '0.00'}</p>
@@ -1787,7 +1862,7 @@ const OrderTable = () => {
                                                         },
                                                     }}
                                                 >
-                                                    {rider.name} ({rider.phone})
+                                                    {rider.name}
                                                 </MenuItem>
                                             ))
                                         )}

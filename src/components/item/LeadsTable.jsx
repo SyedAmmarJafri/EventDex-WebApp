@@ -66,7 +66,7 @@ const ItemsTable = () => {
     const authData = JSON.parse(localStorage.getItem("authData")) || {};
     const userRole = authData?.role || '';
     const userPermissions = authData?.permissions || [];
-    
+
     // Permission checks
     const canRead = userRole === 'CLIENT_ADMIN' || userPermissions.includes('ITEM_READ');
     const canWrite = userRole === 'CLIENT_ADMIN' || userPermissions.includes('ITEM_WRITE');
@@ -574,7 +574,6 @@ const ItemsTable = () => {
     const validateForm = (formData, setErrors) => {
         const errors = {};
         if (!formData.name.trim()) errors.name = 'Name is required';
-        if (!formData.description.trim()) errors.description = 'Description is required';
         if (formData.price <= 0) errors.price = 'Price must be greater than 0';
         if (formData.quantity < 0) errors.quantity = 'Quantity cannot be negative';
         if (!formData.category) errors.category = 'Category is required';
@@ -1043,22 +1042,45 @@ const ItemsTable = () => {
                                     </div>
                                 </div>
                                 <div className="col-md-6">
-                                    <label htmlFor="category" className="form-label">Category</label>
+                                    <label htmlFor="category" className="form-label" style={{ color: '#0092ff' }}>
+                                        Category
+                                    </label>
                                     <select
                                         className={`form-control ${formErrors.category ? 'is-invalid' : ''}`}
                                         id="category"
                                         name="category"
                                         value={newItem.category}
                                         onChange={handleInputChange}
+                                        style={{
+                                            backgroundColor: 'transparent',
+                                            cursor: 'pointer',
+                                            paddingRight: '2.5rem',
+                                            backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'16\' height=\'16\' fill=\'%230092ff\' viewBox=\'0 0 16 16\'%3E%3Cpath d=\'M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z\'/%3E%3C/svg%3E")',
+                                            backgroundRepeat: 'no-repeat',
+                                            backgroundPosition: 'right 0.75rem center',
+                                            backgroundSize: '16px 12px',
+                                            appearance: 'none',
+                                        }}
                                     >
-                                        <option value="">Select a category</option>
+                                        <option value="" style={{ color: '#000000ff' }}>Select a category</option>
                                         {categories.map(category => (
-                                            <option key={category.id} value={category.id}>
+                                            <option
+                                                key={category.id}
+                                                value={category.id}
+                                                style={{
+                                                    color: '#000000ff',
+                                                    backgroundColor: 'white',
+                                                }}
+                                            >
                                                 {category.name}
                                             </option>
                                         ))}
                                     </select>
-                                    {formErrors.category && <div className="invalid-feedback">{formErrors.category}</div>}
+                                    {formErrors.category && (
+                                        <div className="invalid-feedback" style={{ color: '#ff0000' }}>
+                                            {formErrors.category}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                             <div className="row mb-3">
@@ -1414,22 +1436,45 @@ const ItemsTable = () => {
                                     </div>
                                 </div>
                                 <div className="col-md-6">
-                                    <label htmlFor="edit-category" className="form-label">Category</label>
+                                    <label htmlFor="edit-category" className="form-label" style={{ color: '#0092ff' }}>
+                                        Category
+                                    </label>
                                     <select
                                         className={`form-control ${editFormErrors.category ? 'is-invalid' : ''}`}
                                         id="edit-category"
                                         name="category"
                                         value={editItem.category}
                                         onChange={handleEditInputChange}
+                                        style={{
+                                            backgroundColor: 'transparent',
+                                            cursor: 'pointer',
+                                            paddingRight: '2.5rem',
+                                            backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'16\' height=\'16\' fill=\'%230092ff\' viewBox=\'0 0 16 16\'%3E%3Cpath d=\'M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z\'/%3E%3C/svg%3E")',
+                                            backgroundRepeat: 'no-repeat',
+                                            backgroundPosition: 'right 0.75rem center',
+                                            backgroundSize: '16px 12px',
+                                            appearance: 'none',
+                                        }}
                                     >
-                                        <option value="">Select a category</option>
+                                        <option value="" style={{ color: '#000000ff' }}>Select a category</option>
                                         {categories.map(category => (
-                                            <option key={category.id} value={category.id}>
+                                            <option
+                                                key={category.id}
+                                                value={category.id}
+                                                style={{
+                                                    color: '#000000ff',
+                                                    backgroundColor: 'white',
+                                                }}
+                                            >
                                                 {category.name}
                                             </option>
                                         ))}
                                     </select>
-                                    {editFormErrors.category && <div className="invalid-feedback">{editFormErrors.category}</div>}
+                                    {editFormErrors.category && (
+                                        <div className="invalid-feedback" style={{ color: '#ff0000' }}>
+                                            {editFormErrors.category}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                             <div className="row mb-3">

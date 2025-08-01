@@ -32,7 +32,7 @@ const Header = () => {
         if (userPermissions.role === 'CLIENT_ADMIN') {
             return true;
         }
-        return userPermissions.permissions.includes('ORDER_READ');
+        return userPermissions.permissions.includes('ORDER_ACCEPT');
     };
 
     const handleThemeMode = (type) => {

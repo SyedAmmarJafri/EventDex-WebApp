@@ -8,16 +8,19 @@ import {
     Typography,
     Tag,
     Divider,
-    Badge,
-    Button
+    Button,
+    Space
 } from 'antd';
 import {
     Legend,
     ResponsiveContainer,
-    PieChart,
-    Pie,
-    Cell,
-    Tooltip
+    BarChart,
+    Bar,
+    XAxis,
+    YAxis,
+    CartesianGrid,
+    Tooltip,
+    Cell
 } from 'recharts';
 import axios from 'axios';
 import moment from 'moment';
@@ -28,19 +31,44 @@ import {
     SyncOutlined,
     FireOutlined,
     WarningOutlined,
-    ArrowUpOutlined
+    ArrowUpOutlined,
+    CalendarOutlined,
 } from '@ant-design/icons';
 import { BASE_URL } from '/src/constants.js';
 
 const { Title, Text } = Typography;
 
-const COLORS = ['#005ece', '#0092ff', '#EC4899', '#F43F5E', '#F59E0B', '#10B981'];
+const COLORS = ['rgb(246, 185, 0)', '#10b981', '#003b8dff', '#0092ff', '#c026d3', '#f97316' , '#7c3aed', '#ad0000ff', '#00cc41ff'];
+
+// Custom Tooltip component for BarChart
+const CustomBarTooltip = ({ active, payload }) => {
+    if (active && payload && payload.length) {
+        const data = payload[0].payload;
+        return (
+            <div style={{
+                background: 'white',
+                padding: '8px 12px',
+                border: '1px solid #e5e7eb',
+                borderRadius: '6px',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+            }}>
+                <Text strong style={{ display: 'block', color: '#111827', marginBottom: '4px' }}>
+                    {data.name}
+                </Text>
+                <Text style={{ display: 'block', color: '#4b5563' }}>
+                    Orders: <Text strong>{data.value}</Text>
+                </Text>
+            </div>
+        );
+    }
+    return null;
+};
 
 // IndexedDB setup
 const DB_NAME = 'DashboardDB';
 const DB_VERSION = 1;
 const STORE_NAME = 'dashboardData';
-const CACHE_TTL = 15 * 60 * 1000; // 15 minutes cache validity
+const CACHE_TTL = 10 * 60 * 1000; // 10 minutes cache validity
 
 const openDB = () => {
     return new Promise((resolve, reject) => {
@@ -68,7 +96,6 @@ const getCachedData = async () => {
         return new Promise((resolve, reject) => {
             request.onsuccess = () => {
                 const data = request.result;
-                // Check if cached data exists and is still valid
                 if (data && Date.now() - data.timestamp < CACHE_TTL) {
                     resolve(data.value);
                 } else {
@@ -94,7 +121,6 @@ const cacheData = async (data) => {
     }
 };
 
-// Custom Table component with improved UI
 const CustomTable = ({ data, columns }) => {
     return (
         <div className="table-responsive" style={{ overflowX: 'auto' }}>
@@ -161,18 +187,26 @@ const Dashboard = () => {
     const [loading, setLoading] = useState(true);
     const [dashboardData, setDashboardData] = useState(null);
     const [isRefreshing, setIsRefreshing] = useState(false);
+    const [currentTime, setCurrentTime] = useState(moment());
+
+    const authData = JSON.parse(localStorage.getItem("authData"));
+    const currencySymbol = authData?.currencySettings?.currencySymbol || '$';
+    const userName = authData?.name || 'Admin';
+    const userRole = authData?.role;
+    const userPermissions = authData?.permissions || [];
+    const hasAnalyticsPermission = userRole === 'CLIENT_ADMIN' || userPermissions.includes('ANALYTICS_READ');
 
     useEffect(() => {
         const loadData = async () => {
-            // First try to load from cache
             const cachedData = await getCachedData();
             if (cachedData) {
                 setDashboardData(cachedData);
                 setLoading(false);
             }
 
-            // Then fetch fresh data in the background
-            fetchDashboardData(false);
+            if (hasAnalyticsPermission) {
+                fetchDashboardData(false);
+            }
         };
 
         loadData();
@@ -183,8 +217,6 @@ const Dashboard = () => {
             if (forceRefresh) {
                 setIsRefreshing(true);
             } else if (dashboardData && !forceRefresh) {
-                // If we already have data and this isn't a forced refresh,
-                // we can skip showing the loading spinner
                 setLoading(false);
             } else {
                 setLoading(true);
@@ -228,14 +260,25 @@ const Dashboard = () => {
         }));
     };
 
+    useEffect(() => {
+        const interval = setInterval(() => {
+            setCurrentTime(moment());
+        }, 1000);
+
+        return () => clearInterval(interval);
+    }, []);
+
     const orderStatusColors = {
         CREATED: '#000000ff',
-        COMPLETED: '#0abe00ff',
+        COMPLETED: 'rgb(0, 198, 13)',
         DELIVERED: '#10b981',
         ACCEPTED: '#0092ff',
-        ASSIGNED: '#e802cdff',
         PENDING: '#6a6a6aff',
-        REJECTED: '#b10101ff'
+        REJECTED: '#8B0000',
+        DISPATCHED: '#7c3aed',
+        ON_THE_WAY: '#c026d3',
+        READY: 'rgb(246, 185, 0);',
+        PREPARING: '#f97316'
     };
 
     const recentOrdersColumns = [
@@ -329,7 +372,7 @@ const Dashboard = () => {
                 const isOutOfStock = currentStock === 0;
 
                 return (
-                    <Tag Status Distribution
+                    <Tag
                         color={isOutOfStock ? '#000000ff' : '#b10101ff'}
                         style={{ fontWeight: 500 }}
                     >
@@ -340,15 +383,11 @@ const Dashboard = () => {
         }
     ];
 
-    // Get currency settings from localStorage
-    const authData = JSON.parse(localStorage.getItem("authData"));
-    const currencySymbol = authData?.currencySettings?.currencySymbol || '$';
-
     return (
         <div style={{
-            maxWidth: '1400px',
+            maxWidth: '1600px',
             margin: '0 auto',
-            padding: '24px'
+            padding: '24px 32px'
         }}>
             <div style={{
                 marginBottom: '24px',
@@ -356,30 +395,127 @@ const Dashboard = () => {
                 justifyContent: 'space-between',
                 alignItems: 'center'
             }}>
-                <Title level={3} style={{
-                    margin: 0,
-                    fontWeight: 600,
-                    color: '#111827'
-                }}>
-                    Dashboard
-                </Title>
-                <Button
-                    type="primary"
-                    onClick={() => fetchDashboardData(true)}
-                    loading={isRefreshing}
-                    icon={<SyncOutlined spin={isRefreshing} />}
-                    style={{
-                        fontWeight: '500',
-                        background: '#0092ff',
-                        border: 'none',
-                        boxShadow: '0 1px 3px rgba(16, 148, 185, 0.3)',
-                    }}
-                >
-                    {isRefreshing ? 'Refreshing...' : 'Refresh'}
-                </Button>
+                <Space direction="vertical" size={0}>
+                    <Title level={3} style={{
+                        margin: 0,
+                        fontWeight: 600,
+                        color: '#111827'
+                    }}>
+                        Dashboard
+                    </Title>
+                </Space>
+
+                {hasAnalyticsPermission && (
+                    <Button
+                        type="primary"
+                        onClick={() => fetchDashboardData(true)}
+                        loading={isRefreshing}
+                        icon={<SyncOutlined spin={isRefreshing} />}
+                        style={{
+                            fontWeight: '500',
+                            background: '#0092ff',
+                            border: 'none',
+                            boxShadow: '0 1px 3px rgba(16, 148, 185, 0.3)',
+                        }}
+                    >
+                        {isRefreshing ? 'Refreshing...' : 'Refresh'}
+                    </Button>
+                )}
             </div>
 
-            {loading && !dashboardData && (
+            <Card
+                className="card bg-white text-light"
+                bordered={false}
+                style={{
+                    borderRadius: '12px',
+                    marginBottom: '24px',
+                    background: 'linear-gradient(135deg, #0092ff 0%, #005ece 100%)',
+                    color: 'white',
+                    border: 'none',
+                    overflow: 'hidden',
+                    position: 'relative'
+                }}
+                bodyStyle={{ padding: '24px' }}
+            >
+                <div style={{
+                    position: 'absolute',
+                    top: '-50px',
+                    right: '-50px',
+                    width: '200px',
+                    height: '200px',
+                    borderRadius: '50%',
+                    background: 'rgba(255, 255, 255, 0.1)'
+                }} />
+                <div style={{
+                    position: 'absolute',
+                    bottom: '-80px',
+                    right: '0',
+                    width: '160px',
+                    height: '160px',
+                    borderRadius: '50%',
+                    background: 'rgba(255, 255, 255, 0.1)'
+                }} />
+
+                <Row align="middle" gutter={16}>
+                    <Col flex="auto">
+                        <Title level={3} style={{
+                            color: 'white',
+                            marginBottom: '8px',
+                            fontWeight: 600
+                        }}>
+                            Welcome {userName}!
+                        </Title>
+                        <Text style={{
+                            color: 'rgba(255, 255, 255, 0.85)',
+                            display: 'block',
+                            marginBottom: '16px',
+                            fontSize: '16px'
+                        }}>
+                            Here's what's happening with business today.
+                        </Text>
+                        <Button
+                            type="default"
+                            icon={<CalendarOutlined />}
+                            style={{
+                                background: 'rgba(255, 255, 255, 0.1)',
+                                border: '1px solid rgba(255, 255, 255, 0.2)',
+                                color: 'white',
+                                fontWeight: 500,
+                                borderRadius: '6px',
+                            }}
+                        >
+                            <span style={{ color: '#ffffff' }}>
+                                {currentTime.format('dddd, MMMM D, YYYY · h:mm:ss A')}
+                            </span>
+                        </Button>
+                    </Col>
+                    <Col>
+                        <div style={{
+                            width: '96px',
+                            height: '96px',
+                            background: 'rgba(255, 255, 255, 0.1)',
+                            borderRadius: '50%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            backdropFilter: 'blur(4px)',
+                            border: '1px solid rgba(255, 255, 255, 0.2)'
+                        }}>
+                            <UserOutlined style={{ fontSize: '48px', color: 'white' }} />
+                        </div>
+                    </Col>
+                </Row>
+            </Card>
+
+            {!hasAnalyticsPermission && (
+                <Card className="card bg-white text-light" bordered={false} style={{ marginBottom: '24px' }}>
+                    <Text className="text-dark">
+                        You don't have permission to view analytics data. Please contact your administrator.
+                    </Text>
+                </Card>
+            )}
+
+            {hasAnalyticsPermission && loading && !dashboardData && (
                 <div style={{
                     textAlign: 'center',
                     padding: '80px 0',
@@ -390,7 +526,7 @@ const Dashboard = () => {
                 </div>
             )}
 
-            {dashboardData && (
+            {hasAnalyticsPermission && dashboardData && (
                 <>
                     <Row gutter={[16, 16]} style={{ marginBottom: '16px' }}>
                         <Col xs={24} sm={12} md={8} lg={6}>
@@ -418,7 +554,7 @@ const Dashboard = () => {
                                         <DollarOutlined style={{ fontSize: '16px', color: '#0092ff' }} />
                                     </div>
                                     <div>
-                                        <Text className="text-dark" style={{ fontSize: '12px' }}>Today's Revenue</Text>
+                                        <Text style={{ fontSize: '12px' }} className="text-dark">Today's Revenue</Text>
                                         <Title level={4} style={{ margin: 0, fontSize: '18px' }}>
                                             {currencySymbol}{dashboardData.todayRevenue.toFixed(2)}
                                         </Title>
@@ -427,7 +563,7 @@ const Dashboard = () => {
                                 <Divider style={{ margin: '8px 0' }} className="card bg-white text-light" />
                                 <div style={{ display: 'flex', alignItems: 'center' }}>
                                     <ArrowUpOutlined style={{ color: '#10B981', fontSize: '12px', marginRight: '6px' }} />
-                                    <Text className="text-dark" style={{ fontSize: '12px' }}>Total: {currencySymbol}{dashboardData.totalRevenue.toFixed(2)}</Text>
+                                    <Text style={{ fontSize: '12px' }} className="text-dark">Total: {currencySymbol}{dashboardData.totalRevenue.toFixed(2)}</Text>
                                 </div>
                             </Card>
                         </Col>
@@ -457,7 +593,7 @@ const Dashboard = () => {
                                         <ShoppingCartOutlined style={{ fontSize: '16px', color: '#0092ff' }} />
                                     </div>
                                     <div>
-                                        <Text className="text-dark" style={{ fontSize: '12px' }}>Today's Orders</Text>
+                                        <Text style={{ fontSize: '12px' }} className="text-dark">Today's Orders</Text>
                                         <Title level={4} style={{ margin: 0, fontSize: '18px' }}>
                                             {dashboardData.todayOrders}
                                         </Title>
@@ -466,7 +602,7 @@ const Dashboard = () => {
                                 <Divider style={{ margin: '8px 0' }} className="card bg-white text-light" />
                                 <div style={{ display: 'flex', alignItems: 'center' }}>
                                     <ArrowUpOutlined style={{ color: '#10B981', fontSize: '12px', marginRight: '6px' }} />
-                                    <Text className="text-dark" style={{ fontSize: '12px' }}>Total: {dashboardData.totalOrders}</Text>
+                                    <Text style={{ fontSize: '12px' }} className="text-dark">Total: {dashboardData.totalOrders}</Text>
                                 </div>
                             </Card>
                         </Col>
@@ -496,7 +632,7 @@ const Dashboard = () => {
                                         <UserOutlined style={{ fontSize: '16px', color: '#0092ff' }} />
                                     </div>
                                     <div>
-                                        <Text className="text-dark" style={{ fontSize: '12px' }}>Today's Customers</Text>
+                                        <Text style={{ fontSize: '12px' }} className="text-dark">Today's Customers</Text>
                                         <Title level={4} style={{ margin: 0, fontSize: '18px' }}>
                                             {dashboardData.todayCustomers}
                                         </Title>
@@ -505,7 +641,7 @@ const Dashboard = () => {
                                 <Divider style={{ margin: '8px 0' }} className="card bg-white text-light" />
                                 <div style={{ display: 'flex', alignItems: 'center' }}>
                                     <ArrowUpOutlined style={{ color: '#10B981', fontSize: '12px', marginRight: '6px' }} />
-                                    <Text className="text-dark" style={{ fontSize: '12px' }}>Total: {dashboardData.totalCustomers}</Text>
+                                    <Text style={{ fontSize: '12px' }} className="text-dark">Total: {dashboardData.totalCustomers}</Text>
                                 </div>
                             </Card>
                         </Col>
@@ -535,7 +671,7 @@ const Dashboard = () => {
                                         <DollarOutlined style={{ fontSize: '16px', color: '#0092ff' }} />
                                     </div>
                                     <div>
-                                        <Text className="text-dark" style={{ fontSize: '12px' }}>Avg. Order Value</Text>
+                                        <Text style={{ fontSize: '12px' }} className="text-dark">Avg. Order Value</Text>
                                         <Title level={4} style={{ margin: 0, fontSize: '18px' }}>
                                             {currencySymbol}{dashboardData.averageOrderValue.toFixed(2)}
                                         </Title>
@@ -544,7 +680,7 @@ const Dashboard = () => {
                                 <Divider style={{ margin: '8px 0' }} className="card bg-white text-light" />
                                 <div style={{ display: 'flex', alignItems: 'center' }}>
                                     <ArrowUpOutlined style={{ color: '#10B981', fontSize: '12px', marginRight: '6px' }} />
-                                    <Text className="text-dark" style={{ fontSize: '12px' }}>Products: {dashboardData.activeProducts}</Text>
+                                    <Text style={{ fontSize: '12px' }} className="text-dark">Products: {dashboardData.activeProducts}</Text>
                                 </div>
                             </Card>
                         </Col>
@@ -558,7 +694,8 @@ const Dashboard = () => {
                                 bordered={false}
                                 style={{
                                     borderRadius: '8px',
-                                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                                    height: '100%'
                                 }}
                                 bodyStyle={{ padding: '12px 0' }}
                                 extra={
@@ -568,32 +705,32 @@ const Dashboard = () => {
                                 }
                             >
                                 <ResponsiveContainer width="100%" height={280}>
-                                    <PieChart width={400} height={300}>
-                                        <Pie
-                                            data={formatOrderStatusData()}
-                                            cx="50%"
-                                            cy="50%"
-                                            innerRadius={50}
-                                            outerRadius={80}
-                                            paddingAngle={2}
+                                    <BarChart
+                                        data={formatOrderStatusData()}
+                                        margin={{
+                                            top: 20,
+                                            right: 30,
+                                            left: 20,
+                                            bottom: 5,
+                                        }}
+                                        layout="vertical"
+                                    >
+                                        <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                                        <XAxis type="number" />
+                                        <YAxis dataKey="name" type="category"/>
+                                        <Tooltip content={<CustomBarTooltip />} />
+                                        <Bar
                                             dataKey="value"
-                                            nameKey="name"
-                                            label={({ name, percent }) => `${name}\n${(percent * 100).toFixed(0)}%`}
-                                            labelLine={false}
+                                            name="Orders"
+                                            fill="#0092ff"
+                                            radius={[0, 4, 4, 0]}
+                                            barSize={20}
                                         >
                                             {formatOrderStatusData().map((entry, index) => (
                                                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                             ))}
-                                        </Pie>
-                                        <Legend
-                                            layout="vertical"
-                                            align="right"
-                                            verticalAlign="middle"
-                                            iconType="circle"
-                                            iconSize={8}
-                                            wrapperStyle={{ fontSize: '12px' }}
-                                        />
-                                    </PieChart>
+                                        </Bar>
+                                    </BarChart>
                                 </ResponsiveContainer>
                             </Card>
                         </Col>
@@ -633,7 +770,8 @@ const Dashboard = () => {
                                 bordered={false}
                                 style={{
                                     borderRadius: '8px',
-                                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                                    height: '100%'
                                 }}
                                 bodyStyle={{ padding: '12px 0' }}
                                 extra={
@@ -659,7 +797,8 @@ const Dashboard = () => {
                                 bordered={false}
                                 style={{
                                     borderRadius: '8px',
-                                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                                    height: '100%'
                                 }}
                                 bodyStyle={{ padding: '12px 0' }}
                                 extra={

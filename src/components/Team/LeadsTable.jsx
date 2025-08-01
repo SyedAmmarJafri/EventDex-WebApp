@@ -263,14 +263,14 @@ const TeamTable = () => {
         if (!/^\S+@\S+\.\S+$/.test(formData.email)) errors.email = 'Invalid email format';
         if (!formData.phone.trim()) errors.phone = 'Phone is required';
         if (!formData.roleId) errors.roleId = 'Role is required';
-        
+
         if (formData === newTeam && !formData.password.trim()) {
             errors.password = 'Password is required';
         }
         if (formData === newTeam && formData.password.length < 3) {
             errors.password = 'Password must be at least 3 characters';
         }
-        
+
         setErrors(errors);
         return Object.keys(errors).length === 0;
     };
@@ -601,20 +601,57 @@ const TeamTable = () => {
                             {formErrors.phone && <div className="invalid-feedback">{formErrors.phone}</div>}
                         </div>
                         <div className="mb-3">
-                            <label htmlFor="roleId" className="form-label">Role*</label>
+                            <label htmlFor="roleId" className="form-label" style={{
+                                color: '#0092ff',
+                                fontWeight: '600',
+                                fontSize: '0.9rem',
+                                marginBottom: '0.5rem',
+                                display: 'block'
+                            }}>
+                                Role*
+                            </label>
                             <select
                                 className={`form-select ${formErrors.roleId ? 'is-invalid' : ''}`}
                                 id="roleId"
                                 name="roleId"
                                 value={newTeam.roleId}
                                 onChange={handleInputChange}
+                                style={{
+                                    backgroundColor: 'transparent', cursor: 'pointer', paddingRight: '2.5rem', backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'16\' height=\'16\' fill=\'%230092ff\' viewBox=\'0 0 16 16\'%3E%3Cpath d=\'M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z\'/%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.75rem center', backgroundSize: '16px 12px', appearance: 'none',
+                                }}
                             >
-                                <option value="">Select a role</option>
+                                <option value="" style={{
+                                    color: '#6c757d',
+                                    backgroundColor: '#fff',
+                                    fontSize: '0.9rem',
+                                    padding: '0.5rem 1rem'
+                                }}>
+                                    Select a role
+                                </option>
                                 {roles.map(role => (
-                                    <option key={role.id} value={role.id}>{role.name}</option>
+                                    <option
+                                        key={role.id}
+                                        value={role.id}
+                                        style={{
+                                            color: '#000000ff',
+                                            backgroundColor: '#fff',
+                                            fontSize: '0.9rem',
+                                            padding: '0.5rem 1rem'
+                                        }}
+                                    >
+                                        {role.name}
+                                    </option>
                                 ))}
                             </select>
-                            {formErrors.roleId && <div className="invalid-feedback">{formErrors.roleId}</div>}
+                            {formErrors.roleId && (
+                                <div className="invalid-feedback" style={{
+                                    color: '#dc3545',
+                                    fontSize: '0.8rem',
+                                    marginTop: '0.25rem'
+                                }}>
+                                    {formErrors.roleId}
+                                </div>
+                            )}
                         </div>
                         <div className="mb-3">
                             <Form.Group controlId="formActiveStatus">
@@ -707,20 +744,57 @@ const TeamTable = () => {
                             {editFormErrors.phone && <div className="invalid-feedback">{editFormErrors.phone}</div>}
                         </div>
                         <div className="mb-3">
-                            <label htmlFor="edit-roleId" className="form-label">Role*</label>
+                            <label htmlFor="edit-roleId" className="form-label" style={{
+                                color: '#0092ff',
+                                fontWeight: '600',
+                                fontSize: '0.9rem',
+                                marginBottom: '0.5rem',
+                                display: 'block'
+                            }}>
+                                Role*
+                            </label>
                             <select
                                 className={`form-select ${editFormErrors.roleId ? 'is-invalid' : ''}`}
                                 id="edit-roleId"
                                 name="roleId"
                                 value={editTeam.roleId}
                                 onChange={handleEditInputChange}
+                                style={{
+                                    backgroundColor: 'transparent', cursor: 'pointer', paddingRight: '2.5rem', backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'16\' height=\'16\' fill=\'%230092ff\' viewBox=\'0 0 16 16\'%3E%3Cpath d=\'M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z\'/%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.75rem center', backgroundSize: '16px 12px', appearance: 'none',
+                                }}
                             >
-                                <option value="">Select a role</option>
+                                <option value="" style={{
+                                    color: '#6c757d',
+                                    backgroundColor: '#fff',
+                                    fontSize: '0.9rem',
+                                    padding: '0.5rem 1rem'
+                                }}>
+                                    Select a role
+                                </option>
                                 {roles.map(role => (
-                                    <option key={role.id} value={role.id}>{role.name}</option>
+                                    <option
+                                        key={role.id}
+                                        value={role.id}
+                                        style={{
+                                            color: '#000000ff',
+                                            backgroundColor: '#fff',
+                                            fontSize: '0.9rem',
+                                            padding: '0.5rem 1rem'
+                                        }}
+                                    >
+                                        {role.name}
+                                    </option>
                                 ))}
                             </select>
-                            {editFormErrors.roleId && <div className="invalid-feedback">{editFormErrors.roleId}</div>}
+                            {editFormErrors.roleId && (
+                                <div className="invalid-feedback" style={{
+                                    color: '#dc3545',
+                                    fontSize: '0.8rem',
+                                    marginTop: '0.25rem'
+                                }}>
+                                    {editFormErrors.roleId}
+                                </div>
+                            )}
                         </div>
                         <div className="mb-3">
                             <Form.Group controlId="formEditActiveStatus">

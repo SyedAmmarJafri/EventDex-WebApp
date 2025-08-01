@@ -38,7 +38,9 @@ import {
   ArrowDownOutlined,
   CrownOutlined,
   SyncOutlined,
-  DollarOutlined
+  DownOutlined,
+  CalendarOutlined,
+  CloseCircleOutlined
 } from '@ant-design/icons';
 import { BASE_URL } from '/src/constants.js';
 
@@ -225,15 +227,6 @@ const ReportsCustomer = () => {
       case 'last30days':
         setDateRange([moment().subtract(30, 'days'), moment()]);
         break;
-      case 'thisWeek':
-        setDateRange([moment().startOf('week'), moment().endOf('week')]);
-        break;
-      case 'thisMonth':
-        setDateRange([moment().startOf('month'), moment().endOf('month')]);
-        break;
-      case 'lastMonth':
-        setDateRange([moment().subtract(1, 'month').startOf('month'), moment().subtract(1, 'month').endOf('month')]);
-        break;
       default:
         // For custom, keep the existing range
         break;
@@ -243,10 +236,10 @@ const ReportsCustomer = () => {
   const handleDateChange = (dates) => {
     if (dates) {
       setDateRange(dates);
-      setPeriod('custom');
     } else {
-      setDateRange([moment().startOf('month'), moment().endOf('month')]);
-      setPeriod('thisMonth');
+      // Reset to default when cleared
+      setDateRange([moment().subtract(7, 'days'), moment()]);
+      setPeriod('last7days');
     }
   };
 
@@ -405,15 +398,90 @@ const ReportsCustomer = () => {
             <div style={{ marginBottom: '16px' }}>
               <Text strong style={{ display: 'block', marginBottom: '8px' }} className="text-dark">Period</Text>
               <Select
-                style={{ width: '100%' }}
+                style={{
+                  width: '100%',
+                  border: '1px solid #0092ff',
+                  borderRadius: '6px',
+                  backgroundColor: 'rgba(0, 146, 255, 0.05)',
+                  height: '40px',
+                  color: '#0092ff',
+                  fontSize: '14px'
+                }}
+                dropdownStyle={{
+                  border: '1px solid #0092ff',
+                  borderRadius: '6px',
+                  boxShadow: '0 2px 8px rgba(0, 146, 255, 0.1)',
+                  marginTop: '4px'
+                }}
                 value={period}
                 onChange={handlePeriodChange}
+                suffixIcon={
+                  <DownOutlined style={{
+                    color: '#0092ff',
+                    fontSize: '12px'
+                  }} />
+                }
               >
-                <Option value="today">Today</Option>
-                <Option value="yesterday">Yesterday</Option>
-                <Option value="last7days">Last 7 Days</Option>
-                <Option value="last30days">Last 30 Days</Option>
-                <Option value="custom">Custom Range</Option>
+                <Option
+                  value="today"
+                  style={{
+                    color: '#000000ff',
+                    fontSize: '14px',
+                    padding: '10px 16px',
+                    backgroundColor: '#fff',
+                    transition: 'background-color 0.2s'
+                  }}
+                >
+                  Today
+                </Option>
+                <Option
+                  value="yesterday"
+                  style={{
+                    color: '#000000ff',
+                    fontSize: '14px',
+                    padding: '10px 16px',
+                    backgroundColor: '#fff',
+                    transition: 'background-color 0.2s'
+                  }}
+                >
+                  Yesterday
+                </Option>
+                <Option
+                  value="last7days"
+                  style={{
+                    color: '#000000ff',
+                    fontSize: '14px',
+                    padding: '10px 16px',
+                    backgroundColor: '#fff',
+                    transition: 'background-color 0.2s'
+                  }}
+                >
+                  Last 7 Days
+                </Option>
+                <Option
+                  value="last30days"
+                  style={{
+                    color: '#000000ff',
+                    fontSize: '14px',
+                    padding: '10px 16px',
+                    backgroundColor: '#fff',
+                    transition: 'background-color 0.2s'
+                  }}
+                >
+                  Last 30 Days
+                </Option>
+                <Option
+                  value="custom"
+                  style={{
+                    color: '#000000ff',
+                    fontSize: '14px',
+                    padding: '10px 16px',
+                    backgroundColor: '#fff',
+                    transition: 'background-color 0.2s'
+                  }}
+                >
+                  Custom Range
+                </Option>
               </Select>
             </div>
           </Col>
@@ -425,12 +493,27 @@ const ReportsCustomer = () => {
                 <RangePicker
                   style={{
                     width: '100%',
-                    backgroundColor: 'white',
+                    border: '1px solid #0092ff',
+                    borderRadius: '6px',
+                    backgroundColor: 'rgba(0, 146, 255, 0.05)',
+                    height: '40px'
                   }}
                   inputStyle={{
-                    color: 'black',
-                    backgroundColor: 'white',
+                    color: '#006bb3',
+                    fontSize: '14px',
+                    backgroundColor: 'transparent'
                   }}
+                  popupStyle={{
+                    border: '1px solid #0092ff',
+                    borderRadius: '6px',
+                    boxShadow: '0 2px 8px rgba(0, 146, 255, 0.15)'
+                  }}
+                  suffixIcon={
+                    <CalendarOutlined style={{
+                      color: '#0092ff',
+                      fontSize: '16px'
+                    }} />
+                  }
                   onChange={handleDateChange}
                   disabledDate={disabledDate}
                 />

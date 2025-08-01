@@ -93,7 +93,7 @@ const RolesTable = () => {
         description: '',
         permissions: [],
         tabPermissions: TAB_PERMISSIONS.reduce((acc, tab) => {
-            acc[tab.toLowerCase()] = false;
+            acc[tab.toLowerCase()] = tab === 'DASHBOARD' ? true : false;
             return acc;
         }, {}),
         active: true,
@@ -105,7 +105,7 @@ const RolesTable = () => {
         description: '',
         permissions: [],
         tabPermissions: TAB_PERMISSIONS.reduce((acc, tab) => {
-            acc[tab.toLowerCase()] = false;
+            acc[tab.toLowerCase()] = tab === 'DASHBOARD' ? true : false;
             return acc;
         }, {}),
         active: true,
@@ -258,7 +258,7 @@ const RolesTable = () => {
                 const rolesData = request.result.map(role => {
                     // Ensure tabPermissions exists and has all required fields
                     const defaultTabPermissions = TAB_PERMISSIONS.reduce((acc, tab) => {
-                        acc[tab.toLowerCase()] = role.tabPermissions?.[tab.toLowerCase()] || false;
+                        acc[tab.toLowerCase()] = role.tabPermissions?.[tab.toLowerCase()] || (tab === 'DASHBOARD' ? true : false);
                         return acc;
                     }, {});
 
@@ -341,7 +341,7 @@ const RolesTable = () => {
             // Ensure all roles have tabPermissions with all required fields
             const processedRoles = rolesData.map(role => {
                 const defaultTabPermissions = TAB_PERMISSIONS.reduce((acc, tab) => {
-                    acc[tab.toLowerCase()] = role.tabPermissions?.[tab.toLowerCase()] || false;
+                    acc[tab.toLowerCase()] = role.tabPermissions?.[tab.toLowerCase()] || (tab === 'DASHBOARD' ? true : false);
                     return acc;
                 }, {});
 
@@ -563,6 +563,9 @@ const RolesTable = () => {
     };
 
     const handleTabPermissionChange = (tab, isChecked) => {
+        // Skip if trying to change DASHBOARD permission
+        if (tab === 'dashboard') return;
+        
         setNewRole(prev => ({
             ...prev,
             tabPermissions: {
@@ -573,6 +576,9 @@ const RolesTable = () => {
     };
 
     const handleEditTabPermissionChange = (tab, isChecked) => {
+        // Skip if trying to change DASHBOARD permission
+        if (tab === 'dashboard') return;
+        
         setEditRole(prev => ({
             ...prev,
             tabPermissions: {
@@ -588,9 +594,12 @@ const RolesTable = () => {
         if (!formData.description.trim()) errors.description = 'Description is required';
         if (formData.permissions.length === 0) errors.permissions = 'At least one permission is required';
 
-        // Check if at least one tab permission is selected
-        const hasTabPermission = Object.values(formData.tabPermissions).some(val => val);
-        if (!hasTabPermission) errors.tabPermissions = 'At least one tab access must be selected';
+        // Check if at least one tab permission is selected (other than DASHBOARD)
+        const hasTabPermission = Object.entries(formData.tabPermissions)
+            .filter(([tab]) => tab !== 'dashboard')
+            .some(([_, val]) => val);
+            
+        if (!hasTabPermission) errors.tabPermissions = 'At least one tab access (other than Dashboard) must be selected';
 
         setErrors(errors);
         return Object.keys(errors).length === 0;
@@ -638,7 +647,7 @@ const RolesTable = () => {
                 description: '',
                 permissions: [],
                 tabPermissions: TAB_PERMISSIONS.reduce((acc, tab) => {
-                    acc[tab.toLowerCase()] = false;
+                    acc[tab.toLowerCase()] = tab === 'DASHBOARD' ? true : false;
                     return acc;
                 }, {}),
                 active: true,
@@ -704,7 +713,14 @@ const RolesTable = () => {
             name: role.name,
             description: role.description,
             permissions: role.permissions || [],
-            tabPermissions: { ...role.tabPermissions },
+            tabPermissions: { 
+                ...TAB_PERMISSIONS.reduce((acc, tab) => {
+                    acc[tab.toLowerCase()] = tab === 'DASHBOARD' ? true : false;
+                    return acc;
+                }, {}),
+                ...role.tabPermissions,
+                dashboard: true // Force dashboard to be true
+            },
             active: role.active,
             isCustomRole: !COMMON_ROLES.includes(role.name)
         });
@@ -907,7 +923,7 @@ const RolesTable = () => {
                     description: '',
                     permissions: [],
                     tabPermissions: TAB_PERMISSIONS.reduce((acc, tab) => {
-                        acc[tab.toLowerCase()] = false;
+                        acc[tab.toLowerCase()] = tab === 'DASHBOARD' ? true : false;
                         return acc;
                     }, {}),
                     active: true,
@@ -983,9 +999,11 @@ const RolesTable = () => {
                                                     id={`tab-${tab}`}
                                                     checked={newRole.tabPermissions[tab.toLowerCase()] || false}
                                                     onChange={(e) => handleTabPermissionChange(tab.toLowerCase(), e.target.checked)}
+                                                    disabled={tab === 'DASHBOARD'}
                                                 />
                                                 <h8 className="form-check-label" htmlFor={`tab-${tab}`}>
                                                     {tab.replace(/_/g, ' ')}
+                                                    {tab === 'DASHBOARD' && <span className="text-muted small ms-1">(required)</span>}
                                                 </h8>
                                             </div>
                                         </div>
@@ -1140,9 +1158,11 @@ const RolesTable = () => {
                                                     id={`edit-tab-${tab}`}
                                                     checked={editRole.tabPermissions[tab.toLowerCase()] || false}
                                                     onChange={(e) => handleEditTabPermissionChange(tab.toLowerCase(), e.target.checked)}
+                                                    disabled={tab === 'DASHBOARD'}
                                                 />
                                                 <h8 className="form-check-label" htmlFor={`edit-tab-${tab}`}>
                                                     {tab.replace(/_/g, ' ')}
+                                                    {tab === 'DASHBOARD' && <span className="text-muted small ms-1">(required)</span>}
                                                 </h8>
                                             </div>
                                         </div>

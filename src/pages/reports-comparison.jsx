@@ -30,7 +30,9 @@ import {
   ShoppingCartOutlined,
   UserOutlined,
   SyncOutlined,
-  LineChartOutlined
+  LineChartOutlined,
+  CalendarOutlined,
+  DownOutlined
 } from '@ant-design/icons';
 import { BASE_URL } from '/src/constants.js';
 
@@ -466,17 +468,94 @@ const ComparisonAnalytics = () => {
               <Col xs={24} md={12}>
                 <div style={{ marginBottom: '8px' }}>
                   <Select
-                    style={{ width: '100%' }}
+                    style={{
+                      width: '100%',
+                      border: '1px solid #0092ff',
+                      borderRadius: '6px',
+                      backgroundColor: 'rgba(0, 146, 255, 0.05)',
+                      height: '40px'
+                    }}
+                    dropdownStyle={{
+                      border: '1px solid #0092ff',
+                      borderRadius: '8px',
+                      boxShadow: '0 4px 12px rgba(0, 146, 255, 0.15)'
+                    }}
                     value={currentPeriod}
                     onChange={handleCurrentPeriodChange}
+                    suffixIcon={
+                      <DownOutlined style={{ color: '#0092ff' }} />
+                    }
                   >
-                    <Option value="today">Today</Option>
-                    <Option value="yesterday">Yesterday</Option>
-                    <Option value="last7days">Last 7 Days</Option>
-                    <Option value="last30days">Last 30 Days</Option>
-                    <Option value="thismonth">This Month</Option>
-                    <Option value="lastmonth">Last Month</Option>
-                    <Option value="custom">Custom Range</Option>
+                    <Option
+                      value="today"
+                      style={{
+                        color: '#000000ff',
+                        fontSize: '14px',
+                        padding: '8px 12px'
+                      }}
+                    >
+                      Today
+                    </Option>
+                    <Option
+                      value="yesterday"
+                      style={{
+                        color: '#000000ff',
+                        fontSize: '14px',
+                        padding: '8px 12px'
+                      }}
+                    >
+                      Yesterday
+                    </Option>
+                    <Option
+                      value="last7days"
+                      style={{
+                        color: '#000000ff',
+                        fontSize: '14px',
+                        padding: '8px 12px'
+                      }}
+                    >
+                      Last 7 Days
+                    </Option>
+                    <Option
+                      value="last30days"
+                      style={{
+                        color: '#000000ff',
+                        fontSize: '14px',
+                        padding: '8px 12px'
+                      }}
+                    >
+                      Last 30 Days
+                    </Option>
+                    <Option
+                      value="thismonth"
+                      style={{
+                        color: '#000000ff',
+                        fontSize: '14px',
+                        padding: '8px 12px'
+                      }}
+                    >
+                      This Month
+                    </Option>
+                    <Option
+                      value="lastmonth"
+                      style={{
+                        color: '#000000ff',
+                        fontSize: '14px',
+                        padding: '8px 12px'
+                      }}
+                    >
+                      Last Month
+                    </Option>
+                    <Option
+                      value="custom"
+                      style={{
+                        color: '#000000ff',
+                        fontSize: '14px',
+                        padding: '8px 12px'
+                      }}
+                    >
+                      Custom Range
+                    </Option>
                   </Select>
                 </div>
               </Col>
@@ -486,14 +565,42 @@ const ComparisonAnalytics = () => {
                     <RangePicker
                       style={{
                         width: '100%',
-                        backgroundColor: 'white',
+                        border: '1px solid #0092ff',
+                        borderRadius: '6px',
+                        backgroundColor: 'rgba(0, 146, 255, 0.05)',
+                        height: '42px',
+                        transition: 'all 0.3s cubic-bezier(0.645, 0.045, 0.355, 1)'
                       }}
                       inputStyle={{
-                        color: 'black',
-                        backgroundColor: 'white',
+                        color: '#006bb3',
+                        fontSize: '14px',
+                        backgroundColor: 'transparent',
+                        '::placeholder': {
+                          color: '#94a3b8'
+                        }
                       }}
+                      popupStyle={{
+                        border: '1px solid #0092ff',
+                        borderRadius: '8px',
+                        boxShadow: '0 4px 12px rgba(0, 146, 255, 0.15)'
+                      }}
+                      suffixIcon={
+                        <CalendarOutlined style={{
+                          color: '#0092ff',
+                          fontSize: '16px'
+                        }} />
+                      }
                       onChange={handleCurrentDateChange}
                       disabledDate={disabledDate}
+                      separator={
+                        <span style={{
+                          color: '#0092ff',
+                          padding: '0 8px',
+                          fontWeight: '500'
+                        }}>
+                          to
+                        </span>
+                      }
                     />
                   </div>
                 </Col>
@@ -516,16 +623,84 @@ const ComparisonAnalytics = () => {
               <Col xs={24} md={12}>
                 <div style={{ marginBottom: '8px' }}>
                   <Select
-                    style={{ width: '100%' }}
+                    style={{
+                      width: '100%',
+                      border: '1px solid #0092ff',
+                      borderRadius: '6px',
+                      backgroundColor: 'rgba(0, 146, 255, 0.05)',
+                      height: '40px'
+                    }}
+                    dropdownStyle={{
+                      border: '1px solid #0092ff',
+                      borderRadius: '8px',
+                      boxShadow: '0 4px 12px rgba(0, 146, 255, 0.15)'
+                    }}
                     value={previousPeriod}
                     onChange={handlePreviousPeriodChange}
+                    suffixIcon={
+                      <DownOutlined style={{ color: '#0092ff' }} />
+                    }
                   >
-                    <Option value="previousday">Previous Day</Option>
-                    <Option value="previousweek">Previous Week</Option>
-                    <Option value="previous30days">Previous 30 Days</Option>
-                    <Option value="previousmonth">Previous Month</Option>
-                    <Option value="previousyear">Previous Year</Option>
-                    <Option value="custom">Custom Range</Option>
+                    <Option
+                      value="previousday"
+                      style={{
+                        color: '#000000ff',
+                        fontSize: '14px',
+                        padding: '8px 12px'
+                      }}
+                    >
+                      Previous Day
+                    </Option>
+                    <Option
+                      value="previousweek"
+                      style={{
+                        color: '#000000ff',
+                        fontSize: '14px',
+                        padding: '8px 12px'
+                      }}
+                    >
+                      Previous Week
+                    </Option>
+                    <Option
+                      value="previous30days"
+                      style={{
+                        color: '#000000ff',
+                        fontSize: '14px',
+                        padding: '8px 12px'
+                      }}
+                    >
+                      Previous 30 Days
+                    </Option>
+                    <Option
+                      value="previousmonth"
+                      style={{
+                        color: '#000000ff',
+                        fontSize: '14px',
+                        padding: '8px 12px'
+                      }}
+                    >
+                      Previous Month
+                    </Option>
+                    <Option
+                      value="previousyear"
+                      style={{
+                        color: '#000000ff',
+                        fontSize: '14px',
+                        padding: '8px 12px'
+                      }}
+                    >
+                      Previous Year
+                    </Option>
+                    <Option
+                      value="custom"
+                      style={{
+                        color: '#000000ff',
+                        fontSize: '14px',
+                        padding: '8px 12px'
+                      }}
+                    >
+                      Custom Range
+                    </Option>
                   </Select>
                 </div>
               </Col>
@@ -535,14 +710,43 @@ const ComparisonAnalytics = () => {
                     <RangePicker
                       style={{
                         width: '100%',
-                        backgroundColor: 'white',
+                        border: '1px solid #0092ff',
+                        borderRadius: '6px',
+                        backgroundColor: 'rgba(0, 146, 255, 0.05)',
+                        height: '42px',
+                        transition: 'all 0.3s ease'
                       }}
                       inputStyle={{
-                        color: 'black',
-                        backgroundColor: 'white',
+                        color: '#006bb3',
+                        fontSize: '14px',
+                        backgroundColor: 'transparent',
+                        '::placeholder': {
+                          color: '#94a3b8'
+                        }
                       }}
+                      popupStyle={{
+                        border: '1px solid #0092ff',
+                        borderRadius: '8px',
+                        boxShadow: '0 4px 12px rgba(0, 146, 255, 0.15)',
+                        padding: '8px'
+                      }}
+                      suffixIcon={
+                        <CalendarOutlined style={{
+                          color: '#0092ff',
+                          fontSize: '16px'
+                        }} />
+                      }
                       onChange={handlePreviousDateChange}
                       disabledDate={disabledDate}
+                      separator={
+                        <span style={{
+                          color: '#0092ff',
+                          padding: '0 8px',
+                          fontWeight: '500'
+                        }}>
+                          to
+                        </span>
+                      }
                     />
                   </div>
                 </Col>

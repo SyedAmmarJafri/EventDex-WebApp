@@ -34,9 +34,9 @@ const TabProfile = () => {
 
     // Check permissions
     const canUpdateProfile = role === 'CLIENT_ADMIN' || permissions.includes('PROFILE_UPDATE');
-    const canUploadProfilePicture = role === 'CLIENT_ADMIN' || 
-                                  (permissions.includes('PROFILE_PICTURE_UPLOAD') && 
-                                   permissions.includes('PROFILE_PICTURE_UPDATE'));
+    const canUploadProfilePicture = role === 'CLIENT_ADMIN' ||
+        (permissions.includes('PROFILE_PICTURE_UPLOAD') &&
+            permissions.includes('PROFILE_PICTURE_UPDATE'));
 
     // Fetch profile data
     useEffect(() => {

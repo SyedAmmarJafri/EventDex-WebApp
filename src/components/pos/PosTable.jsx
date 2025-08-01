@@ -4,6 +4,7 @@ import { BASE_URL } from '/src/constants.js';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import Quagga from 'quagga';
+import Modal from 'react-bootstrap/Modal';
 import './SmartPOS.css';
 
 const scanBeepSound = new Audio('/music/store-scanner-beep-90395.mp3');
@@ -495,13 +496,26 @@ const SmartPOS = () => {
 
     Object.entries(selectedOptions).forEach(([variantName, option]) => {
       if (option) {
-        finalPrice += option.priceModifier || 0;
-        variantDescription += `${option.name}, `;
-
-        selectedVariants.push({
-          variantName,
-          selectedOption: option.name
-        });
+        // Handle both single option and array of options
+        if (Array.isArray(option)) {
+          option.forEach(opt => {
+            if (opt) {
+              finalPrice += opt.priceModifier || 0;
+              variantDescription += `${opt.name}, `;
+              selectedVariants.push({
+                variantName,
+                selectedOption: opt.name
+              });
+            }
+          });
+        } else {
+          finalPrice += option.priceModifier || 0;
+          variantDescription += `${option.name}, `;
+          selectedVariants.push({
+            variantName,
+            selectedOption: option.name
+          });
+        }
       }
     });
 
@@ -567,11 +581,44 @@ const SmartPOS = () => {
     showSuccessToast('Cart cleared');
   };
 
-  const handleVariantSelection = (variantName, option) => {
-    setSelectedVariantOptions(prev => ({
-      ...prev,
-      [variantName]: option
-    }));
+  const handleVariantSelection = (variantName, option, isRequired) => {
+    setSelectedVariantOptions(prev => {
+      // For required variants (single selection)
+      if (isRequired) {
+        return {
+          ...prev,
+          [variantName]: option
+        };
+      }
+      
+      // For non-required variants (multiple selection)
+      const currentOptions = prev[variantName] || [];
+      
+      // Check if option is already selected
+      const isSelected = Array.isArray(currentOptions) 
+        ? currentOptions.some(opt => opt.name === option.name)
+        : false;
+      
+      if (isSelected) {
+        // Remove the option if it's already selected
+        const newOptions = Array.isArray(currentOptions)
+          ? currentOptions.filter(opt => opt.name !== option.name)
+          : [];
+        return {
+          ...prev,
+          [variantName]: newOptions.length > 0 ? newOptions : null
+        };
+      } else {
+        // Add the option if it's not selected
+        const newOptions = Array.isArray(currentOptions)
+          ? [...currentOptions, option]
+          : [option];
+        return {
+          ...prev,
+          [variantName]: newOptions
+        };
+      }
+    });
   };
 
   const subtotal = cart.reduce((sum, item) => sum + ((item.finalPrice || item.price) * item.quantity), 0);
@@ -760,124 +807,119 @@ const SmartPOS = () => {
       />
 
       {/* Scanner Modal */}
-      {showScanner && (
-        <div className="scanner-modal">
-          <div className="scanner-modal-content">
-            <div className="scanner-header">
-              <h5 style={{ color: 'white' }}>Barcode Scanner</h5>
-              <button onClick={closeScanner} className="close-scanner">
-                &times;
-              </button>
-            </div>
-            <div className="scanner-container" ref={scannerRef}>
-              {!scannerInitialized ? (
-                <div className="scanner-loading">
-                  <div className="spinner"></div>
-                  <p>Initializing scanner...</p>
+      <Modal show={showScanner} onHide={closeScanner} size="lg" centered>
+        <Modal.Header closeButton>
+          <Modal.Title>Barcode Scanner</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <div className="scanner-container" ref={scannerRef}>
+            {!scannerInitialized ? (
+              <div className="scanner-loading">
+                <div className="spinner"></div>
+                <p>Initializing scanner...</p>
+              </div>
+            ) : (
+              <div className="scanner-overlay">
+                <div className="scanning-frame">
+                  <div className="corner top-left"></div>
+                  <div className="corner top-right"></div>
+                  <div className="corner bottom-left"></div>
+                  <div className="corner bottom-right"></div>
                 </div>
-              ) : (
-                <div className="scanner-overlay">
-                  <div className="scanning-frame">
-                    <div className="corner top-left"></div>
-                    <div className="corner top-right"></div>
-                    <div className="corner bottom-left"></div>
-                    <div className="corner bottom-right"></div>
-                  </div>
-                  <div className="scanning-line"></div>
-                </div>
-              )}
-            </div>
-            <div className="manual-entry">
-              <input
-                type="text"
-                placeholder="Enter barcode manually"
-                value={scannedCode}
-                onChange={(e) => setScannedCode(e.target.value)}
-                onKeyPress={(e) => {
-                  if (e.key === 'Enter' && scannedCode) {
-                    handleBarcodeScan(scannedCode);
-                  }
-                }}
-                className="manual-input"
-              />
-              <button
-                onClick={() => {
-                  if (scannedCode) {
-                    handleBarcodeScan(scannedCode);
-                  }
-                }}
-                className="manual-submit-btn"
-                disabled={!scannedCode}
-              >
-                Add Item
-              </button>
-            </div>
-            <div className="scanner-footer">
-              {scannedCode && (
-                <div className="scanned-result">
-                  <span>Current Code:</span>
-                  <strong>{scannedCode}</strong>
-                </div>
-              )}
-            </div>
+                <div className="scanning-line"></div>
+              </div>
+            )}
           </div>
-        </div>
-      )}
+          <div className="manual-entry">
+            <input
+              type="text"
+              placeholder="Enter barcode manually"
+              value={scannedCode}
+              onChange={(e) => setScannedCode(e.target.value)}
+              onKeyPress={(e) => {
+                if (e.key === 'Enter' && scannedCode) {
+                  handleBarcodeScan(scannedCode);
+                }
+              }}
+              className="manual-input"
+            />
+            <button
+              onClick={() => {
+                if (scannedCode) {
+                  handleBarcodeScan(scannedCode);
+                }
+              }}
+              className="manual-submit-btn"
+              disabled={!scannedCode}
+            >
+              Add Item
+            </button>
+          </div>
+          {scannedCode && (
+            <div className="scanner-footer">
+              <div className="scanned-result">
+                <span>Current Code:</span>
+                <strong>{scannedCode}</strong>
+              </div>
+            </div>
+          )}
+        </Modal.Body>
+      </Modal>
 
       {/* Variant Selection Modal */}
-      {selectedItemForVariant && (
-        <div className="variant-modal">
-          <div className="variant-modal-content">
-            <div className="variant-modal-header">
-              <h3>{selectedItemForVariant.name}</h3>
-              <button
-                onClick={() => {
-                  setSelectedItemForVariant(null);
-                  setSelectedVariantOptions({});
-                }}
-                className="close-variant-modal"
-              >
-                <FiX />
-              </button>
-            </div>
-            <p className="base-price">Base Price: {formatCurrency(selectedItemForVariant.price)}</p>
+      <Modal show={!!selectedItemForVariant} onHide={() => {
+        setSelectedItemForVariant(null);
+        setSelectedVariantOptions({});
+      }} size="lg" centered>
+        <Modal.Header closeButton>
+          <Modal.Title>{selectedItemForVariant?.name}</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <p className="base-price">Base Price: {formatCurrency(selectedItemForVariant?.price)}</p>
 
-            {selectedItemForVariant.variants.map(variant => (
-              <div key={variant.name} className="variant-section">
-                <h4>{variant.name} {variant.required && <span className="required-asterisk">*</span>}</h4>
-                {variant.description && <p className="variant-description">{variant.description}</p>}
+          {selectedItemForVariant?.variants.map(variant => (
+            <div key={variant.name} className="variant-section">
+              <h4>{variant.name} {variant.required && <span className="required-asterisk">*</span>}</h4>
+              {variant.description && <p className="variant-description">{variant.description}</p>}
 
-                <div className="variant-options">
-                  {variant.options.map(option => (
+              <div className="variant-options">
+                {variant.options.map(option => {
+                  const isSelected = variant.required 
+                    ? selectedVariantOptions[variant.name]?.name === option.name
+                    : (selectedVariantOptions[variant.name] || []).some(opt => opt?.name === option.name);
+                  
+                  return (
                     <button
                       key={option.name}
-                      className={`variant-option ${selectedVariantOptions[variant.name]?.name === option.name ? 'selected' : ''
-                        }`}
-                      onClick={() => handleVariantSelection(variant.name, option)}
+                      className={`variant-option ${isSelected ? 'selected' : ''}`}
+                      onClick={() => handleVariantSelection(variant.name, option, variant.required)}
                     >
                       {option.name} (+{formatCurrency(option.priceModifier)})
                     </button>
-                  ))}
-                </div>
+                  );
+                })}
               </div>
-            ))}
-
-            <div className="variant-modal-actions">
-              <button
-                className="action-btn place-order-btn"
-                onClick={() => {
-                  addToCart(selectedItemForVariant, selectedVariantOptions);
-                  setSelectedItemForVariant(null);
-                  setSelectedVariantOptions({});
-                }}
-                disabled={selectedItemForVariant.variants.some(v => v.required && !selectedVariantOptions[v.name])}
-              >
-                Add to Cart
-              </button>
             </div>
-          </div>
-        </div>
-      )}
+          ))}
+        </Modal.Body>
+        <Modal.Footer>
+          <button
+            className="action-btn place-order-btn"
+            onClick={() => {
+              addToCart(selectedItemForVariant, selectedVariantOptions);
+              setSelectedItemForVariant(null);
+              setSelectedVariantOptions({});
+            }}
+            disabled={
+              selectedItemForVariant?.variants.some(v => 
+                v.required && !selectedVariantOptions[v.name]
+              )
+            }
+          >
+            Add to Cart
+          </button>
+        </Modal.Footer>
+      </Modal>
 
       <div className="pos-container">
         <div className="pos-header" style={{
@@ -1608,13 +1650,26 @@ const SmartPOS1 = () => {
 
     Object.entries(selectedOptions).forEach(([variantName, option]) => {
       if (option) {
-        finalPrice += option.priceModifier || 0;
-        variantDescription += `${option.name}, `;
-
-        selectedVariants.push({
-          variantName,
-          selectedOption: option.name
-        });
+        // Handle both single option and array of options
+        if (Array.isArray(option)) {
+          option.forEach(opt => {
+            if (opt) {
+              finalPrice += opt.priceModifier || 0;
+              variantDescription += `${opt.name}, `;
+              selectedVariants.push({
+                variantName,
+                selectedOption: opt.name
+              });
+            }
+          });
+        } else {
+          finalPrice += option.priceModifier || 0;
+          variantDescription += `${option.name}, `;
+          selectedVariants.push({
+            variantName,
+            selectedOption: option.name
+          });
+        }
       }
     });
 
@@ -1680,11 +1735,44 @@ const SmartPOS1 = () => {
     showSuccessToast('Cart cleared');
   };
 
-  const handleVariantSelection = (variantName, option) => {
-    setSelectedVariantOptions(prev => ({
-      ...prev,
-      [variantName]: option
-    }));
+  const handleVariantSelection = (variantName, option, isRequired) => {
+    setSelectedVariantOptions(prev => {
+      // For required variants (single selection)
+      if (isRequired) {
+        return {
+          ...prev,
+          [variantName]: option
+        };
+      }
+      
+      // For non-required variants (multiple selection)
+      const currentOptions = prev[variantName] || [];
+      
+      // Check if option is already selected
+      const isSelected = Array.isArray(currentOptions) 
+        ? currentOptions.some(opt => opt.name === option.name)
+        : false;
+      
+      if (isSelected) {
+        // Remove the option if it's already selected
+        const newOptions = Array.isArray(currentOptions)
+          ? currentOptions.filter(opt => opt.name !== option.name)
+          : [];
+        return {
+          ...prev,
+          [variantName]: newOptions.length > 0 ? newOptions : null
+        };
+      } else {
+        // Add the option if it's not selected
+        const newOptions = Array.isArray(currentOptions)
+          ? [...currentOptions, option]
+          : [option];
+        return {
+          ...prev,
+          [variantName]: newOptions
+        };
+      }
+    });
   };
 
   const subtotal = cart.reduce((sum, item) => sum + ((item.finalPrice || item.price) * item.quantity), 0);
@@ -1873,124 +1961,119 @@ const SmartPOS1 = () => {
       />
 
       {/* Scanner Modal */}
-      {showScanner && (
-        <div className="pos-scanner-modal">
-          <div className="pos-scanner-modal-content">
-            <div className="pos-scanner-header">
-              <h5 style={{ color: 'white' }}>Barcode Scanner</h5>
-              <button onClick={closeScanner} className="pos-close-scanner">
-                &times;
-              </button>
-            </div>
-            <div className="pos-scanner-container" ref={scannerRef}>
-              {!scannerInitialized ? (
-                <div className="pos-scanner-loading">
-                  <div className="pos-spinner"></div>
-                  <p>Initializing scanner...</p>
+      <Modal show={showScanner} onHide={closeScanner} size="lg" centered>
+        <Modal.Header closeButton>
+          <Modal.Title>Barcode Scanner</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <div className="pos-scanner-container" ref={scannerRef}>
+            {!scannerInitialized ? (
+              <div className="pos-scanner-loading">
+                <div className="pos-spinner"></div>
+                <p>Initializing scanner...</p>
+              </div>
+            ) : (
+              <div className="pos-scanner-overlay">
+                <div className="pos-scanning-frame">
+                  <div className="pos-corner pos-top-left"></div>
+                  <div className="pos-corner pos-top-right"></div>
+                  <div className="pos-corner pos-bottom-left"></div>
+                  <div className="pos-corner pos-bottom-right"></div>
                 </div>
-              ) : (
-                <div className="pos-scanner-overlay">
-                  <div className="pos-scanning-frame">
-                    <div className="pos-corner pos-top-left"></div>
-                    <div className="pos-corner pos-top-right"></div>
-                    <div className="pos-corner pos-bottom-left"></div>
-                    <div className="pos-corner pos-bottom-right"></div>
-                  </div>
-                  <div className="pos-scanning-line"></div>
-                </div>
-              )}
-            </div>
-            <div className="pos-manual-entry">
-              <input
-                type="text"
-                placeholder="Enter barcode manually"
-                value={scannedCode}
-                onChange={(e) => setScannedCode(e.target.value)}
-                onKeyPress={(e) => {
-                  if (e.key === 'Enter' && scannedCode) {
-                    handleBarcodeScan(scannedCode);
-                  }
-                }}
-                className="pos-manual-input"
-              />
-              <button
-                onClick={() => {
-                  if (scannedCode) {
-                    handleBarcodeScan(scannedCode);
-                  }
-                }}
-                className="pos-manual-submit-btn"
-                disabled={!scannedCode}
-              >
-                Add Item
-              </button>
-            </div>
-            <div className="pos-scanner-footer">
-              {scannedCode && (
-                <div className="pos-scanned-result">
-                  <span>Current Code:</span>
-                  <strong>{scannedCode}</strong>
-                </div>
-              )}
-            </div>
+                <div className="pos-scanning-line"></div>
+              </div>
+            )}
           </div>
-        </div>
-      )}
+          <div className="pos-manual-entry">
+            <input
+              type="text"
+              placeholder="Enter barcode manually"
+              value={scannedCode}
+              onChange={(e) => setScannedCode(e.target.value)}
+              onKeyPress={(e) => {
+                if (e.key === 'Enter' && scannedCode) {
+                  handleBarcodeScan(scannedCode);
+                }
+              }}
+              className="pos-manual-input"
+            />
+            <button
+              onClick={() => {
+                if (scannedCode) {
+                  handleBarcodeScan(scannedCode);
+                }
+              }}
+              className="pos-manual-submit-btn"
+              disabled={!scannedCode}
+            >
+              Add Item
+            </button>
+          </div>
+          {scannedCode && (
+            <div className="pos-scanner-footer">
+              <div className="pos-scanned-result">
+                <span>Current Code:</span>
+                <strong>{scannedCode}</strong>
+              </div>
+            </div>
+          )}
+        </Modal.Body>
+      </Modal>
 
       {/* Variant Selection Modal */}
-      {selectedItemForVariant && (
-        <div className="pos-variant-modal">
-          <div className="pos-variant-modal-content">
-            <div className="pos-variant-modal-header">
-              <h3>{selectedItemForVariant.name}</h3>
-              <button
-                onClick={() => {
-                  setSelectedItemForVariant(null);
-                  setSelectedVariantOptions({});
-                }}
-                className="pos-close-variant-modal"
-              >
-                <FiX />
-              </button>
-            </div>
-            <p className="pos-base-price">Base Price: {formatCurrency(selectedItemForVariant.price)}</p>
+      <Modal show={!!selectedItemForVariant} onHide={() => {
+        setSelectedItemForVariant(null);
+        setSelectedVariantOptions({});
+      }} size="lg" centered>
+        <Modal.Header closeButton>
+          <Modal.Title>{selectedItemForVariant?.name}</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <p className="pos-base-price">Base Price: {formatCurrency(selectedItemForVariant?.price)}</p>
 
-            {selectedItemForVariant.variants.map(variant => (
-              <div key={variant.name} className="pos-variant-section">
-                <h4>{variant.name} {variant.required && <span className="pos-required-asterisk">*</span>}</h4>
-                {variant.description && <p className="pos-variant-description">{variant.description}</p>}
+          {selectedItemForVariant?.variants.map(variant => (
+            <div key={variant.name} className="pos-variant-section">
+              <h4>{variant.name} {variant.required && <span className="pos-required-asterisk">*</span>}</h4>
+              {variant.description && <p className="pos-variant-description">{variant.description}</p>}
 
-                <div className="pos-variant-options">
-                  {variant.options.map(option => (
+              <div className="pos-variant-options">
+                {variant.options.map(option => {
+                  const isSelected = variant.required 
+                    ? selectedVariantOptions[variant.name]?.name === option.name
+                    : (selectedVariantOptions[variant.name] || []).some(opt => opt?.name === option.name);
+                  
+                  return (
                     <button
                       key={option.name}
-                      className={`pos-variant-option ${selectedVariantOptions[variant.name]?.name === option.name ? 'pos-selected' : ''
-                        }`}
-                      onClick={() => handleVariantSelection(variant.name, option)}
+                      className={`pos-variant-option ${isSelected ? 'pos-selected' : ''}`}
+                      onClick={() => handleVariantSelection(variant.name, option, variant.required)}
                     >
                       {option.name} (+{formatCurrency(option.priceModifier)})
                     </button>
-                  ))}
-                </div>
+                  );
+                })}
               </div>
-            ))}
-
-            <div className="pos-variant-modal-actions">
-              <button
-                className="pos-action-btn pos-place-order-btn"
-                onClick={() => {
-                  addToCart(selectedItemForVariant, selectedVariantOptions);
-                  setSelectedItemForVariant(null);
-                  setSelectedVariantOptions({});
-                }}
-                disabled={selectedItemForVariant.variants.some(v => v.required && !selectedVariantOptions[v.name])}
-              >
-                Add to Cart
-              </button>
             </div>
-          </div>
-        </div>
-      )}
+          ))}
+        </Modal.Body>
+        <Modal.Footer>
+          <button
+            className="pos-action-btn pos-place-order-btn"
+            onClick={() => {
+              addToCart(selectedItemForVariant, selectedVariantOptions);
+              setSelectedItemForVariant(null);
+              setSelectedVariantOptions({});
+            }}
+            disabled={
+              selectedItemForVariant?.variants.some(v => 
+                v.required && !selectedVariantOptions[v.name]
+              )
+            }
+          >
+            Add to Cart
+          </button>
+        </Modal.Footer>
+      </Modal>
 
       <div className="pos1-container">
         <div className="pos-header">

@@ -56,6 +56,30 @@ const TimesheetsModal = () => {
         connectionTimeout: 15000,
     };
 
+    // Get user role and permissions from authData
+    const getUserPermissions = useCallback(() => {
+        try {
+            const authData = localStorage.getItem('authData');
+            if (authData) {
+                const parsedData = JSON.parse(authData);
+                return {
+                    role: parsedData.role,
+                    permissions: parsedData.permissions || []
+                };
+            }
+            return { role: null, permissions: [] };
+        } catch (error) {
+            errorLog('Error getting user permissions', error);
+            return { role: null, permissions: [] };
+        }
+    }, []);
+
+    // Check if user has specific permission
+    const hasPermission = useCallback((permission) => {
+        const { role, permissions } = getUserPermissions();
+        return role === 'CLIENT_ADMIN' || permissions.includes(permission);
+    }, [getUserPermissions]);
+
     // Filter orders to only show pending ones
     const filterPendingOrders = useCallback((orders) => {
         return orders.filter(order => order.status === 'PENDING');
@@ -515,7 +539,7 @@ const TimesheetsModal = () => {
                 <div className="nxl-head-link me-0" data-bs-toggle="dropdown" role="button" data-bs-auto-close="outside">
                     <FiClock size={20} />
                     {pendingOrders.length > 0 && (
-                        <span className="badge bg-success nxl-h-badge">{pendingOrders.length}</span>
+                        <span className="badge bg-primary nxl-h-badge">{pendingOrders.length}</span>
                     )}
                 </div>
 
@@ -602,20 +626,24 @@ const TimesheetsModal = () => {
                                 <div key={order.id} className="card mb-2 mx-3">
                                     <div className="card-body p-3">
                                         <div className="d-flex justify-content-between mb-2">
-                                            <button
-                                                className="btn btn-sm btn-success me-1"
-                                                onClick={() => handleOrderAction(order.id, 'accept')}
-                                                style={{ minWidth: '70px' }}
-                                            >
-                                                Accept
-                                            </button>
-                                            <button
-                                                className="btn btn-sm btn-danger me-1"
-                                                onClick={() => handleOrderAction(order.id, 'reject')}
-                                                style={{ minWidth: '70px' }}
-                                            >
-                                                Reject
-                                            </button>
+                                            {hasPermission('ORDER_ACCEPT') && (
+                                                <button
+                                                    className="btn btn-sm btn-success me-1"
+                                                    onClick={() => handleOrderAction(order.id, 'accept')}
+                                                    style={{ minWidth: '70px' }}
+                                                >
+                                                    Accept
+                                                </button>
+                                            )}
+                                            {hasPermission('ORDER_REJECT') && (
+                                                <button
+                                                    className="btn btn-sm btn-danger me-1"
+                                                    onClick={() => handleOrderAction(order.id, 'reject')}
+                                                    style={{ minWidth: '70px' }}
+                                                >
+                                                    Reject
+                                                </button>
+                                            )}
                                             <button
                                                 className="btn btn-sm btn-primary me-1"
                                                 onClick={() => handleViewDetails(order)}
@@ -769,6 +797,30 @@ const ConnectionStatus = ({ wsConnected, wsError }) => (
 const OrderDetailsModal = ({ show, onHide, order, onAccept, onReject }) => {
     if (!order) return null;
 
+    // Get user role and permissions from authData
+    const getUserPermissions = () => {
+        try {
+            const authData = localStorage.getItem('authData');
+            if (authData) {
+                const parsedData = JSON.parse(authData);
+                return {
+                    role: parsedData.role,
+                    permissions: parsedData.permissions || []
+                };
+            }
+            return { role: null, permissions: [] };
+        } catch (error) {
+            console.error('Error getting user permissions', error);
+            return { role: null, permissions: [] };
+        }
+    };
+
+    // Check if user has specific permission
+    const hasPermission = (permission) => {
+        const { role, permissions } = getUserPermissions();
+        return role === 'CLIENT_ADMIN' || permissions.includes(permission);
+    };
+
     return (
         <Modal show={show} onHide={onHide} centered size="lg">
             <Modal.Header closeButton>
@@ -899,6 +951,21 @@ const OrderDetailsModal = ({ show, onHide, order, onAccept, onReject }) => {
                     )}
                 </div>
             </Modal.Body>
+            <Modal.Footer>
+                <Button variant="secondary" onClick={onHide}>
+                    Close
+                </Button>
+                {hasPermission('ORDER_REJECT') && (
+                    <Button variant="danger" onClick={onReject}>
+                        Reject Order
+                    </Button>
+                )}
+                {hasPermission('ORDER_ACCEPT') && (
+                    <Button variant="success" onClick={onAccept}>
+                        Accept Order
+                    </Button>
+                )}
+            </Modal.Footer>
         </Modal>
     );
 };

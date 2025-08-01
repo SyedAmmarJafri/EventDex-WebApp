@@ -730,17 +730,29 @@ const DiscountsTable = () => {
                                     {formErrors.code && <div className="invalid-feedback">{formErrors.code}</div>}
                                 </div>
                                 <div className="col-md-6 mb-3">
-                                    <label htmlFor="type" className="form-label">Type *</label>
+                                    <label htmlFor="type" className="form-label" style={{ color: '#0092ff' }}>
+                                        Type *
+                                    </label>
                                     <select
                                         className="form-select"
                                         id="type"
                                         name="type"
                                         value={newDiscount.type}
                                         onChange={handleInputChange}
+                                        style={{
+                                            backgroundColor: 'transparent',
+                                            cursor: 'pointer',
+                                            paddingRight: '2.5rem',
+                                            backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'16\' height=\'16\' fill=\'%230092ff\' viewBox=\'0 0 16 16\'%3E%3Cpath d=\'M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z\'/%3E%3C/svg%3E")',
+                                            backgroundRepeat: 'no-repeat',
+                                            backgroundPosition: 'right 0.75rem center',
+                                            backgroundSize: '16px 12px',
+                                            appearance: 'none',
+                                        }}
                                     >
-                                        <option value="GENERAL">General</option>
-                                        <option value="FIRST_ORDER">First Order</option>
-                                        <option value="CUSTOMER_SPECIFIC">Specific Customers</option>
+                                        <option value="GENERAL" style={{ color: '#000000ff', backgroundColor: 'white' }}>General</option>
+                                        <option value="FIRST_ORDER" style={{ color: '#000000ff', backgroundColor: 'white' }}>First Order</option>
+                                        <option value="CUSTOMER_SPECIFIC" style={{ color: '#000000ff', backgroundColor: 'white' }}>Specific Customers</option>
                                     </select>
                                 </div>
                             </div>
@@ -781,16 +793,32 @@ const DiscountsTable = () => {
                                     {formErrors.discountValue && <div className="invalid-feedback">{formErrors.discountValue}</div>}
                                 </div>
                                 <div className="col-md-6 mb-3">
-                                    <label htmlFor="discountType" className="form-label">Discount Type *</label>
+                                    <label htmlFor="discountType" className="form-label" style={{ color: '#0092ff', fontWeight: '500' }}>
+                                        Discount Type *
+                                    </label>
                                     <select
                                         className="form-select"
                                         id="discountType"
                                         name="discountType"
                                         value={newDiscount.discountType}
                                         onChange={handleInputChange}
+                                        style={{
+                                            backgroundColor: 'transparent',
+                                            cursor: 'pointer',
+                                            paddingRight: '2.5rem',
+                                            backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'16\' height=\'16\' fill=\'%230092ff\' viewBox=\'0 0 16 16\'%3E%3Cpath d=\'M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z\'/%3E%3C/svg%3E")',
+                                            backgroundRepeat: 'no-repeat',
+                                            backgroundPosition: 'right 0.75rem center',
+                                            backgroundSize: '16px 12px',
+                                            appearance: 'none',
+                                        }}
                                     >
-                                        <option value="PERCENTAGE">Percentage</option>
-                                        <option value="FIXED_AMOUNT">Fixed Amount</option>
+                                        <option value="PERCENTAGE" style={{ color: '#000000ff', backgroundColor: 'white', padding: '8px' }}>
+                                            Percentage
+                                        </option>
+                                        <option value="FIXED_AMOUNT" style={{ color: '#000000ff', backgroundColor: 'white', padding: '8px' }}>
+                                            Fixed Amount
+                                        </option>
                                     </select>
                                 </div>
                             </div>
@@ -912,17 +940,51 @@ const DiscountsTable = () => {
                                     {editFormErrors.code && <div className="invalid-feedback">{editFormErrors.code}</div>}
                                 </div>
                                 <div className="col-md-6 mb-3">
-                                    <label htmlFor="edit-type" className="form-label">Type *</label>
+                                    <label htmlFor="edit-type" className="form-label" style={{
+                                        color: '#0092ff',
+                                        fontWeight: '500',
+                                        marginBottom: '8px'
+                                    }}>
+                                        Type *
+                                    </label>
                                     <select
                                         className="form-select"
                                         id="edit-type"
                                         name="type"
                                         value={editDiscount.type}
                                         onChange={handleEditInputChange}
+                                        style={{
+                                            backgroundColor: 'transparent',
+                                            cursor: 'pointer',
+                                            paddingRight: '2.5rem',
+                                            backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'16\' height=\'16\' fill=\'%230092ff\' viewBox=\'0 0 16 16\'%3E%3Cpath d=\'M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z\'/%3E%3C/svg%3E")',
+                                            backgroundRepeat: 'no-repeat',
+                                            backgroundPosition: 'right 0.75rem center',
+                                            backgroundSize: '16px 12px',
+                                            appearance: 'none',
+                                        }}
                                     >
-                                        <option value="GENERAL">General</option>
-                                        <option value="FIRST_ORDER">First Order</option>
-                                        <option value="CUSTOMER_SPECIFIC">Specific Customers</option>
+                                        <option value="GENERAL" style={{
+                                            color: '#000000ff',
+                                            backgroundColor: 'white',
+                                            padding: '10px 16px'
+                                        }}>
+                                            General
+                                        </option>
+                                        <option value="FIRST_ORDER" style={{
+                                            color: '#000000ff',
+                                            backgroundColor: 'white',
+                                            padding: '10px 16px'
+                                        }}>
+                                            First Order
+                                        </option>
+                                        <option value="CUSTOMER_SPECIFIC" style={{
+                                            color: '#000000ff',
+                                            backgroundColor: 'white',
+                                            padding: '10px 16px'
+                                        }}>
+                                            Specific Customers
+                                        </option>
                                     </select>
                                 </div>
                             </div>
@@ -963,16 +1025,47 @@ const DiscountsTable = () => {
                                     {editFormErrors.discountValue && <div className="invalid-feedback">{editFormErrors.discountValue}</div>}
                                 </div>
                                 <div className="col-md-6 mb-3">
-                                    <label htmlFor="edit-discountType" className="form-label">Discount Type *</label>
+                                    <label htmlFor="edit-discountType" className="form-label" style={{
+                                        color: '#0092ff',
+                                        fontWeight: '600',
+                                        marginBottom: '0.5rem',
+                                        fontSize: '0.875rem'
+                                    }}>
+                                        Discount Type *
+                                    </label>
                                     <select
                                         className="form-select"
                                         id="edit-discountType"
                                         name="discountType"
                                         value={editDiscount.discountType}
                                         onChange={handleEditInputChange}
+                                        style={{
+                                            backgroundColor: 'transparent',
+                                            cursor: 'pointer',
+                                            paddingRight: '2.5rem',
+                                            backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'16\' height=\'16\' fill=\'%230092ff\' viewBox=\'0 0 16 16\'%3E%3Cpath d=\'M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z\'/%3E%3C/svg%3E")',
+                                            backgroundRepeat: 'no-repeat',
+                                            backgroundPosition: 'right 0.75rem center',
+                                            backgroundSize: '16px 12px',
+                                            appearance: 'none',
+                                        }}
                                     >
-                                        <option value="PERCENTAGE">Percentage</option>
-                                        <option value="FIXED_AMOUNT">Fixed Amount</option>
+                                        <option value="PERCENTAGE" style={{
+                                            color: '#000000ff',
+                                            backgroundColor: 'white',
+                                            padding: '0.5rem 1rem',
+                                            fontSize: '0.875rem'
+                                        }}>
+                                            Percentage
+                                        </option>
+                                        <option value="FIXED_AMOUNT" style={{
+                                            color: '#000000ff',
+                                            backgroundColor: 'white',
+                                            padding: '0.5rem 1rem',
+                                            fontSize: '0.875rem'
+                                        }}>
+                                            Fixed Amount
+                                        </option>
                                     </select>
                                 </div>
                             </div>

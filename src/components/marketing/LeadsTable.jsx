@@ -8,7 +8,7 @@ import 'react-loading-skeleton/dist/skeleton.css';
 import Button from 'react-bootstrap/Button';
 import Form from 'react-bootstrap/Form';
 import Spinner from 'react-bootstrap/Spinner';
-import { Card } from 'react-bootstrap';
+import { Card, Dropdown } from 'react-bootstrap';
 
 const MarketingTable = () => {
     const [customers, setCustomers] = useState([]);
@@ -20,6 +20,36 @@ const MarketingTable = () => {
     const [isSending, setIsSending] = useState(false);
     const skinTheme = localStorage.getItem('skinTheme') || 'light';
     const isDarkMode = skinTheme === 'dark';
+    const [filterCriteria, setFilterCriteria] = useState({
+        customerSegment: null,
+        activeStatus: null,
+        orderFrequency: null
+    });
+
+    // Filter options
+    const filterOptions = {
+        customerSegment: [
+            { value: null, label: 'All Segments' },
+            { value: 'High-value', label: 'High-value' },
+            { value: 'New', label: 'New' },
+            { value: 'Regular', label: 'Regular' },
+            { value: 'Occasional', label: 'Occasional' },
+            { value: 'Frequent', label: 'Frequent' }
+        ],
+        activeStatus: [
+            { value: null, label: 'All Statuses' },
+            { value: 'Active', label: 'Active' },
+            { value: 'Inactive', label: 'Inactive' },
+            { value: 'New', label: 'New' }
+        ],
+        orderFrequency: [
+            { value: null, label: 'All Frequencies' },
+            { value: 'Frequent', label: 'Frequent' },
+            { value: 'Regular', label: 'Regular' },
+            { value: 'Occasional', label: 'Occasional' },
+            { value: 'New', label: 'New' }
+        ]
+    };
 
     // Toast notification helpers
     const showErrorToast = (message) => {
@@ -186,7 +216,7 @@ const MarketingTable = () => {
         if (selectAll) {
             setSelectedRows([]);
         } else {
-            setSelectedRows([...customers]);
+            setSelectedRows([...filteredCustomers]);
         }
         setSelectAll(!selectAll);
     };
@@ -194,6 +224,45 @@ const MarketingTable = () => {
     // Handle template selection
     const handleTemplateChange = (e) => {
         setSelectedTemplate(e.target.value);
+    };
+
+    // Handle filter change
+    const handleFilterChange = (type, value) => {
+        setFilterCriteria(prev => ({
+            ...prev,
+            [type]: value === 'null' ? null : value
+        }));
+        setSelectAll(false);
+        setSelectedRows([]);
+    };
+
+    // Filter customers based on criteria
+    const filteredCustomers = customers.filter(customer => {
+        return (
+            (!filterCriteria.customerSegment ||
+                customer.customerSegment?.classification === filterCriteria.customerSegment) &&
+            (!filterCriteria.activeStatus ||
+                customer.activeStatus?.classification === filterCriteria.activeStatus) &&
+            (!filterCriteria.orderFrequency ||
+                customer.orderFrequency?.classification === filterCriteria.orderFrequency)
+        );
+    });
+
+    // Select all customers matching current filters
+    const handleSelectByFilters = () => {
+        setSelectedRows([...filteredCustomers]);
+        setSelectAll(true);
+    };
+
+    // Clear all selections and filters
+    const handleClearAll = () => {
+        setSelectedRows([]);
+        setSelectAll(false);
+        setFilterCriteria({
+            customerSegment: null,
+            activeStatus: null,
+            orderFrequency: null
+        });
     };
 
     // Handle send campaign
@@ -501,80 +570,227 @@ const MarketingTable = () => {
             />
 
             <div className="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4 gap-3">
-                <h4 className="mb-0">Marketing</h4>
-                {selectedRows.length > 0 && (
-                    <Card className="mb-4 w-100" style={{ maxWidth: '800px' }}>
-                        <Card.Body className="p-2 p-sm-3">
-                            <div className="d-flex flex-column flex-sm-row align-items-stretch align-items-sm-center gap-2 w-100">
-                                <span className="text-muted text-center text-sm-start">
+                <h4 className="mb-0">Marketing Campaigns</h4>
+                <div className="d-flex flex-wrap gap-2">
+                    <Dropdown>
+                        <Dropdown.Toggle
+                            variant="primary"
+                            size="sm"
+                            id="segment-dropdown"
+                            className="d-flex align-items-center gap-1"
+                        >
+                            <i className="bi bi-filter-circle"></i>
+                            {filterCriteria.customerSegment ? `Segment: ${filterCriteria.customerSegment}` : 'Customer Segment'}
+                        </Dropdown.Toggle>
+                        <Dropdown.Menu className={isDarkMode ? 'dropdown-menu-dark' : ''}>
+                            {filterOptions.customerSegment.map(option => (
+                                <Dropdown.Item
+                                    key={option.value || 'all-segments'}
+                                    active={filterCriteria.customerSegment === option.value}
+                                    onClick={() => handleFilterChange('customerSegment', option.value)}
+                                    className="d-flex align-items-center gap-2"
+                                >
+                                    {filterCriteria.customerSegment === option.value &&
+                                        <i className="bi bi-check2"></i>}
+                                    {option.label}
+                                </Dropdown.Item>
+                            ))}
+                        </Dropdown.Menu>
+                    </Dropdown>
+
+                    <Dropdown>
+                        <Dropdown.Toggle
+                            variant="primary"
+                            size="sm"
+                            id="status-dropdown"
+                            className="d-flex align-items-center gap-1"
+                        >
+                            <i className="bi bi-person-badge"></i>
+                            {filterCriteria.activeStatus ? `Status: ${filterCriteria.activeStatus}` : 'Active Status'}
+                        </Dropdown.Toggle>
+                        <Dropdown.Menu className={isDarkMode ? 'dropdown-menu-dark' : ''}>
+                            {filterOptions.activeStatus.map(option => (
+                                <Dropdown.Item
+                                    key={option.value || 'all-statuses'}
+                                    active={filterCriteria.activeStatus === option.value}
+                                    onClick={() => handleFilterChange('activeStatus', option.value)}
+                                    className="d-flex align-items-center gap-2"
+                                >
+                                    {filterCriteria.activeStatus === option.value &&
+                                        <i className="bi bi-check2"></i>}
+                                    {option.label}
+                                </Dropdown.Item>
+                            ))}
+                        </Dropdown.Menu>
+                    </Dropdown>
+
+                    <Dropdown>
+                        <Dropdown.Toggle
+                            variant="primary"
+                            size="sm"
+                            id="frequency-dropdown"
+                            className="d-flex align-items-center gap-1"
+                        >
+                            <i className="bi bi-graph-up"></i>
+                            {filterCriteria.orderFrequency ? `Frequency: ${filterCriteria.orderFrequency}` : 'Order Frequency'}
+                        </Dropdown.Toggle>
+                        <Dropdown.Menu className={isDarkMode ? 'dropdown-menu-dark' : ''}>
+                            {filterOptions.orderFrequency.map(option => (
+                                <Dropdown.Item
+                                    key={option.value || 'all-frequencies'}
+                                    active={filterCriteria.orderFrequency === option.value}
+                                    onClick={() => handleFilterChange('orderFrequency', option.value)}
+                                    className="d-flex align-items-center gap-2"
+                                >
+                                    {filterCriteria.orderFrequency === option.value &&
+                                        <i className="bi bi-check2"></i>}
+                                    {option.label}
+                                </Dropdown.Item>
+                            ))}
+                        </Dropdown.Menu>
+                    </Dropdown>
+
+                    <Button
+                        variant="outline-primary"
+                        size="sm"
+                        onClick={handleClearAll}
+                        disabled={!filterCriteria.customerSegment && !filterCriteria.activeStatus && !filterCriteria.orderFrequency}
+                        className="d-flex align-items-center gap-1"
+                    >
+                        <i className="bi bi-x-circle"></i>
+                        Clear Filters
+                    </Button>
+
+                    <Button
+                        variant="success"
+                        size="sm"
+                        onClick={handleSelectByFilters}
+                        disabled={!filteredCustomers.length}
+                        className="d-flex align-items-center gap-1"
+                    >
+                        <i className="bi bi-check-all"></i>
+                        Select All ({filteredCustomers.length})
+                    </Button>
+                </div>
+            </div>
+
+            {selectedRows.length > 0 && (
+                <Card className="mb-4 mx-auto" style={{
+                    width: '98%',
+                    borderLeft: `4px solid ${selectedRows.length > 0 ? '#0092ff' : '#6c757d'}`,
+                    backgroundColor: isDarkMode ? '#0092ff' : '#ffffff',
+                    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
+                }}>
+                    <Card.Body className="p-3">
+                        <div className="d-flex flex-column flex-md-row align-items-center justify-content-between gap-3 w-100">
+                            <div className="d-flex align-items-center gap-2">
+                                <span className={`badge ${selectedRows.length > 0 ? 'bg-primary' : 'bg-secondary'} rounded-pill`}>
                                     {selectedRows.length} selected
                                 </span>
-
-                                <div className="d-flex flex-column flex-md-row gap-2 flex-grow-1">
-                                    <Form.Select
+                                {selectedRows.length > 0 && (
+                                    <Button
+                                        variant="link"
                                         size="sm"
-                                        className="flex-grow-1"
-                                        style={{ minWidth: '150px' }}
-                                        value={selectedTemplate}
-                                        onChange={handleTemplateChange}
+                                        onClick={() => setSelectedRows([])}
                                         disabled={isSending}
+                                        className="text-decoration-none p-0 text-danger"
+                                        style={{
+                                            color: '#dc3545',
+                                            textDecoration: 'none',
+                                            ':hover': {
+                                                color: '#dc3545',
+                                                textDecoration: 'none'
+                                            },
+                                            ':focus': {
+                                                boxShadow: 'none'
+                                            }
+                                        }}
                                     >
-                                        <option value="">Select Template</option>
-                                        {templates.map(template => (
-                                            <option key={template.id} value={template.id}>
-                                                {template.name}
-                                            </option>
-                                        ))}
-                                    </Form.Select>
+                                        <i className="bi bi-x-lg"></i> Clear
+                                    </Button>
+                                )}
+                            </div>
 
-                                    <div className="d-flex gap-2">
-                                        <Button
-                                            variant="primary"
+                            <div className="d-flex flex-column flex-md-row align-items-center gap-3 flex-grow-1" style={{ maxWidth: '500px' }}>
+                                <div className="flex-grow-1 w-100">
+                                    <div className="input-group input-group-sm">
+                                        <Form.Select
                                             size="sm"
-                                            onClick={handleSendCampaign}
-                                            disabled={!selectedTemplate || isSending}
-                                            className="flex-grow-1 flex-md-grow-0"
-                                        >
-                                            {isSending ? (
-                                                <>
-                                                    <Spinner
-                                                        as="span"
-                                                        animation="border"
-                                                        size="sm"
-                                                        role="status"
-                                                        aria-hidden="true"
-                                                        className="me-2"
-                                                    />
-                                                    Sending...
-                                                </>
-                                            ) : (
-                                                'Send Campaign'
-                                            )}
-                                        </Button>
-
-                                        <Button
-                                            variant="outline-secondary"
-                                            size="sm"
-                                            onClick={() => setSelectedRows([])}
+                                            className="flex-grow-1"
+                                            style={{
+                                                backgroundColor: 'transparent', cursor: 'pointer', paddingRight: '2.5rem', backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'16\' height=\'16\' fill=\'%230092ff\' viewBox=\'0 0 16 16\'%3E%3Cpath d=\'M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z\'/%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.75rem center', backgroundSize: '16px 12px', appearance: 'none',
+                                            }}
+                                            value={selectedTemplate}
+                                            onChange={handleTemplateChange}
                                             disabled={isSending}
-                                            className="flex-grow-1 flex-md-grow-0"
                                         >
-                                            Clear Selection
-                                        </Button>
+                                            <option
+                                                value=""
+                                                style={{
+                                                    color: '#6c757d',
+                                                    backgroundColor: 'white',
+                                                    fontSize: '0.875rem'
+                                                }}
+                                            >
+                                                Select Template
+                                            </option>
+                                            {templates.map(template => (
+                                                <option
+                                                    key={template.id}
+                                                    value={template.id}
+                                                    style={{
+                                                        color: '#000000ff',
+                                                        backgroundColor: 'white',
+                                                        fontSize: '0.875rem',
+                                                        padding: '0.25rem 0.75rem'
+                                                    }}
+                                                >
+                                                    {template.name}
+                                                </option>
+                                            ))}
+                                        </Form.Select>
                                     </div>
                                 </div>
+
+                                <Button
+                                    variant="primary"
+                                    size="sm"
+                                    onClick={handleSendCampaign}
+                                    disabled={!selectedTemplate || isSending}
+                                    className="d-flex align-items-center gap-2"
+                                    style={{ minWidth: '140px' }}
+                                >
+                                    {isSending ? (
+                                        <>
+                                            <Spinner
+                                                as="span"
+                                                animation="border"
+                                                size="sm"
+                                                role="status"
+                                                aria-hidden="true"
+                                            />
+                                            Sending...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <i className="bi bi-send"></i>
+                                            Send Campaign
+                                        </>
+                                    )}
+                                </Button>
                             </div>
-                        </Card.Body>
-                    </Card>
-                )}
-            </div>
+                        </div>
+                    </Card.Body>
+                </Card>
+            )}
+
             {loading ? (
                 <SkeletonLoader />
             ) : customers.length === 0 ? (
                 <EmptyState />
             ) : (
                 <Table
-                    data={customers}
+                    data={filteredCustomers}
                     columns={columns}
                     initialState={{ pagination: { pageSize: 10 } }}
                 />

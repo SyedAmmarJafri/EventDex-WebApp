@@ -174,15 +174,112 @@ const ReportsTeam = () => {
                 <div style={{ marginBottom: '16px' }}>
                   <Text strong style={{ display: 'block', marginBottom: '8px' }} className="text-dark">Report Type</Text>
                   <Select
-                    style={{ width: '100%' }}
+                    style={{
+                      width: '100%',
+                      color: '#0092ff',
+                      border: '1px solid #0092ff',
+                      borderRadius: '6px',
+                      backgroundColor: 'rgba(0, 146, 255, 0.05)',
+                      cursor: 'pointer',
+                      fontSize: '0.9rem',
+                      lineHeight: '1.5',
+                      minHeight: '2.875rem',
+                      ':hover': {
+                        borderColor: '#007acc',
+                        backgroundColor: 'rgba(0, 146, 255, 0.08)'
+                      },
+                      ':focus': {
+                        borderColor: '#0092ff',
+                        boxShadow: '0 0 0 0.25rem rgba(0, 146, 255, 0.2)',
+                        outline: 'none',
+                        backgroundColor: 'rgba(0, 146, 255, 0.05)'
+                      }
+                    }}
+                    dropdownStyle={{
+                      backgroundColor: '#fff',
+                      border: '1px solid #0092ff',
+                      borderRadius: '8px',
+                      boxShadow: '0 4px 12px rgba(0, 146, 255, 0.15)'
+                    }}
                     value={reportType}
                     onChange={handleReportTypeChange}
+                    suffixIcon={
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 16 16"
+                        fill="#0092ff"
+                        style={{ marginRight: '8px' }}
+                      >
+                        <path d="M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z" />
+                      </svg>
+                    }
                   >
-                    <Option value="financial">Financial</Option>
-                    <Option value="dashboard">Dashboard</Option>
-                    <Option value="products">Products</Option>
-                    <Option value="sales">Sales</Option>
-                    <Option value="customers">Customers</Option>
+                    <Option
+                      value="financial"
+                      style={{
+                        color: '#000000ff',
+                        fontSize: '0.9rem',
+                        padding: '0.5rem 1rem',
+                        ':hover': {
+                          backgroundColor: 'rgba(0, 146, 255, 0.08)'
+                        }
+                      }}
+                    >
+                      Financial
+                    </Option>
+                    <Option
+                      value="dashboard"
+                      style={{
+                        color: '#000000ff',
+                        fontSize: '0.9rem',
+                        padding: '0.5rem 1rem',
+                        ':hover': {
+                          backgroundColor: 'rgba(0, 146, 255, 0.08)'
+                        }
+                      }}
+                    >
+                      Dashboard
+                    </Option>
+                    <Option
+                      value="products"
+                      style={{
+                        color: '#000000ff',
+                        fontSize: '0.9rem',
+                        padding: '0.5rem 1rem',
+                        ':hover': {
+                          backgroundColor: 'rgba(0, 146, 255, 0.08)'
+                        }
+                      }}
+                    >
+                      Products
+                    </Option>
+                    <Option
+                      value="sales"
+                      style={{
+                        color: '#000000ff',
+                        fontSize: '0.9rem',
+                        padding: '0.5rem 1rem',
+                        ':hover': {
+                          backgroundColor: 'rgba(0, 146, 255, 0.08)'
+                        }
+                      }}
+                    >
+                      Sales
+                    </Option>
+                    <Option
+                      value="customers"
+                      style={{
+                        color: '#000000ff',
+                        fontSize: '0.9rem',
+                        padding: '0.5rem 1rem',
+                        ':hover': {
+                          backgroundColor: 'rgba(0, 146, 255, 0.08)'
+                        }
+                      }}
+                    >
+                      Customers
+                    </Option>
                   </Select>
                 </div>
               </Col>
@@ -191,15 +288,112 @@ const ReportsTeam = () => {
                 <div style={{ marginBottom: '16px' }}>
                   <Text strong style={{ display: 'block', marginBottom: '8px' }} className="text-dark">Period</Text>
                   <Select
-                    style={{ width: '100%' }}
+                    style={{
+                      width: '100%',
+                      color: '#0092ff',
+                      border: '1px solid #0092ff',
+                      borderRadius: '6px',
+                      backgroundColor: 'rgba(0, 146, 255, 0.05)',
+                      cursor: 'pointer',
+                      fontSize: '0.9rem',
+                      lineHeight: '1.5',
+                      minHeight: '2.875rem',
+                      ':hover': {
+                        borderColor: '#007acc',
+                        backgroundColor: 'rgba(0, 146, 255, 0.08)'
+                      },
+                      ':focus': {
+                        borderColor: '#0092ff',
+                        boxShadow: '0 0 0 2px rgba(0, 146, 255, 0.2)',
+                        outline: 'none'
+                      }
+                    }}
+                    dropdownStyle={{
+                      backgroundColor: '#fff',
+                      border: '1px solid #0092ff',
+                      borderRadius: '8px',
+                      boxShadow: '0 4px 12px rgba(0, 146, 255, 0.15)',
+                      padding: '8px 0'
+                    }}
                     value={period}
                     onChange={handlePeriodChange}
+                    suffixIcon={
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 16 16"
+                        fill="#0092ff"
+                        style={{ marginRight: '8px' }}
+                      >
+                        <path d="M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z" />
+                      </svg>
+                    }
                   >
-                    <Option value="today">Today</Option>
-                    <Option value="yesterday">Yesterday</Option>
-                    <Option value="last7days">Last 7 Days</Option>
-                    <Option value="last30days">Last 30 Days</Option>
-                    <Option value="custom">Custom Range</Option>
+                    <Option
+                      value="today"
+                      style={{
+                        color: '#000000ff',
+                        fontSize: '0.9rem',
+                        padding: '8px 16px',
+                        ':hover': {
+                          backgroundColor: 'rgba(0, 146, 255, 0.08)'
+                        }
+                      }}
+                    >
+                      Today
+                    </Option>
+                    <Option
+                      value="yesterday"
+                      style={{
+                        color: '#000000ff',
+                        fontSize: '0.9rem',
+                        padding: '8px 16px',
+                        ':hover': {
+                          backgroundColor: 'rgba(0, 146, 255, 0.08)'
+                        }
+                      }}
+                    >
+                      Yesterday
+                    </Option>
+                    <Option
+                      value="last7days"
+                      style={{
+                        color: '#000000ff',
+                        fontSize: '0.9rem',
+                        padding: '8px 16px',
+                        ':hover': {
+                          backgroundColor: 'rgba(0, 146, 255, 0.08)'
+                        }
+                      }}
+                    >
+                      Last 7 Days
+                    </Option>
+                    <Option
+                      value="last30days"
+                      style={{
+                        color: '#000000ff',
+                        fontSize: '0.9rem',
+                        padding: '8px 16px',
+                        ':hover': {
+                          backgroundColor: 'rgba(0, 146, 255, 0.08)'
+                        }
+                      }}
+                    >
+                      Last 30 Days
+                    </Option>
+                    <Option
+                      value="custom"
+                      style={{
+                        color: '#000000ff',
+                        fontSize: '0.9rem',
+                        padding: '8px 16px',
+                        ':hover': {
+                          backgroundColor: 'rgba(0, 146, 255, 0.08)'
+                        }
+                      }}
+                    >
+                      Custom Range
+                    </Option>
                   </Select>
                 </div>
               </Col>
@@ -211,11 +405,20 @@ const ReportsTeam = () => {
                     <RangePicker
                       style={{
                         width: '100%',
-                        backgroundColor: 'white',
+                        border: '1px solid #0092ff',
+                        borderRadius: '6px',
+                        backgroundColor: 'rgba(0, 146, 255, 0.05)',
+                        lineHeight: '1.5',
+                        minHeight: '2.875rem',
                       }}
                       inputStyle={{
-                        color: 'black',
-                        backgroundColor: 'white',
+                        color: '#006bb3',
+                        fontSize: '0.9rem'
+                      }}
+                      popupStyle={{
+                        border: '1px solid #0092ff',
+                        borderRadius: '8px',
+                        boxShadow: '0 4px 12px rgba(0, 146, 255, 0.15)'
                       }}
                       onChange={handleDateRangeChange}
                       disabledDate={(current) => current && current > dayjs().endOf('day')}
@@ -225,10 +428,10 @@ const ReportsTeam = () => {
               )}
             </Row>
 
-            <Space 
-              style={{ 
-                marginTop: '24px', 
-                width: '100%', 
+            <Space
+              style={{
+                marginTop: '24px',
+                width: '100%',
                 justifyContent: 'flex-end',
                 flexWrap: 'wrap',
                 gap: '16px'
@@ -296,8 +499,8 @@ const ReportsTeam = () => {
             )}
 
             {pdfUrl && !loading && (
-              <div style={{ 
-                marginTop: '24px', 
+              <div style={{
+                marginTop: '24px',
                 borderRadius: '8px',
                 overflow: 'hidden'
               }}>
@@ -317,14 +520,14 @@ const ReportsTeam = () => {
                     title="Analytics Report"
                   />
                 </div>
-                <div style={{ 
-                  textAlign: 'right', 
+                <div style={{
+                  textAlign: 'right',
                   marginTop: '16px',
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center'
                 }}>
-                  <Text type="secondary" style={{ fontSize: '12px' }}>
+                  <Text className="text-dark" style={{ fontSize: '12px' }}>
                     Scroll horizontally to view full document
                   </Text>
                   <Button

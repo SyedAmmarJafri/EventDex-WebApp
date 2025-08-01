@@ -7,7 +7,6 @@ import {
   Spin,
   message,
   Typography,
-  Space,
   Button,
   Divider,
   Tag,
@@ -36,9 +35,10 @@ import {
   ArrowUpOutlined,
   SyncOutlined,
   CreditCardOutlined,
+  CalendarOutlined,
+  DownOutlined
 } from '@ant-design/icons';
 import { BASE_URL } from '/src/constants.js';
-import dayjs from 'dayjs';
 
 const { RangePicker } = DatePicker;
 const { Option } = Select;
@@ -125,6 +125,7 @@ const ReportsSales = () => {
     } else {
       // Reset to default when cleared
       setDateRange([moment().subtract(7, 'days'), moment()]);
+      setPeriod('last7days');
     }
   };
 
@@ -352,15 +353,74 @@ const ReportsSales = () => {
             <div style={{ marginBottom: '16px' }}>
               <Text strong style={{ display: 'block', marginBottom: '8px' }} className="text-dark">Period</Text>
               <Select
-                style={{ width: '100%' }}
+                style={{
+                  width: '100%',
+                  border: '1px solid #0092ff',
+                  borderRadius: '6px',
+                  backgroundColor: 'rgba(0, 146, 255, 0.05)',
+                  height: '40px'
+                }}
+                dropdownStyle={{
+                  border: '1px solid #0092ff',
+                  borderRadius: '8px',
+                  boxShadow: '0 4px 12px rgba(0, 146, 255, 0.15)'
+                }}
                 value={period}
                 onChange={handlePeriodChange}
+                suffixIcon={
+                  <DownOutlined style={{ color: '#0092ff' }} />
+                }
               >
-                <Option value="today">Today</Option>
-                <Option value="yesterday">Yesterday</Option>
-                <Option value="last7days">Last 7 Days</Option>
-                <Option value="last30days">Last 30 Days</Option>
-                <Option value="custom">Custom Range</Option>
+                <Option
+                  value="today"
+                  style={{
+                    color: '#000000ff',
+                    fontSize: '14px',
+                    padding: '8px 12px'
+                  }}
+                >
+                  Today
+                </Option>
+                <Option
+                  value="yesterday"
+                  style={{
+                    color: '#000000ff',
+                    fontSize: '14px',
+                    padding: '8px 12px'
+                  }}
+                >
+                  Yesterday
+                </Option>
+                <Option
+                  value="last7days"
+                  style={{
+                    color: '#000000ff',
+                    fontSize: '14px',
+                    padding: '8px 12px'
+                  }}
+                >
+                  Last 7 Days
+                </Option>
+                <Option
+                  value="last30days"
+                  style={{
+                    color: '#000000ff',
+                    fontSize: '14px',
+                    padding: '8px 12px'
+                  }}
+                >
+                  Last 30 Days
+                </Option>
+                <Option
+                  value="custom"
+                  style={{
+                    color: '#000000ff',
+                    fontSize: '14px',
+                    padding: '8px 12px'
+                  }}
+                >
+                  Custom Range
+                </Option>
               </Select>
             </div>
           </Col>
@@ -372,12 +432,24 @@ const ReportsSales = () => {
                 <RangePicker
                   style={{
                     width: '100%',
-                    backgroundColor: 'white',
+                    border: '1px solid #0092ff',
+                    borderRadius: '6px',
+                    backgroundColor: 'rgba(0, 146, 255, 0.05)',
+                    height: '40px'
                   }}
                   inputStyle={{
-                    color: 'black',
-                    backgroundColor: 'white',
+                    color: '#006bb3',
+                    fontSize: '0.9rem',
+                    backgroundColor: 'transparent'
                   }}
+                  popupStyle={{
+                    border: '1px solid #0092ff',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 12px rgba(0, 146, 255, 0.15)'
+                  }}
+                  suffixIcon={
+                    <CalendarOutlined style={{ color: '#0092ff' }} />
+                  }
                   onChange={handleDateRangeChange}
                   disabledDate={disabledDate}
                 />

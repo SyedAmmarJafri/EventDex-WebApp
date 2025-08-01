@@ -901,7 +901,7 @@ const StoreSettingsForm = () => {
                         </Card.Header>
                         <Card.Body>
                             {alertBars.length === 0 ? (
-                                <p>No alert bars configured</p>
+                                <h8>No alert bars configured</h8>
                             ) : (
                                 <div className="alert-bars-list">
                                     {alertBars.map((alert) => (
@@ -909,17 +909,17 @@ const StoreSettingsForm = () => {
                                             <Card.Body>
                                                 <div className="d-flex justify-content-between align-items-start">
                                                     <div>
-                                                        <p className="mb-1"><strong>Message:</strong> {alert.message}</p>
-                                                        <p className="mb-1"><small>
+                                                        <h8 className="mb-1"><strong>Message:</strong> {alert.message}</h8><br />
+                                                        <h8 className="mb-1"><small>
                                                             <strong>Status:</strong>
                                                             <Badge bg={alert.active ? "success" : "secondary"} className="ms-2">
                                                                 {alert.active ? "Active" : "Inactive"}
                                                             </Badge>
-                                                        </small></p>
-                                                        <p className="mb-1"><small>
+                                                        </small></h8><br />
+                                                        <h8 className="mb-1"><small>
                                                             <strong>Active Period:</strong> {new Date(alert.startTime).toLocaleString()} - {new Date(alert.endTime).toLocaleString()}
-                                                        </small></p>
-                                                        <p className="mb-1"><small>
+                                                        </small></h8><br />
+                                                        <h8 className="mb-1"><small>
                                                             <strong>Colors:</strong>
                                                             <span className="d-inline-block ms-2" style={{
                                                                 width: '15px',
@@ -933,10 +933,10 @@ const StoreSettingsForm = () => {
                                                                 backgroundColor: alert.textColor,
                                                                 border: '1px solid #ddd'
                                                             }}></span>
-                                                        </small></p>
-                                                        <p className="mb-0"><small>
+                                                        </small></h8><br />
+                                                        <h8 className="mb-0"><small>
                                                             <strong>Dismissible:</strong> {alert.dismissible ? 'Yes' : 'No'}
-                                                        </small></p>
+                                                        </small></h8>
                                                     </div>
                                                     <Button
                                                         variant="danger"
@@ -1183,12 +1183,57 @@ const StoreSettingsForm = () => {
                                         <Card.Body>
                                             <Row>
                                                 <Col md={4}>
-                                                    <SelectDropdown
-                                                        label="Platform"
-                                                        options={socialPlatforms}
-                                                        value={link.platform}
-                                                        onChange={(value) => handleArrayItemChange('footer.socialLinks', index, 'platform', value)}
-                                                    />
+                                                    <div style={{ marginBottom: '1rem' }}>
+                                                        <Form.Label>Platform</Form.Label>
+                                                        <select
+                                                            value={link.platform}
+                                                            onChange={(e) => handleArrayItemChange('footer.socialLinks', index, 'platform', e.target.value)}
+                                                            style={{
+                                                                color: '#0092ff',
+                                                                border: '1px solid #0092ff',
+                                                                borderRadius: '6px',
+                                                                backgroundColor: 'rgba(0, 146, 255, 0.05)',
+                                                                cursor: 'pointer',
+                                                                padding: '0.625rem 1rem',
+                                                                paddingRight: '2.5rem',
+                                                                fontSize: '0.9rem',
+                                                                lineHeight: '1.5',
+                                                                minHeight: '2.875rem',
+                                                                width: '100%',
+                                                                backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'16\' height=\'16\' fill=\'%230092ff\' viewBox=\'0 0 16 16\'%3E%3Cpath d=\'M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z\'/%3E%3C/svg%3E")',
+                                                                backgroundRepeat: 'no-repeat',
+                                                                backgroundPosition: 'right 1rem center',
+                                                                backgroundSize: '16px 12px',
+                                                                appearance: 'none',
+                                                                transition: 'all 0.2s ease-in-out',
+                                                                ':hover': {
+                                                                    borderColor: '#007acc',
+                                                                    backgroundColor: 'rgba(0, 146, 255, 0.08)'
+                                                                },
+                                                                ':focus': {
+                                                                    borderColor: '#0092ff',
+                                                                    boxShadow: '0 0 0 0.25rem rgba(0, 146, 255, 0.2)',
+                                                                    outline: 'none',
+                                                                    backgroundColor: 'rgba(0, 146, 255, 0.05)'
+                                                                }
+                                                            }}
+                                                        >
+                                                            {socialPlatforms.map((platform) => (
+                                                                <option
+                                                                    key={platform.value}
+                                                                    value={platform.value}
+                                                                    style={{
+                                                                        color: '#000000ff',
+                                                                        backgroundColor: '#fff',
+                                                                        fontSize: '0.9rem',
+                                                                        padding: '0.5rem 1rem'
+                                                                    }}
+                                                                >
+                                                                    {platform.label}
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
                                                 </Col>
                                                 <Col md={6}>
                                                     <Form.Group className="mb-3">
@@ -1277,12 +1322,65 @@ const StoreSettingsForm = () => {
                                     />
                                 </Col>
                                 <Col md={6}>
-                                    <SelectDropdown
-                                        label="Timezone"
-                                        options={timezones}
-                                        value={settings.store.timezone}
-                                        onChange={(value) => handleInputChange('store.timezone', value)}
-                                    />
+                                    <div style={{ marginBottom: '1.5rem' }}>
+                                        <label style={{
+                                            color: '#0092ff',
+                                            fontWeight: '600',
+                                            fontSize: '0.9rem',
+                                            marginBottom: '0.5rem',
+                                            display: 'block'
+                                        }}>
+                                            Timezone
+                                        </label>
+                                        <select
+                                            value={settings.store.timezone}
+                                            onChange={(e) => handleInputChange('store.timezone', e.target.value)}
+                                            style={{
+                                                color: '#0092ff',
+                                                border: '1px solid #0092ff',
+                                                borderRadius: '6px',
+                                                backgroundColor: 'rgba(0, 146, 255, 0.05)',
+                                                cursor: 'pointer',
+                                                padding: '0.75rem 1rem',
+                                                paddingRight: '2.5rem',
+                                                fontSize: '0.9rem',
+                                                lineHeight: '1.5',
+                                                minHeight: '3rem',
+                                                width: '100%',
+                                                backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'16\' height=\'16\' fill=\'%230092ff\' viewBox=\'0 0 16 16\'%3E%3Cpath d=\'M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z\'/%3E%3C/svg%3E")',
+                                                backgroundRepeat: 'no-repeat',
+                                                backgroundPosition: 'right 1rem center',
+                                                backgroundSize: '16px 12px',
+                                                appearance: 'none',
+                                                transition: 'all 0.2s ease-in-out',
+                                                ':hover': {
+                                                    borderColor: '#007acc',
+                                                    backgroundColor: 'rgba(0, 146, 255, 0.08)'
+                                                },
+                                                ':focus': {
+                                                    borderColor: '#0092ff',
+                                                    boxShadow: '0 0 0 0.25rem rgba(0, 146, 255, 0.2)',
+                                                    outline: 'none',
+                                                    backgroundColor: 'rgba(0, 146, 255, 0.05)'
+                                                }
+                                            }}
+                                        >
+                                            {timezones.map((timezone) => (
+                                                <option
+                                                    key={timezone.value}
+                                                    value={timezone.value}
+                                                    style={{
+                                                        color: '#000000ff',
+                                                        backgroundColor: '#fff',
+                                                        fontSize: '0.9rem',
+                                                        padding: '0.5rem 1rem'
+                                                    }}
+                                                >
+                                                    {timezone.label}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
                                 </Col>
                             </Row>
 
@@ -1334,12 +1432,65 @@ const StoreSettingsForm = () => {
                                         <Card.Body>
                                             <Row>
                                                 <Col md={3}>
-                                                    <SelectDropdown
-                                                        label="Day"
-                                                        options={days.map(day => ({ value: day, label: day }))}
-                                                        value={schedule.day}
-                                                        onChange={(value) => handleArrayItemChange('store.schedules', index, 'day', value)}
-                                                    />
+                                                    <div style={{ marginBottom: '1rem', width: '100%' }}>
+                                                        <label style={{
+                                                            color: '#0092ff',
+                                                            fontWeight: '600',
+                                                            fontSize: '0.9rem',
+                                                            marginBottom: '0.5rem',
+                                                            display: 'block'
+                                                        }}>
+                                                            Day
+                                                        </label>
+                                                        <select
+                                                            value={schedule.day}
+                                                            onChange={(e) => handleArrayItemChange('store.schedules', index, 'day', e.target.value)}
+                                                            style={{
+                                                                color: '#0092ff',
+                                                                border: '1px solid #0092ff',
+                                                                borderRadius: '6px',
+                                                                backgroundColor: 'rgba(0, 146, 255, 0.05)',
+                                                                cursor: 'pointer',
+                                                                padding: '0.625rem 1rem',
+                                                                paddingRight: '2.5rem',
+                                                                fontSize: '0.9rem',
+                                                                lineHeight: '1.5',
+                                                                minHeight: '2.875rem',
+                                                                width: '100%',
+                                                                backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'16\' height=\'16\' fill=\'%230092ff\' viewBox=\'0 0 16 16\'%3E%3Cpath d=\'M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z\'/%3E%3C/svg%3E")',
+                                                                backgroundRepeat: 'no-repeat',
+                                                                backgroundPosition: 'right 1rem center',
+                                                                backgroundSize: '16px 12px',
+                                                                appearance: 'none',
+                                                                transition: 'all 0.2s ease-in-out',
+                                                                ':hover': {
+                                                                    borderColor: '#007acc',
+                                                                    backgroundColor: 'rgba(0, 146, 255, 0.08)'
+                                                                },
+                                                                ':focus': {
+                                                                    borderColor: '#0092ff',
+                                                                    boxShadow: '0 0 0 0.25rem rgba(0, 146, 255, 0.2)',
+                                                                    outline: 'none',
+                                                                    backgroundColor: 'rgba(0, 146, 255, 0.05)'
+                                                                }
+                                                            }}
+                                                        >
+                                                            {days.map(day => (
+                                                                <option
+                                                                    key={day}
+                                                                    value={day}
+                                                                    style={{
+                                                                        color: '#000000ff',
+                                                                        backgroundColor: '#fff',
+                                                                        fontSize: '0.9rem',
+                                                                        padding: '0.5rem 1rem'
+                                                                    }}
+                                                                >
+                                                                    {day}
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
                                                 </Col>
                                                 <Col md={3}>
                                                     <TimePicker
