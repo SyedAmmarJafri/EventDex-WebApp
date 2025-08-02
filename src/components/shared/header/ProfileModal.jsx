@@ -1,6 +1,6 @@
 import { Fragment, useState, useEffect, useCallback } from 'react'
 import { FiDollarSign, FiLogOut, FiSettings, FiUser, FiX } from "react-icons/fi"
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom' // Added Link import
 import Button from '@mui/material/Button'
 import { BASE_URL } from '/src/constants.js';
 import Modal from 'react-bootstrap/Modal';
@@ -11,19 +11,19 @@ const ProfileModal = () => {
     const [notification, setNotification] = useState(null)
     const [profilePicture, setProfilePicture] = useState('')
     
-    // Timeout durations in milliseconds
+    // Timeout durations
     const ABSOLUTE_TIMEOUT = 24 * 60 * 60 * 1000; // 24 hours
     const INACTIVITY_TIMEOUT = 2 * 60 * 60 * 1000; // 2 hours
     
-    // Get theme from localStorage
+    // Theme settings
     const skinTheme = localStorage.getItem('skinTheme') || 'light'
     const isDarkMode = skinTheme === 'dark'
 
-    // Track activity
+    // Activity tracking
     const [lastActivity, setLastActivity] = useState(Date.now());
-    const [loginTime] = useState(Date.now()); // Set when component mounts
+    const [loginTime] = useState(Date.now());
 
-    // Reset timers on user activity
+    // Reset timers on activity
     const resetInactivityTimer = useCallback(() => {
         setLastActivity(Date.now());
     }, []);
@@ -46,10 +46,7 @@ const ProfileModal = () => {
         const fetchProfilePicture = async () => {
             try {
                 const authData = JSON.parse(localStorage.getItem('authData'))
-
-                if (!authData?.token) {
-                    throw new Error('No authentication token found')
-                }
+                if (!authData?.token) throw new Error('No authentication token found')
 
                 const response = await fetch(`${BASE_URL}/api/client-admin/profile/picture`, {
                     method: 'GET',
@@ -60,11 +57,7 @@ const ProfileModal = () => {
                 })
 
                 const data = await response.json()
-
-                if (!response.ok) {
-                    throw new Error(data.message || 'Failed to fetch profile picture')
-                }
-
+                if (!response.ok) throw new Error(data.message || 'Failed to fetch profile picture')
                 setProfilePicture(data.data)
             } catch (error) {
                 console.error('Error fetching profile picture:', error)
@@ -82,11 +75,10 @@ const ProfileModal = () => {
         }, ABSOLUTE_TIMEOUT);
 
         const inactivityCheck = setInterval(() => {
-            const currentTime = Date.now();
-            if (currentTime - lastActivity > INACTIVITY_TIMEOUT) {
+            if (Date.now() - lastActivity > INACTIVITY_TIMEOUT) {
                 handleAutoLogout('You have been logged out due to inactivity');
             }
-        }, 60000); // Check every minute
+        }, 60000);
 
         return () => {
             cleanupListeners();
@@ -97,31 +89,22 @@ const ProfileModal = () => {
 
     const handleAutoLogout = (message) => {
         showNotification(message, 'info');
-        setTimeout(() => {
-            handleLogout();
-        }, 1000);
+        setTimeout(handleLogout, 1000);
     };
 
     const showNotification = (message, type) => {
         setNotification({ message, type });
-        setTimeout(() => {
-            setNotification(null);
-        }, 1000);
+        setTimeout(() => setNotification(null), 1000);
     };
 
-    const closeNotification = () => {
-        setNotification(null);
-    };
+    const closeNotification = () => setNotification(null);
 
     const handleLogout = async () => {
-        setIsConfirmModalOpen(false) // Close the modal first
+        setIsConfirmModalOpen(false)
 
         try {
             const authData = JSON.parse(localStorage.getItem('authData'))
-
-            if (!authData?.token) {
-                throw new Error('No authentication token found')
-            }
+            if (!authData?.token) throw new Error('No authentication token found')
 
             const response = await fetch(`${BASE_URL}/api/auth/logout`, {
                 method: 'POST',
@@ -132,10 +115,7 @@ const ProfileModal = () => {
             })
 
             const data = await response.json()
-
-            if (!response.ok) {
-                throw new Error(data.message || 'Logout failed')
-            }
+            if (!response.ok) throw new Error(data.message || 'Logout failed')
 
             localStorage.removeItem('authData')
             showNotification(data.message || 'Logged out successfully', 'success')
@@ -153,19 +133,12 @@ const ProfileModal = () => {
     const authData = JSON.parse(localStorage.getItem('authData')) || {}
     const { username = '', clientType = '', name = '', role = '', permissions = [] } = authData
 
-    // Check if user has specific permission
     const hasPermission = (permission) => {
         if (role === 'CLIENT_ADMIN') return true;
         return permissions.includes(permission);
     }
 
-    // Default avatar if profilePicture is not available
-    const getAvatar = () => {
-        if (profilePicture) {
-            return profilePicture;
-        }
-        return "/images/avatar/1.png"; // Fallback to default avatar
-    }
+    const getAvatar = () => profilePicture || "/images/avatar/1.png";
 
     return (
         <Fragment>
@@ -211,28 +184,26 @@ const ProfileModal = () => {
                         </div>
                     </div>
                     
-                    {/* Account Information - Show if CLIENT_ADMIN or has PROFILE_READ permission */}
+                    {/* Updated to use Link component for hash routing */}
                     {(role === 'CLIENT_ADMIN' || hasPermission('PROFILE_UPDATE')) && (
-                        <a href="/account" className="dropdown-item">
+                        <Link to="/account" className="dropdown-item">
                             <i><FiUser /></i>
                             <span>Account Information</span>
-                        </a>
+                        </Link>
                     )}
                     
-                    {/* Subscription & Plan - Only show for CLIENT_ADMIN */}
                     {role === 'CLIENT_ADMIN' && (
-                        <a href="/account" className="dropdown-item">
+                        <Link to="/account" className="dropdown-item">
                             <i><FiDollarSign /></i>
                             <span>Subscription & Plan</span>
-                        </a>
+                        </Link>
                     )}
                     
-                    {/* System Settings - Show if CLIENT_ADMIN or has TAX_WRITE or CURRENCY_READ permission */}
                     {(role === 'CLIENT_ADMIN' || hasPermission('TAX_READ') || hasPermission('CURRENCY_READ')) && (
-                        <a href="/account" className="dropdown-item">
+                        <Link to="/account" className="dropdown-item">
                             <i><FiSettings /></i>
                             <span>System Settings</span>
-                        </a>
+                        </Link>
                     )}
                     
                     <a href="#" className="dropdown-item" onClick={() => setIsConfirmModalOpen(true)}>
@@ -321,34 +292,15 @@ const ProfileModal = () => {
                 </div>
             )}
 
-            {/* Add some CSS for the animation and dark mode */}
             <style>
                 {`
                 @keyframes slideIn {
-                    from {
-                        transform: translateX(-50%) translateY(100%);
-                        opacity: 0;
-                    }
-                    to {
-                        transform: translateX(-50%) translateY(0);
-                        opacity: 1;
-                    }
+                    from { transform: translateX(-50%) translateY(100%); opacity: 0; }
+                    to { transform: translateX(-50%) translateY(0); opacity: 1; }
                 }
-
-                /* Dark mode modal styles */
-                .dark-modal .modal-content {
-                    background-color: #0f172a;
-                    color: white;
-                }
-
-                .dark-modal .modal-header,
-                .dark-modal .modal-footer {
-                    border-color: #1e293b;
-                }
-
-                .dark-modal .close {
-                    color: white;
-                }
+                .dark-modal .modal-content { background-color: #0f172a; color: white; }
+                .dark-modal .modal-header, .dark-modal .modal-footer { border-color: #1e293b; }
+                .dark-modal .close { color: white; }
                 `}
             </style>
         </Fragment>

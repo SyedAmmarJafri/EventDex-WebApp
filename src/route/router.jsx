@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate } from "react-router-dom";
+import { createHashRouter, Navigate } from "react-router-dom";
 import RootLayout from "../layout/root";
 import Home from "../pages/home";
 import ReportsSales from "../pages/reports-sales";
@@ -94,7 +94,6 @@ const routePermissions = {
     '/': 'dashboard',
     '/pos': 'pos',
     '/account': null, // No permission required
-    '/help/knowledgebase': null, // No permission required
     
     // Analytics routes
     '/analytics/sales': 'sales_analytics',
@@ -139,7 +138,7 @@ const getPermissionForPath = (path) => {
     return routePermissions[path] || null;
 };
 
-export const router = createBrowserRouter([
+export const router = createHashRouter([
     {
         path: "/",
         element: (
@@ -166,7 +165,7 @@ export const router = createBrowserRouter([
             },
             {
                 path: "/account",
-                element: <AccountSetting /> // No permission required
+                element: <AccountSetting />
             },
             // Analytics routes
             {
@@ -357,7 +356,7 @@ export const router = createBrowserRouter([
             }
         ]
     },
-    // Authentication routes (remain unchanged)
+    // Authentication routes
     {
         path: "/",
         element: <LayoutAuth />,
