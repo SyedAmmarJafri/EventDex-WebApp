@@ -55,7 +55,7 @@ const LoginForm = ({ registerPath, resetPath }) => {
         setNotification({ message, type });
         setTimeout(() => {
             setNotification(null);
-        }, 2000);
+        }, 1000);
     };
 
     const closeNotification = () => {
@@ -188,9 +188,9 @@ const LoginForm = ({ registerPath, resetPath }) => {
             // Redirect after showing notification
             setTimeout(() => {
                 navigate('/');
-            }, 2000);
+            }, 1000);
         } catch (err) {
-            showNotification(err.message || 'An error occurred during login', 'error');
+            showNotification(err.message || 'An error occurred during login', 'primary');
         } finally {
             setLoading(false);
         }

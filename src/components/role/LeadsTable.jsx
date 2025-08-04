@@ -1,38 +1,15 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import Table from '@/components/shared/table/Table';
 import { FiTrash, FiEdit, FiPlus, FiEye } from 'react-icons/fi';
 import Button from '@mui/material/Button';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { BASE_URL } from '/src/paths.js';
+import { BASE_URL } from '/src/constants.js';
 import Skeleton from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
 import Switch from '@mui/material/Switch';
 import Modal from 'react-bootstrap/Modal';
 import Form from 'react-bootstrap/Form';
-
-// Initialize IndexedDB
-const initIndexedDB = () => {
-    return new Promise((resolve, reject) => {
-        const request = indexedDB.open('RolesDB', 1);
-
-        request.onerror = (event) => {
-            console.error('IndexedDB error:', event.target.error);
-            reject('Failed to open IndexedDB');
-        };
-
-        request.onsuccess = (event) => {
-            resolve(event.target.result);
-        };
-
-        request.onupgradeneeded = (event) => {
-            const db = event.target.result;
-            if (!db.objectStoreNames.contains('roles')) {
-                db.createObjectStore('roles', { keyPath: 'id' });
-            }
-        };
-    });
-};
 
 // Common role options
 const COMMON_ROLES = [
@@ -113,7 +90,6 @@ const RolesTable = () => {
     });
     const [formErrors, setFormErrors] = useState({});
     const [editFormErrors, setEditFormErrors] = useState({});
-    const [db, setDb] = useState(null);
     const skinTheme = localStorage.getItem('skinTheme') || 'light';
     const isDarkMode = skinTheme === 'dark';
 
@@ -204,106 +180,7 @@ const RolesTable = () => {
         'Currency': availablePermissions.filter(p => p.startsWith('CURRENCY_')),
     };
 
-    // Initialize IndexedDB on component mount
-    useEffect(() => {
-        initIndexedDB().then(database => {
-            setDb(database);
-            // Check if we need to sync with server
-            checkAndSyncData(database);
-        }).catch(error => {
-            console.error('IndexedDB initialization failed:', error);
-            // Fallback to regular API calls
-            fetchRolesFromAPI();
-        });
-    }, []);
-
-    // Check if we need to sync with server (once per hour)
-    const checkAndSyncData = useCallback(async (database) => {
-        const now = Date.now();
-        const lastSync = localStorage.getItem('rolesLastSync') || 0;
-
-        // If more than 1 hour since last sync or no data in IndexedDB
-        if (now - lastSync > 3600000 || !(await hasDataInIndexedDB(database))) {
-            await fetchRolesFromAPI(database);
-            localStorage.setItem('rolesLastSync', now);
-        } else {
-            // Load from IndexedDB
-            loadRolesFromIndexedDB(database);
-        }
-    }, []);
-
-    const hasDataInIndexedDB = async (database) => {
-        return new Promise((resolve) => {
-            const transaction = database.transaction(['roles'], 'readonly');
-            const store = transaction.objectStore('roles');
-            const request = store.count();
-
-            request.onsuccess = () => {
-                resolve(request.result > 0);
-            };
-
-            request.onerror = () => {
-                resolve(false);
-            };
-        });
-    };
-
-    const loadRolesFromIndexedDB = async (database) => {
-        return new Promise((resolve) => {
-            const transaction = database.transaction(['roles'], 'readonly');
-            const store = transaction.objectStore('roles');
-            const request = store.getAll();
-
-            request.onsuccess = () => {
-                const rolesData = request.result.map(role => {
-                    // Ensure tabPermissions exists and has all required fields
-                    const defaultTabPermissions = TAB_PERMISSIONS.reduce((acc, tab) => {
-                        acc[tab.toLowerCase()] = role.tabPermissions?.[tab.toLowerCase()] || (tab === 'DASHBOARD' ? true : false);
-                        return acc;
-                    }, {});
-
-                    return {
-                        ...role,
-                        tabPermissions: role.tabPermissions ? { ...defaultTabPermissions, ...role.tabPermissions } : defaultTabPermissions
-                    };
-                });
-
-                setRoles(rolesData);
-                setLoading(false);
-                resolve(rolesData);
-            };
-
-            request.onerror = () => {
-                setLoading(false);
-                resolve([]);
-            };
-        });
-    };
-
-    const saveRolesToIndexedDB = async (roles, database) => {
-        return new Promise((resolve) => {
-            const transaction = database.transaction(['roles'], 'readwrite');
-            const store = transaction.objectStore('roles');
-
-            // Clear existing data
-            store.clear();
-
-            // Add all new roles
-            roles.forEach(role => {
-                store.put(role);
-            });
-
-            transaction.oncomplete = () => {
-                resolve();
-            };
-
-            transaction.onerror = () => {
-                resolve();
-            };
-        });
-    };
-
-    const fetchRolesFromAPI = useCallback(async (database = db) => {
+    const fetchRolesFromAPI = async () => {
         try {
             setLoading(true);
             const authData = JSON.parse(localStorage.getItem("authData"));
@@ -352,20 +229,13 @@ const RolesTable = () => {
             });
 
             setRoles(processedRoles);
-            if (database) {
-                await saveRolesToIndexedDB(processedRoles, database);
-            }
         } catch (err) {
             console.error('Error fetching roles:', err);
             toast.error(err.message || 'Failed to load roles');
-            // Try to load from IndexedDB if API fails
-            if (database) {
-                await loadRolesFromIndexedDB(database);
-            }
         } finally {
             setLoading(false);
         }
-    }, [db]);
+    };
 
     const SkeletonLoader = () => {
         return (
@@ -563,7 +433,6 @@ const RolesTable = () => {
     };
 
     const handleTabPermissionChange = (tab, isChecked) => {
-        // Skip if trying to change DASHBOARD permission
         if (tab === 'dashboard') return;
         
         setNewRole(prev => ({
@@ -576,7 +445,6 @@ const RolesTable = () => {
     };
 
     const handleEditTabPermissionChange = (tab, isChecked) => {
-        // Skip if trying to change DASHBOARD permission
         if (tab === 'dashboard') return;
         
         setEditRole(prev => ({
@@ -594,7 +462,6 @@ const RolesTable = () => {
         if (!formData.description.trim()) errors.description = 'Description is required';
         if (formData.permissions.length === 0) errors.permissions = 'At least one permission is required';
 
-        // Check if at least one tab permission is selected (other than DASHBOARD)
         const hasTabPermission = Object.entries(formData.tabPermissions)
             .filter(([tab]) => tab !== 'dashboard')
             .some(([_, val]) => val);
@@ -633,14 +500,7 @@ const RolesTable = () => {
             }
 
             toast.success('Role created successfully');
-
-            // Update local state and IndexedDB
-            const updatedRoles = [...roles, data];
-            setRoles(updatedRoles);
-            if (db) {
-                await saveRolesToIndexedDB(updatedRoles, db);
-            }
-
+            setRoles(prev => [...prev, data]);
             setIsModalOpen(false);
             setNewRole({
                 name: '',
@@ -686,16 +546,7 @@ const RolesTable = () => {
             }
 
             toast.success('Role updated successfully');
-
-            // Update local state and IndexedDB
-            const updatedRoles = roles.map(r =>
-                r.id === editRole.id ? data : r
-            );
-            setRoles(updatedRoles);
-            if (db) {
-                await saveRolesToIndexedDB(updatedRoles, db);
-            }
-
+            setRoles(prev => prev.map(r => r.id === editRole.id ? data : r));
             setIsEditModalOpen(false);
         } catch (err) {
             toast.error(err.message);
@@ -719,7 +570,7 @@ const RolesTable = () => {
                     return acc;
                 }, {}),
                 ...role.tabPermissions,
-                dashboard: true // Force dashboard to be true
+                dashboard: true
             },
             active: role.active,
             isCustomRole: !COMMON_ROLES.includes(role.name)
@@ -739,11 +590,7 @@ const RolesTable = () => {
             const authData = JSON.parse(localStorage.getItem("authData"));
 
             // Optimistic update
-            const updatedRoles = roles.filter(role => role.id !== roleToDelete.id);
-            setRoles(updatedRoles);
-            if (db) {
-                await saveRolesToIndexedDB(updatedRoles, db);
-            }
+            setRoles(prev => prev.filter(role => role.id !== roleToDelete.id));
             setIsDeleteModalOpen(false);
 
             const response = await fetch(`${BASE_URL}/api/client-admin/roles/${roleToDelete.id}`, {
@@ -762,10 +609,7 @@ const RolesTable = () => {
             toast.success('Role deleted successfully');
         } catch (err) {
             // Revert on error
-            setRoles(roles);
-            if (db) {
-                await saveRolesToIndexedDB(roles, db);
-            }
+            setRoles(prev => [...prev, roleToDelete]);
             toast.error(err.message);
         } finally {
             setRoleToDelete(null);
@@ -852,7 +696,7 @@ const RolesTable = () => {
 
     useEffect(() => {
         fetchRolesFromAPI();
-    }, [fetchRolesFromAPI]);
+    }, []);
 
     if (!canViewRoles) {
         return (

@@ -46,7 +46,7 @@ const TemplatesTable = () => {
     const authData = JSON.parse(localStorage.getItem("authData"));
     const userRole = authData?.role || '';
     const userPermissions = authData?.permissions || [];
-    
+
     // Permission checks
     const canRead = userRole === 'CLIENT_ADMIN' || userPermissions.includes('TEMPLATE_READ');
     const canWrite = userRole === 'CLIENT_ADMIN' || userPermissions.includes('TEMPLATE_WRITE');
@@ -103,32 +103,19 @@ const TemplatesTable = () => {
     };
 
     const fetchEmailConfigFromAPI = async () => {
-        try {
-            if (!authData?.token) {
-                throw new Error("Authentication token not found");
+        const response = await fetch(`${BASE_URL}/api/admin/marketing/email-configuration`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${authData.token}`,
+                'Content-Type': 'application/json'
             }
+        });
 
-            const response = await fetch(`${BASE_URL}/api/admin/marketing/email-configuration`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${authData.token}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || 'Failed to fetch email configuration');
-            }
-
-            const data = await response.json();
-            setEmailConfig({
-                fromEmail: data.fromEmail,
-                appPassword: ''
-            });
-        } catch (err) {
-            toast.error(err.message);
-        }
+        const data = await response.json();
+        setEmailConfig({
+            fromEmail: data.fromEmail,
+            appPassword: ''
+        });
     };
 
     const EmptyState = () => {
@@ -553,7 +540,7 @@ const TemplatesTable = () => {
                         <>
                             <Button
                                 variant="contained"
-                                href="https://www.google.com"
+                                href="https://merchantlify.com/template.html"
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="d-flex align-items-center gap-2 justify-content-center"

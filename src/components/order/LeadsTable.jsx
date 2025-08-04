@@ -385,7 +385,7 @@ const OrderTable = () => {
         if (!isMapModalOpen || mapScriptLoaded) return;
 
         const script = document.createElement('script');
-        script.src = 'https://maps.gomaps.pro/maps/api/js?key=AlzaSyBIjymAxfyobCBnk3FI8jJ1DJ6RBsCPEtg&libraries=places&callback=initMap';
+        script.src = 'https://maps.gomaps.pro/maps/api/js?key=AlzaSyjJx7-XhuRdZZVNN8fSCQ0mXdv86fLHGZc&libraries=places&callback=initMap';
         script.async = true;
         script.defer = true;
         script.onload = () => setMapScriptLoaded(true);

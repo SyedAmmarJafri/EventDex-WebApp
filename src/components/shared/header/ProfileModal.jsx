@@ -126,7 +126,7 @@ const ProfileModal = () => {
             }, 1000)
 
         } catch (error) {
-            showNotification(error.message || 'Logout failed', 'error')
+            showNotification(error.message || 'Logout failed', 'primary')
         }
     }
 
