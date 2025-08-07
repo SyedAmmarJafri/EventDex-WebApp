@@ -69,7 +69,7 @@ const checkPermission = (requiredPermission) => {
 // Enhanced Protected Route with permission check
 const ProtectedRoute = ({ children, permission }) => {
     if (!checkAuth()) {
-        return <Navigate to="/authentication/login/cover" replace />;
+        return <Navigate to="/login" replace />;
     }
     
     // If permission is required but not granted
@@ -105,32 +105,32 @@ const routePermissions = {
     '/reports': 'reports',
     
     // Product routes
-    '/category/list': 'category',
-    '/item/list': 'item',
-    '/deal/list': 'deal',
+    '/category': 'category',
+    '/item': 'item',
+    '/deal': 'deal',
     
     // Order/customer routes
-    '/orders/list': 'orders',
-    '/customer/list': 'customers',
-    '/discount/list': 'discounts',
+    '/orders': 'orders',
+    '/customer': 'customers',
+    '/discount': 'discounts',
     
     // Marketing routes
-    '/marketing/list': 'email_marketing',
-    '/template/list': 'marketing_template',
+    '/marketing': 'email_marketing',
+    '/template': 'marketing_template',
     
     // Inventory/finance routes
-    '/inventory/list': 'inventory',
+    '/inventory': 'inventory',
     '/finance': 'finance',
     
     // Tracker route
     '/tracker': 'live_tracker',
     
     // User management routes
-    '/role/list': 'role',
-    '/team/list': 'team',
+    '/role': 'role',
+    '/team': 'team',
     
     // Store settings
-    '/Store/settings': 'online_store'
+    '/Store': 'online_store'
 };
 
 // Helper function to get permission for a path
@@ -226,94 +226,94 @@ export const router = createHashRouter([
             },
             // Product routes
             {
-                path: "/category/list",
+                path: "/category",
                 element: (
-                    <ProtectedRoute permission={getPermissionForPath('/category/list')}>
+                    <ProtectedRoute permission={getPermissionForPath('/category')}>
                         <Categorylist />
                     </ProtectedRoute>
                 )
             },
             {
-                path: "/item/list",
+                path: "/item",
                 element: (
-                    <ProtectedRoute permission={getPermissionForPath('/item/list')}>
+                    <ProtectedRoute permission={getPermissionForPath('/item')}>
                         <Itemlist />
                     </ProtectedRoute>
                 )
             },
             {
-                path: "/inventory/list",
+                path: "/inventory",
                 element: (
-                    <ProtectedRoute permission={getPermissionForPath('/inventory/list')}>
+                    <ProtectedRoute permission={getPermissionForPath('/inventory')}>
                         <Inventorylist />
                     </ProtectedRoute>
                 )
             },
             {
-                path: "/deal/list",
+                path: "/deal",
                 element: (
-                    <ProtectedRoute permission={getPermissionForPath('/deal/list')}>
+                    <ProtectedRoute permission={getPermissionForPath('/deal')}>
                         <Deallist />
                     </ProtectedRoute>
                 )
             },
             // Order routes
             {
-                path: "/orders/list",
+                path: "/orders",
                 element: (
-                    <ProtectedRoute permission={getPermissionForPath('/orders/list')}>
+                    <ProtectedRoute permission={getPermissionForPath('/orders')}>
                         <Orderlist />
                     </ProtectedRoute>
                 )
             },
             // Customer routes
             {
-                path: "/customer/list",
+                path: "/customer",
                 element: (
-                    <ProtectedRoute permission={getPermissionForPath('/customer/list')}>
+                    <ProtectedRoute permission={getPermissionForPath('/customer')}>
                         <Customerlist />
                     </ProtectedRoute>
                 )
             },
             // Marketing routes
             {
-                path: "/marketing/list",
+                path: "/marketing",
                 element: (
-                    <ProtectedRoute permission={getPermissionForPath('/marketing/list')}>
+                    <ProtectedRoute permission={getPermissionForPath('/marketing')}>
                         <Marketinglist />
                     </ProtectedRoute>
                 )
             },
             {
-                path: "/template/list",
+                path: "/template",
                 element: (
-                    <ProtectedRoute permission={getPermissionForPath('/template/list')}>
+                    <ProtectedRoute permission={getPermissionForPath('/template')}>
                         <Templatelist />
                     </ProtectedRoute>
                 )
             },
             // Discount routes
             {
-                path: "/discount/list",
+                path: "/discount",
                 element: (
-                    <ProtectedRoute permission={getPermissionForPath('/discount/list')}>
+                    <ProtectedRoute permission={getPermissionForPath('/discount')}>
                         <Discountlist />
                     </ProtectedRoute>
                 )
             },
             // User management routes
             {
-                path: "/role/list",
+                path: "/role",
                 element: (
-                    <ProtectedRoute permission={getPermissionForPath('/role/list')}>
+                    <ProtectedRoute permission={getPermissionForPath('/role')}>
                         <RoleList />
                     </ProtectedRoute>
                 )
             },
             {
-                path: "/team/list",
+                path: "/team",
                 element: (
-                    <ProtectedRoute permission={getPermissionForPath('/team/list')}>
+                    <ProtectedRoute permission={getPermissionForPath('/team')}>
                         <TeamList />
                     </ProtectedRoute>
                 )
@@ -347,9 +347,9 @@ export const router = createHashRouter([
         ),
         children: [
             {
-                path: "/Store/settings",
+                path: "/Store",
                 element: (
-                    <ProtectedRoute permission={getPermissionForPath('/Store/settings')}>
+                    <ProtectedRoute permission={getPermissionForPath('/Store')}>
                         <StoreSettings />
                     </ProtectedRoute>
                 )
@@ -362,7 +362,7 @@ export const router = createHashRouter([
         element: <LayoutAuth />,
         children: [
             {
-                path: "/authentication/login/cover",
+                path: "/login",
                 element: (
                     <PublicRoute>
                         <LoginCover />
@@ -370,7 +370,7 @@ export const router = createHashRouter([
                 )
             },
             {
-                path: "/authentication/reset/cover",
+                path: "/reset",
                 element: (
                     <PublicRoute>
                         <ResetCover />
@@ -378,7 +378,7 @@ export const router = createHashRouter([
                 )
             },
             {
-                path: "/authentication/ChangeForm/cover",
+                path: "/changeform",
                 element: (
                     <PublicRoute>
                         <ChangeCover />
@@ -386,11 +386,11 @@ export const router = createHashRouter([
                 )
             },
             {
-                path: "/authentication/404/cover",
+                path: "/404",
                 element: <ErrorCover />
             },
             {
-                path: "/authentication/verify/cover",
+                path: "/verify",
                 element: (
                     <PublicRoute>
                         <OtpCover />
@@ -398,13 +398,13 @@ export const router = createHashRouter([
                 )
             },
             {
-                path: "/authentication/maintenance/cover",
+                path: "/maintenance",
                 element: <MaintenanceCover />
             },
         ]
     },
     {
         path: "*",
-        element: <Navigate to="/authentication/404/cover" replace />
+        element: <Navigate to="/404" replace />
     }
 ]);

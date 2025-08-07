@@ -191,7 +191,7 @@ const OrderTable = () => {
             const SockJS = (await import('sockjs-client')).default;
             const Stomp = (await import('stompjs')).default;
 
-            const socket = new SockJS(`${BASE_URL.replace('/api', '')}/ws`);
+            const socket = new SockJS(`${BASE_URL}/ws`);
             const stompClient = Stomp.over(socket);
 
             // Connection timeout

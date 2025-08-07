@@ -12,7 +12,6 @@ import {
     Space
 } from 'antd';
 import {
-    Legend,
     ResponsiveContainer,
     BarChart,
     Bar,
@@ -717,7 +716,7 @@ const Dashboard = () => {
                                     >
                                         <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                                         <XAxis type="number" />
-                                        <YAxis dataKey="name" type="category"/>
+                                        <YAxis type="category"/>
                                         <Tooltip content={<CustomBarTooltip />} />
                                         <Bar
                                             dataKey="value"

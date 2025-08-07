@@ -121,7 +121,7 @@ const ProfileModal = () => {
             showNotification(data.message || 'Logged out successfully', 'success')
 
             setTimeout(() => {
-                navigate('/authentication/login/cover')
+                navigate('/login')
                 window.location.reload()
             }, 1000)
 

@@ -21,7 +21,6 @@ const TabProfile = () => {
     });
 
     // State for UI
-    const [loadingProfile, setLoadingProfile] = useState(true);
     const [updating, setUpdating] = useState(false);
     const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [profilePicture, setProfilePicture] = useState(null);
@@ -36,7 +35,7 @@ const TabProfile = () => {
     const canUpdateProfile = role === 'CLIENT_ADMIN' || permissions.includes('PROFILE_UPDATE');
     const canUploadProfilePicture = role === 'CLIENT_ADMIN' ||
         (permissions.includes('PROFILE_PICTURE_UPLOAD') &&
-            permissions.includes('PROFILE_PICTURE_UPDATE'));
+        permissions.includes('PROFILE_PICTURE_UPDATE'));
 
     // Fetch profile data
     useEffect(() => {
@@ -44,7 +43,6 @@ const TabProfile = () => {
             try {
                 if (!authData?.token) {
                     toast.error('Authentication token not found');
-                    setLoadingProfile(false);
                     return;
                 }
 
@@ -118,15 +116,12 @@ const TabProfile = () => {
             } catch (error) {
                 console.error('Error fetching profile:', error);
                 toast.error('Failed to load profile data');
-            } finally {
-                setLoadingProfile(false);
             }
         };
 
         fetchProfile();
     }, []);
 
-    // Rest of the component functions remain the same...
     const handleChange = (e) => {
         const { name, value } = e.target;
 
@@ -280,16 +275,6 @@ const TabProfile = () => {
         }
     };
 
-    if (loadingProfile) {
-        return (
-            <div className="text-center py-4">
-                <Spinner animation="border" role="status">
-                    <span className="visually-hidden">Loading...</span>
-                </Spinner>
-            </div>
-        );
-    }
-
     return (
         <div className="tab-pane fade show active" id="profileTab" role="tabpanel">
             <div className="card-body personal-info">
@@ -304,7 +289,7 @@ const TabProfile = () => {
                         {/* Avatar Section with Upload Button - Only show if allowed */}
                         {canUploadProfilePicture && (
                             <Form.Group className="row mb-4 align-items-center">
-                                <Form.Label column lg={4} className="fw-semibold">Avatar:</Form.Label>
+                                <Form.Label column lg={4} className="fw-semibold">Logo:</Form.Label>
                                 <div className="col-lg-8">
                                     <div className="d-flex align-items-center gap-3">
                                         <div className="position-relative">
@@ -348,8 +333,8 @@ const TabProfile = () => {
                                         />
 
                                         <div className="text-muted ms-3" style={{ fontSize: '0.75rem' }}>
-                                            <div>• Avatar size 150x150</div>
-                                            <div>• Max upload size 2MB</div>
+                                            <div>• Logo size 150x150</div>
+                                            <div>• Max upload size 1MB</div>
                                             <div>• Allowed: PNG, JPG, JPEG</div>
                                         </div>
                                     </div>

@@ -204,7 +204,7 @@ export const menuList = [
     {
         id: 2,
         name: "Orders",
-        path: "/orders/list",
+        path: "/orders",
         icon: 'feather-shopping-bag',
         dropdownMenu: []
     },
@@ -217,19 +217,19 @@ export const menuList = [
             {
                 id: 1,
                 name: "Category",
-                path: "/category/list",
+                path: "/category",
                 subdropdownMenu: false
             },
             {
                 id: 2,
                 name: "Item",
-                path: "/item/list",
+                path: "/item",
                 subdropdownMenu: false
             },
             {
                 id: 3,
                 name: "Deal",
-                path: "/deal/list",
+                path: "/deal",
                 subdropdownMenu: false
             },
         ]
@@ -237,14 +237,14 @@ export const menuList = [
     {
         id: 4,
         name: "Customers",
-        path: "/customer/list",
+        path: "/customer",
         icon: 'feather-users',
         dropdownMenu: []
     },
     {
         id: 5,
         name: "Discounts",
-        path: "/discount/list",
+        path: "/discount",
         icon: 'feather-send',
         dropdownMenu: []
     },
@@ -257,13 +257,13 @@ export const menuList = [
             {
                 id: 1,
                 name: "Email Marketing",
-                path: "/marketing/list",
+                path: "/marketing",
                 subdropdownMenu: false
             },
             {
                 id: 2,
                 name: "Marketing Template",
-                path: "/template/list",
+                path: "/template",
                 subdropdownMenu: false
             },
         ]
@@ -271,7 +271,7 @@ export const menuList = [
     {
         id: 8,
         name: "Inventory",
-        path: "/inventory/list",
+        path: "/inventory",
         icon: 'feather-layers',
         dropdownMenu: []
     },
@@ -348,13 +348,13 @@ export const menuList = [
             {
                 id: 1,
                 name: "Team",
-                path: "/team/list",
+                path: "/team",
                 subdropdownMenu: false
             },
             {
                 id: 2,
                 name: "Role",
-                path: "/role/list",
+                path: "/role",
                 subdropdownMenu: false
             }
         ]
@@ -362,7 +362,7 @@ export const menuList = [
     {
         id: 13,
         name: "Online Store",
-        path: "/Store/settings",
+        path: "/Store",
         icon: 'feather-shopping-cart',
         dropdownMenu: []
     },
