@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import PerfectScrollbar from 'react-perfect-scrollbar';
@@ -17,6 +17,16 @@ import {
 } from 'react-bootstrap';
 import Footer from '@/components/shared/Footer';
 import Switch from '@mui/material/Switch';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+
+// Fix for default markers in Leaflet
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+    iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+    iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+});
 
 const StoreSettingsForm = () => {
     const [settings, setSettings] = useState(null);
@@ -33,6 +43,16 @@ const StoreSettingsForm = () => {
     const [showAlertBarModal, setShowAlertBarModal] = useState(false);
     const [alertBars, setAlertBars] = useState([]);
 
+    // Map references
+    const mapRef = useRef(null);
+    const markerRef = useRef(null);
+    const mapContainerRef = useRef(null);
+    const [mapLoading, setMapLoading] = useState(true);
+    const [mapError, setMapError] = useState(null);
+    const [selectedLocation, setSelectedLocation] = useState(null);
+    const [isFetchingAddress, setIsFetchingAddress] = useState(false);
+    const [isLocating, setIsLocating] = useState(false);
+
     // Get currency settings from localStorage
     const authData = JSON.parse(localStorage.getItem("authData"));
     const currencySymbol = authData?.currencySettings?.currencySymbol || '$';
@@ -45,22 +65,29 @@ const StoreSettingsForm = () => {
 
     // Social media platforms
     const socialPlatforms = [
-        { value: 'facebook', label: 'Facebook' },
-        { value: 'instagram', label: 'Instagram' },
-        { value: 'twitter', label: 'Twitter' },
-        { value: 'youtube', label: 'YouTube' },
-        { value: 'linkedin', label: 'LinkedIn' },
-        { value: 'pinterest', label: 'Pinterest' }
+        { value: "facebook", label: "Facebook", iconClass: "fab fa-facebook" },
+        { value: "instagram", label: "Instagram", iconClass: "fab fa-instagram" },
+        { value: "twitter", label: "Twitter (X)", iconClass: "fab fa-twitter" },
+        { value: "tiktok", label: "TikTok", iconClass: "fab fa-tiktok" },
+        { value: "youtube", label: "YouTube", iconClass: "fab fa-youtube" },
+        { value: "pinterest", label: "Pinterest", iconClass: "fab fa-pinterest" },
+        { value: "snapchat", label: "Snapchat", iconClass: "fab fa-snapchat" },
+        { value: "whatsapp", label: "WhatsApp", iconClass: "fab fa-whatsapp" },
+        { value: "telegram", label: "Telegram", iconClass: "fab fa-telegram" },
+        { value: "linkedin", label: "LinkedIn", iconClass: "fab fa-linkedin" },
+        { value: "google", label: "Google Reviews", iconClass: "fab fa-google" }
     ];
 
-    // Timezones
-    const timezones = [
-        { value: 'America/New_York', label: 'Eastern Time (ET)' },
-        { value: 'America/Chicago', label: 'Central Time (CT)' },
-        { value: 'America/Denver', label: 'Mountain Time (MT)' },
-        { value: 'America/Los_Angeles', label: 'Pacific Time (PT)' },
-        { value: 'UTC', label: 'UTC' }
-    ];
+    // Helper function to get icon class by platform value
+    const getIconClassByPlatform = (platformValue) => {
+        const platform = socialPlatforms.find(p => p.value === platformValue);
+        return platform ? platform.iconClass : '';
+    };
+
+    const timezones = Intl.supportedValuesOf('timeZone').map(tz => ({
+        value: tz,
+        label: tz
+    }));
 
     // Configure toast notifications
     const showToast = (message, type = 'success') => {
@@ -81,6 +108,139 @@ const StoreSettingsForm = () => {
             toast.warning(message, toastOptions);
         } else {
             toast.info(message, toastOptions);
+        }
+    };
+
+    // Initialize map with fixed marker in center
+    const initMap = () => {
+        if (!mapContainerRef.current) return;
+
+        // Default coordinates (New York)
+        const defaultLat = settings?.store?.storeLatitude || 40.7128;
+        const defaultLng = settings?.store?.storeLongitude || -74.0060;
+
+        // Initialize map
+        mapRef.current = L.map(mapContainerRef.current, {
+            zoomControl: false
+        }).setView([defaultLat, defaultLng], 17);
+
+        // Add tile layer
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: ''
+        }).addTo(mapRef.current);
+
+        // Create black marker icon
+        const blueMarkerIcon = L.icon({
+            iconUrl: '/images/store_marker.png',
+            iconSize: [40, 40],
+            iconAnchor: [20, 40],
+            popupAnchor: [0, -40]
+        });
+
+        // Add fixed marker in center
+        markerRef.current = L.marker([defaultLat, defaultLng], {
+            icon: blueMarkerIcon,
+            draggable: false
+        }).addTo(mapRef.current);
+
+        // Update coordinates when map moves
+        mapRef.current.on('moveend', () => {
+            const center = mapRef.current.getCenter();
+            const lat = center.lat;
+            const lng = center.lng;
+
+            // Update coordinates in state
+            handleInputChange('store.storeLatitude', lat);
+            handleInputChange('store.storeLongitude', lng);
+
+            // Reverse geocode to get address
+            reverseGeocode(lat, lng);
+        });
+
+        // Update marker position to always be at center
+        mapRef.current.on('move', () => {
+            const center = mapRef.current.getCenter();
+            markerRef.current.setLatLng(center);
+        });
+
+        // Set initial selected location
+        setSelectedLocation({
+            lat: defaultLat,
+            lng: defaultLng,
+            address: settings?.store?.storeLocationAddress || 'New York, NY, USA'
+        });
+
+        setMapLoading(false);
+    };
+
+    // Get current location
+    const getCurrentLocation = () => {
+        if (!navigator.geolocation) {
+            showToast('Geolocation is not supported by this browser', 'error');
+            return;
+        }
+
+        setIsLocating(true);
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                const { latitude, longitude } = position.coords;
+
+                // Update map view to current location
+                mapRef.current.setView([latitude, longitude], 15);
+
+                // Update coordinates in state
+                handleInputChange('store.storeLatitude', latitude);
+                handleInputChange('store.storeLongitude', longitude);
+
+                // Reverse geocode to get address
+                reverseGeocode(latitude, longitude);
+
+                setIsLocating(false);
+                showToast('Location found successfully');
+            },
+            (error) => {
+                setIsLocating(false);
+                let errorMessage = 'Unable to get your location';
+
+                switch (error.code) {
+                    case error.PERMISSION_DENIED:
+                        errorMessage = 'Location access denied. Please enable location services.';
+                        break;
+                    case error.POSITION_UNAVAILABLE:
+                        errorMessage = 'Location information is unavailable.';
+                        break;
+                    case error.TIMEOUT:
+                        errorMessage = 'Location request timed out.';
+                        break;
+                }
+
+                showToast(errorMessage, 'error');
+            },
+            {
+                enableHighAccuracy: true,
+                timeout: 10000,
+                maximumAge: 60000
+            }
+        );
+    };
+
+    // Reverse geocode coordinates to get address
+    const reverseGeocode = async (lat, lng) => {
+        try {
+            setIsFetchingAddress(true);
+            const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`);
+            const data = await response.json();
+
+            if (data && data.display_name) {
+                const address = data.display_name;
+                setSelectedLocation({ lat, lng, address });
+                handleInputChange('store.storeLocationAddress', address);
+            }
+        } catch (error) {
+            console.error('Reverse geocoding failed:', error);
+            setSelectedLocation({ lat, lng, address: 'Address not found' });
+        } finally {
+            setIsFetchingAddress(false);
         }
     };
 
@@ -164,6 +324,24 @@ const StoreSettingsForm = () => {
         fetchAlertBars();
     }, []);
 
+    // Initialize map when settings are loaded
+    useEffect(() => {
+        if (settings && !mapRef.current) {
+            // Small delay to ensure DOM is ready
+            setTimeout(() => {
+                initMap();
+            }, 100);
+        }
+
+        // Cleanup function to remove map when component unmounts
+        return () => {
+            if (mapRef.current) {
+                mapRef.current.remove();
+                mapRef.current = null;
+            }
+        };
+    }, [settings]);
+
     // Handle store status toggle
     const handleStoreStatusToggle = async (isOpen) => {
         try {
@@ -200,6 +378,12 @@ const StoreSettingsForm = () => {
     // Handle logo upload
     const handleLogoUpload = async (file) => {
         try {
+            // Check file size (max 200 KB)
+            if (file.size > 200 * 1024) {
+                showToast('Logo file size must be less than 200 KB', 'error');
+                return;
+            }
+
             setUploading(true);
             const authData = JSON.parse(localStorage.getItem("authData"));
             if (!authData?.token) {
@@ -241,6 +425,12 @@ const StoreSettingsForm = () => {
     // Handle banner upload with data
     const handleBannerUploadWithData = async (file, bannerData) => {
         try {
+            // Check file size (max 500 KB)
+            if (file.size > 500 * 1024) {
+                showToast('Banner file size must be less than 500 KB', 'error');
+                return;
+            }
+
             setUploading(true);
             const authData = JSON.parse(localStorage.getItem("authData"));
             if (!authData?.token) {
@@ -469,9 +659,20 @@ const StoreSettingsForm = () => {
             buttonText: '',
             buttonLink: ''
         });
+        const [fileError, setFileError] = useState('');
 
         const handleFileChange = (e) => {
-            setFile(e.target.files[0]);
+            const selectedFile = e.target.files[0];
+            if (selectedFile) {
+                // Check file size (max 500 KB)
+                if (selectedFile.size > 500 * 1024) {
+                    setFileError('Banner file size must be less than 500 KB');
+                    setFile(null);
+                } else {
+                    setFileError('');
+                    setFile(selectedFile);
+                }
+            }
         };
 
         const handleInputChange = (e) => {
@@ -498,12 +699,21 @@ const StoreSettingsForm = () => {
                 </Modal.Header>
                 <Modal.Body>
                     <Form.Group className="mb-3">
-                        <Form.Label>Banner Image</Form.Label>
+                        <Form.Label>Banner Image (Max 500 KB)</Form.Label>
                         <Form.Control
                             type="file"
                             onChange={handleFileChange}
                             accept="image/*"
+                            isInvalid={!!fileError}
                         />
+                        {fileError && (
+                            <Form.Text className="text-danger">
+                                {fileError}<br></br>
+                            </Form.Text>
+                        )}
+                        <Form.Text className="text-muted">
+                            Maximum file size: 500 KB
+                        </Form.Text>
                     </Form.Group>
                     <Form.Group className="mb-3">
                         <Form.Label>Title</Form.Label>
@@ -529,7 +739,7 @@ const StoreSettingsForm = () => {
                             type="text"
                             name="buttonText"
                             value={bannerData.buttonText}
-                            onChange={handleInputChange}
+                            onChange={(e) => handleInputChange(e)}
                         />
                     </Form.Group>
                     <Form.Group className="mb-3">
@@ -543,7 +753,7 @@ const StoreSettingsForm = () => {
                     </Form.Group>
                 </Modal.Body>
                 <Modal.Footer>
-                    <Button variant="primary" onClick={handleSubmit}>
+                    <Button variant="primary" onClick={handleSubmit} disabled={!!fileError}>
                         Upload Banner
                     </Button>
                 </Modal.Footer>
@@ -735,21 +945,34 @@ const StoreSettingsForm = () => {
 
     // Custom file upload component using Bootstrap
     const FileUploadInput = ({ label, currentFile, onUpload, accept, multiple = false, loading }) => {
-        const [file, setFile] = useState(null);
+        const [fileError, setFileError] = useState('');
 
         const handleFileChange = (e) => {
             const selectedFile = e.target.files[0];
-            setFile(selectedFile);
-            if (multiple) {
-                onUpload(Array.from(e.target.files));
-            } else {
-                onUpload(selectedFile);
+            if (selectedFile) {
+                // Check file size based on label (logo vs banner)
+                if (label.includes('Logo') && selectedFile.size > 200 * 1024) {
+                    setFileError('Logo file size must be less than 200 KB');
+                } else if (label.includes('Banner') && selectedFile.size > 500 * 1024) {
+                    setFileError('Banner file size must be less than 500 KB');
+                } else {
+                    setFileError('');
+                    if (multiple) {
+                        onUpload(Array.from(e.target.files));
+                    } else {
+                        onUpload(selectedFile);
+                    }
+                }
             }
         };
 
         return (
             <Form.Group className="mb-3">
-                <Form.Label>{label}</Form.Label>
+                <Form.Label>
+                    {label}
+                    {label.includes('Logo') && ' (Max 200 KB)'}
+                    {label.includes('Banner') && ' (Max 500 KB)'}
+                </Form.Label>
                 {currentFile && (
                     <div className="mb-2">
                         <Image src={currentFile} thumbnail style={{ maxHeight: '100px' }} />
@@ -761,7 +984,13 @@ const StoreSettingsForm = () => {
                     accept={accept}
                     multiple={multiple}
                     disabled={loading}
+                    isInvalid={!!fileError}
                 />
+                {fileError && (
+                    <Form.Text className="text-danger">
+                        {fileError}
+                    </Form.Text>
+                )}
                 {loading && <Spinner animation="border" size="sm" className="mt-2" />}
             </Form.Group>
         );
@@ -890,7 +1119,7 @@ const StoreSettingsForm = () => {
                     {/* Alert Bar Settings */}
                     <Card className="mb-4">
                         <Card.Header className="d-flex justify-content-between align-items-center">
-                            <h5>Alert Bar Settings</h5>
+                            <h6 className="mb-0">Alert Bar Settings</h6>
                             <Button
                                 variant="primary"
                                 size="sm"
@@ -899,45 +1128,61 @@ const StoreSettingsForm = () => {
                                 Add New Alert Bar
                             </Button>
                         </Card.Header>
+
                         <Card.Body>
                             {alertBars.length === 0 ? (
-                                <h8>No alert bars configured</h8>
+                                <p className="text-muted small mb-0">No alert bars configured</p>
                             ) : (
                                 <div className="alert-bars-list">
                                     {alertBars.map((alert) => (
                                         <Card key={alert.id} className="mb-3">
                                             <Card.Body>
                                                 <div className="d-flex justify-content-between align-items-start">
-                                                    <div>
-                                                        <h8 className="mb-1"><strong>Message:</strong> {alert.message}</h8><br />
-                                                        <h8 className="mb-1"><small>
+                                                    <div className="small">
+                                                        <p className="mb-1 text-dark">
+                                                            <strong>Message: {alert.message}</strong>
+                                                        </p>
+                                                        <p className="mb-1 text-dark">
                                                             <strong>Status:</strong>
-                                                            <Badge bg={alert.active ? "success" : "secondary"} className="ms-2">
+                                                            <Badge
+                                                                bg={alert.active ? "success" : "secondary"}
+                                                                className="ms-1"
+                                                            >
                                                                 {alert.active ? "Active" : "Inactive"}
                                                             </Badge>
-                                                        </small></h8><br />
-                                                        <h8 className="mb-1"><small>
-                                                            <strong>Active Period:</strong> {new Date(alert.startTime).toLocaleString()} - {new Date(alert.endTime).toLocaleString()}
-                                                        </small></h8><br />
-                                                        <h8 className="mb-1"><small>
+                                                        </p>
+                                                        <p className="mb-1 text-dark">
+                                                            <strong>Active Period:</strong>{" "}
+                                                            {new Date(alert.startTime).toLocaleString()} -{" "}
+                                                            {new Date(alert.endTime).toLocaleString()}
+                                                        </p>
+                                                        <p className="mb-1 text-dark">
                                                             <strong>Colors:</strong>
-                                                            <span className="d-inline-block ms-2" style={{
-                                                                width: '15px',
-                                                                height: '15px',
-                                                                backgroundColor: alert.backgroundColor,
-                                                                border: '1px solid #ddd'
-                                                            }}></span> /
-                                                            <span className="d-inline-block ms-2" style={{
-                                                                width: '15px',
-                                                                height: '15px',
-                                                                backgroundColor: alert.textColor,
-                                                                border: '1px solid #ddd'
-                                                            }}></span>
-                                                        </small></h8><br />
-                                                        <h8 className="mb-0"><small>
-                                                            <strong>Dismissible:</strong> {alert.dismissible ? 'Yes' : 'No'}
-                                                        </small></h8>
+                                                            <span
+                                                                className="d-inline-block ms-2"
+                                                                style={{
+                                                                    width: "12px",
+                                                                    height: "12px",
+                                                                    backgroundColor: alert.backgroundColor,
+                                                                    border: "1px solid #ddd",
+                                                                }}
+                                                            ></span>
+                                                            <span
+                                                                className="d-inline-block ms-2"
+                                                                style={{
+                                                                    width: "12px",
+                                                                    height: "12px",
+                                                                    backgroundColor: alert.textColor,
+                                                                    border: "1px solid #ddd",
+                                                                }}
+                                                            ></span>
+                                                        </p>
+                                                        <p className="mb-0 text-dark">
+                                                            <strong>Dismissible:</strong>{" "}
+                                                            {alert.dismissible ? "Yes" : "No"}
+                                                        </p>
                                                     </div>
+
                                                     <Button
                                                         variant="danger"
                                                         size="sm"
@@ -946,7 +1191,9 @@ const StoreSettingsForm = () => {
                                                     >
                                                         {updatingAlertBar ? (
                                                             <Spinner animation="border" size="sm" />
-                                                        ) : 'Delete'}
+                                                        ) : (
+                                                            "Delete"
+                                                        )}
                                                     </Button>
                                                 </div>
                                             </Card.Body>
@@ -966,7 +1213,7 @@ const StoreSettingsForm = () => {
                     {/* Header Settings */}
                     <Card className="mb-4">
                         <Card.Header className="d-flex justify-content-between align-items-center">
-                            <h5>Header Settings</h5>
+                            <h6>Header Settings</h6>
                             <Button
                                 variant="primary"
                                 size="sm"
@@ -1008,20 +1255,44 @@ const StoreSettingsForm = () => {
 
                             <Row className="mb-4">
                                 <Col md={6}>
-                                    <ColorPicker
-                                        label="Primary Color"
-                                        color={settings.header.primaryColor}
-                                        onChange={(color) => handleInputChange('header.primaryColor', color)}
-                                    />
+                                    <Form.Label>Primary Color</Form.Label>
+                                    <InputGroup>
+                                        <Form.Control
+                                            type="color"
+                                            name="header.primaryColor"
+                                            value={settings.header.primaryColor}
+                                            onChange={(e) => handleInputChange('header.primaryColor', e.target.value)}
+                                            style={{ height: '38px' }}
+                                        />
+                                        <Form.Control
+                                            type="text"
+                                            name="header.primaryColor"
+                                            value={settings.header.primaryColor}
+                                            onChange={(e) => handleInputChange('header.primaryColor', e.target.value)}
+                                        />
+                                    </InputGroup>
                                 </Col>
+
                                 <Col md={6}>
-                                    <ColorPicker
-                                        label="Secondary Color"
-                                        color={settings.header.secondaryColor}
-                                        onChange={(color) => handleInputChange('header.secondaryColor', color)}
-                                    />
+                                    <Form.Label>Secondary Color</Form.Label>
+                                    <InputGroup>
+                                        <Form.Control
+                                            type="color"
+                                            name="header.secondaryColor"
+                                            value={settings.header.secondaryColor}
+                                            onChange={(e) => handleInputChange('header.secondaryColor', e.target.value)}
+                                            style={{ height: '38px' }}
+                                        />
+                                        <Form.Control
+                                            type="text"
+                                            name="header.secondaryColor"
+                                            value={settings.header.secondaryColor}
+                                            onChange={(e) => handleInputChange('header.secondaryColor', e.target.value)}
+                                        />
+                                    </InputGroup>
                                 </Col>
                             </Row>
+
 
                             <div className="mb-4">
                                 <div className="d-flex justify-content-between align-items-center mb-3">
@@ -1113,7 +1384,7 @@ const StoreSettingsForm = () => {
                     {/* Footer Settings */}
                     <Card className="mb-4">
                         <Card.Header className="d-flex justify-content-between align-items-center">
-                            <h5>Footer Settings</h5>
+                            <h6>Footer Settings</h6>
                             <Button
                                 variant="primary"
                                 size="sm"
@@ -1187,7 +1458,10 @@ const StoreSettingsForm = () => {
                                                         <Form.Label>Platform</Form.Label>
                                                         <select
                                                             value={link.platform}
-                                                            onChange={(e) => handleArrayItemChange('footer.socialLinks', index, 'platform', e.target.value)}
+                                                            onChange={(e) => {
+                                                                handleArrayItemChange('footer.socialLinks', index, 'platform', e.target.value);
+                                                                handleArrayItemChange('footer.socialLinks', index, 'iconClass', getIconClassByPlatform(e.target.value));
+                                                            }}
                                                             style={{
                                                                 color: '#0092ff',
                                                                 border: '1px solid #0092ff',
@@ -1262,11 +1536,14 @@ const StoreSettingsForm = () => {
                                 <Button
                                     variant="primary"
                                     size="sm"
-                                    onClick={() => addArrayItem('footer.socialLinks', {
-                                        platform: 'facebook',
-                                        url: '',
-                                        iconClass: 'fab fa-facebook'
-                                    })}
+                                    onClick={() => {
+                                        const selectedPlatform = socialPlatforms[0]; // Default to first platform
+                                        addArrayItem('footer.socialLinks', {
+                                            platform: selectedPlatform.value,
+                                            url: '',
+                                            iconClass: selectedPlatform.iconClass
+                                        });
+                                    }}
                                 >
                                     Add Social Link
                                 </Button>
@@ -1297,7 +1574,7 @@ const StoreSettingsForm = () => {
                     {/* Store Settings */}
                     <Card className="mb-4">
                         <Card.Header className="d-flex justify-content-between align-items-center">
-                            <h5>Store Settings</h5>
+                            <h6>Store Settings</h6>
                             <Button
                                 variant="primary"
                                 size="sm"
@@ -1425,100 +1702,194 @@ const StoreSettingsForm = () => {
                                 </Col>
                             </Row>
 
-                            <div className="mb-4">
-                                <h6>Store Schedules</h6>
-                                {settings.store.schedules.map((schedule, index) => (
-                                    <Card key={index} className="mb-3">
-                                        <Card.Body>
-                                            <Row>
-                                                <Col md={3}>
-                                                    <div style={{ marginBottom: '1rem', width: '100%' }}>
-                                                        <label style={{
-                                                            color: '#0092ff',
-                                                            fontWeight: '600',
-                                                            fontSize: '0.9rem',
-                                                            marginBottom: '0.5rem',
-                                                            display: 'block'
-                                                        }}>
-                                                            Day
-                                                        </label>
-                                                        <select
-                                                            value={schedule.day}
-                                                            onChange={(e) => handleArrayItemChange('store.schedules', index, 'day', e.target.value)}
-                                                            style={{
-                                                                color: '#0092ff',
-                                                                border: '1px solid #0092ff',
-                                                                borderRadius: '6px',
-                                                                backgroundColor: 'rgba(0, 146, 255, 0.05)',
-                                                                cursor: 'pointer',
-                                                                padding: '0.625rem 1rem',
-                                                                paddingRight: '2.5rem',
-                                                                fontSize: '0.9rem',
-                                                                lineHeight: '1.5',
-                                                                minHeight: '2.875rem',
-                                                                width: '100%',
-                                                                backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'16\' height=\'16\' fill=\'%230092ff\' viewBox=\'0 0 16 16\'%3E%3Cpath d=\'M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z\'/%3E%3C/svg%3E")',
-                                                                backgroundRepeat: 'no-repeat',
-                                                                backgroundPosition: 'right 1rem center',
-                                                                backgroundSize: '16px 12px',
-                                                                appearance: 'none',
-                                                                transition: 'all 0.2s ease-in-out',
-                                                                ':hover': {
-                                                                    borderColor: '#007acc',
-                                                                    backgroundColor: 'rgba(0, 146, 255, 0.08)'
-                                                                },
-                                                                ':focus': {
-                                                                    borderColor: '#0092ff',
-                                                                    boxShadow: '0 0 0 0.25rem rgba(0, 146, 255, 0.2)',
-                                                                    outline: 'none',
-                                                                    backgroundColor: 'rgba(0, 146, 255, 0.05)'
-                                                                }
-                                                            }}
-                                                        >
-                                                            {days.map(day => (
-                                                                <option
-                                                                    key={day}
-                                                                    value={day}
-                                                                    style={{
-                                                                        color: '#000000ff',
-                                                                        backgroundColor: '#fff',
-                                                                        fontSize: '0.9rem',
-                                                                        padding: '0.5rem 1rem'
-                                                                    }}
-                                                                >
-                                                                    {day}
-                                                                </option>
-                                                            ))}
-                                                        </select>
+                            {/* New Location Fields */}
+                            <Row className="mb-4">
+                                <Col md={12}>
+                                    <Form.Group className="mb-3">
+                                        <Form.Label>Store Location Address</Form.Label>
+                                        <Form.Control
+                                            type="text"
+                                            value={settings.store.storeLocationAddress}
+                                            onChange={(e) => handleInputChange('store.storeLocationAddress', e.target.value)}
+                                            placeholder="Enter store address"
+                                        />
+                                    </Form.Group>
+                                </Col>
+                            </Row>
+
+                            {/* Map Component */}
+                            <Row className="mb-4">
+                                <Col md={12}>
+                                    <Form.Group className="mb-3">
+                                        <div className="d-flex justify-content-between align-items-center mb-2">
+                                            <Form.Label>Store Location Map</Form.Label>
+                                            <Button
+                                                variant="primary"
+                                                size="sm"
+                                                onClick={getCurrentLocation}
+                                                disabled={isLocating}
+                                            >
+                                                {isLocating ? (
+                                                    <>
+                                                        <Spinner animation="border" size="sm" className="me-2" />
+                                                        Locating...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <i className="fas fa-location-arrow me-2"></i>
+                                                        Use My Location
+                                                    </>
+                                                )}
+                                            </Button>
+                                        </div>
+                                        <div
+                                            ref={mapContainerRef}
+                                            style={{ height: '400px', width: '100%', border: '1px solid #ccc', borderRadius: '4px' }}
+                                        >
+                                            {mapLoading && (
+                                                <div className="d-flex justify-content-center align-items-center h-100 w-100 bg-light bg-opacity-75">
+                                                    <div className="spinner-border text-dark" role="status">
+                                                        <span className="visually-hidden">Loading map...</span>
                                                     </div>
-                                                </Col>
-                                                <Col md={3}>
-                                                    <TimePicker
-                                                        label="Opening Time"
-                                                        value={schedule.openingTime}
-                                                        onChange={(value) => handleArrayItemChange('store.schedules', index, 'openingTime', value)}
-                                                        disabled={!schedule.open}
-                                                    />
-                                                </Col>
-                                                <Col md={3}>
-                                                    <TimePicker
-                                                        label="Closing Time"
-                                                        value={schedule.closingTime}
-                                                        onChange={(value) => handleArrayItemChange('store.schedules', index, 'closingTime', value)}
-                                                        disabled={!schedule.open}
-                                                    />
-                                                </Col>
-                                                <Col md={3} className="d-flex align-items-end">
-                                                    <ToggleSwitch
-                                                        label="Open"
-                                                        checked={schedule.open}
-                                                        onChange={(checked) => handleArrayItemChange('store.schedules', index, 'open', checked)}
-                                                    />
-                                                </Col>
-                                            </Row>
-                                        </Card.Body>
-                                    </Card>
-                                ))}
+                                                    <span className="ms-2">Loading map...</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <Form.Text className="text-muted">
+                                            Drag the map to set your store location. The marker will always stay in the center.
+                                        </Form.Text>
+                                    </Form.Group>
+                                </Col>
+                            </Row>
+
+                            <div className="mb-4">
+                                <div className="d-flex justify-content-between align-items-center mb-3">
+                                    <h6>Store Schedules</h6>
+                                    {settings.store.schedules.length < 7 && (
+                                        <Button
+                                            variant="primary"
+                                            size="sm"
+                                            onClick={() => addArrayItem('store.schedules', {
+                                                day: 'Monday',
+                                                openingTime: '09:00',
+                                                closingTime: '17:00',
+                                                open: true
+                                            })}
+                                        >
+                                            Add Schedule
+                                        </Button>
+                                    )}
+                                </div>
+
+                                {settings.store.schedules.map((schedule, index) => {
+                                    // Get available days (filter out already selected days except the current one)
+                                    const availableDays = days.filter(day =>
+                                        day === schedule.day || !settings.store.schedules.some((s, i) => i !== index && s.day === day)
+                                    );
+
+                                    return (
+                                        <Card key={index} className="mb-3">
+                                            <Card.Body>
+                                                <Row>
+                                                    <Col md={3}>
+                                                        <div style={{ marginBottom: '1rem', width: '100%' }}>
+                                                            <label style={{
+                                                                color: '#0092ff',
+                                                                fontWeight: '600',
+                                                                fontSize: '0.9rem',
+                                                                marginBottom: '0.5rem',
+                                                                display: 'block'
+                                                            }}>
+                                                                Day
+                                                            </label>
+                                                            <select
+                                                                value={schedule.day}
+                                                                onChange={(e) => handleArrayItemChange('store.schedules', index, 'day', e.target.value)}
+                                                                style={{
+                                                                    color: '#0092ff',
+                                                                    border: '1px solid #0092ff',
+                                                                    borderRadius: '6px',
+                                                                    backgroundColor: 'rgba(0, 146, 255, 0.05)',
+                                                                    cursor: 'pointer',
+                                                                    padding: '0.625rem 1rem',
+                                                                    paddingRight: '2.5rem',
+                                                                    fontSize: '0.9rem',
+                                                                    lineHeight: '1.5',
+                                                                    minHeight: '2.875rem',
+                                                                    width: '100%',
+                                                                    backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'16\' height=\'16\' fill=\'%230092ff\' viewBox=\'0 0 16 16\'%3E%3Cpath d=\'M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z\'/%3E%3C/svg%3E")',
+                                                                    backgroundRepeat: 'no-repeat',
+                                                                    backgroundPosition: 'right 1rem center',
+                                                                    backgroundSize: '16px 12px',
+                                                                    appearance: 'none',
+                                                                    transition: 'all 0.2s ease-in-out',
+                                                                    ':hover': {
+                                                                        borderColor: '#007acc',
+                                                                        backgroundColor: 'rgba(0, 146, 255, 0.08)'
+                                                                    },
+                                                                    ':focus': {
+                                                                        borderColor: '#0092ff',
+                                                                        boxShadow: '0 0 0 0.25rem rgba(0, 146, 255, 0.2)',
+                                                                        outline: 'none',
+                                                                        backgroundColor: 'rgba(0, 146, 255, 0.05)'
+                                                                    }
+                                                                }}
+                                                            >
+                                                                {availableDays.map(day => (
+                                                                    <option
+                                                                        key={day}
+                                                                        value={day}
+                                                                        style={{
+                                                                            color: '#000000ff',
+                                                                            backgroundColor: '#fff',
+                                                                            fontSize: '0.9rem',
+                                                                            padding: '0.5rem 1rem'
+                                                                        }}
+                                                                    >
+                                                                        {day}
+                                                                    </option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
+                                                    </Col>
+                                                    <Col md={3}>
+                                                        <TimePicker
+                                                            label="Opening Time"
+                                                            value={schedule.openingTime}
+                                                            onChange={(value) => handleArrayItemChange('store.schedules', index, 'openingTime', value)}
+                                                            disabled={!schedule.open}
+                                                        />
+                                                    </Col>
+                                                    <Col md={3}>
+                                                        <TimePicker
+                                                            label="Closing Time"
+                                                            value={schedule.closingTime}
+                                                            onChange={(value) => handleArrayItemChange('store.schedules', index, 'closingTime', value)}
+                                                            disabled={!schedule.open}
+                                                        />
+                                                    </Col>
+                                                    <Col md={3} className="d-flex align-items-end">
+                                                        <div className="d-flex align-items-center justify-content-between w-100">
+                                                            <ToggleSwitch
+                                                                label="Open"
+                                                                checked={schedule.open}
+                                                                onChange={(checked) => handleArrayItemChange('store.schedules', index, 'open', checked)}
+                                                            />
+                                                            <Button
+                                                                variant="danger"
+                                                                size="sm"
+                                                                onClick={() => removeArrayItem('store.schedules', index)}
+                                                                className="ms-2"
+                                                            >
+                                                                Remove
+                                                            </Button>
+                                                        </div>
+                                                    </Col>
+                                                </Row>
+                                            </Card.Body>
+                                        </Card>
+                                    );
+                                })}
                             </div>
                         </Card.Body>
                     </Card>
@@ -1526,7 +1897,7 @@ const StoreSettingsForm = () => {
                     {/* Policies */}
                     <Card className="mb-4">
                         <Card.Header className="d-flex justify-content-between align-items-center">
-                            <h5>Policies</h5>
+                            <h6>Policies</h6>
                             <Button
                                 variant="primary"
                                 size="sm"
@@ -1593,7 +1964,7 @@ const StoreSettingsForm = () => {
                     {/* Delivery Settings */}
                     <Card className="mb-4">
                         <Card.Header className="d-flex justify-content-between align-items-center">
-                            <h5>Delivery Settings</h5>
+                            <h6>Delivery Settings</h6>
                             <Button
                                 variant="primary"
                                 size="sm"
@@ -1839,7 +2210,7 @@ const StoreSettingsForm = () => {
                     {/* App Settings */}
                     <Card className="mb-4">
                         <Card.Header className="d-flex justify-content-between align-items-center">
-                            <h5>App Settings</h5>
+                            <h6>App Settings</h6>
                             <Button
                                 variant="primary"
                                 size="sm"
@@ -1898,15 +2269,28 @@ const StoreSettingsForm = () => {
                             <Row className="mb-4">
                                 <Col md={6}>
                                     <Form.Group className="mb-3">
-                                        <Form.Label>App Download Link</Form.Label>
+                                        <Form.Label>Android App Link</Form.Label>
                                         <Form.Control
                                             type="text"
-                                            value={settings.appSettings.appDownloadLink}
-                                            onChange={(e) => handleInputChange('appSettings.appDownloadLink', e.target.value)}
+                                            value={settings.appSettings.androidAppLink}
+                                            onChange={(e) => handleInputChange('appSettings.androidAppLink', e.target.value)}
                                         />
                                     </Form.Group>
                                 </Col>
                                 <Col md={6}>
+                                    <Form.Group className="mb-3">
+                                        <Form.Label>iOS App Link</Form.Label>
+                                        <Form.Control
+                                            type="text"
+                                            value={settings.appSettings.iosAppLink}
+                                            onChange={(e) => handleInputChange('appSettings.iosAppLink', e.target.value)}
+                                        />
+                                    </Form.Group>
+                                </Col>
+                            </Row>
+
+                            <Row className="mb-4">
+                                <Col md={12}>
                                     <Form.Group className="mb-3">
                                         <Form.Label>App Message</Form.Label>
                                         <Form.Control

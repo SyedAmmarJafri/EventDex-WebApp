@@ -12,6 +12,8 @@ import MenuItem from '@mui/material/MenuItem';
 import FormControl from '@mui/material/FormControl';
 import InputLabel from '@mui/material/InputLabel';
 import Modal from 'react-bootstrap/Modal';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 
 const OrderTable = () => {
     const [orders, setOrders] = useState([]);
@@ -30,7 +32,7 @@ const OrderTable = () => {
     const [isAssigning, setIsAssigning] = useState(false);
     const [activeFilter, setActiveFilter] = useState('all');
     const [mapScriptLoaded, setMapScriptLoaded] = useState(false);
-    const [map, setMap] = useState(null);
+    const [leafletLoaded, setLeafletLoaded] = useState(false);
 
     // WebSocket states
     const [wsConnected, setWsConnected] = useState(false);
@@ -42,6 +44,8 @@ const OrderTable = () => {
     const stompClientRef = useRef(null);
     const reconnectTimeoutRef = useRef(null);
     const isUnmountedRef = useRef(false);
+    const mapRef = useRef(null);
+    const markerRef = useRef(null);
 
     const skinTheme = localStorage.getItem('skinTheme') || 'light';
     const isDarkMode = skinTheme === 'dark';
@@ -377,25 +381,57 @@ const OrderTable = () => {
         return () => {
             isUnmountedRef.current = true;
             disconnectWebSocket();
+            
+            // Clean up map when component unmounts
+            if (mapRef.current) {
+                mapRef.current.remove();
+                mapRef.current = null;
+            }
         };
     }, []);
 
-    // Load Google Maps script
+    // Load Leaflet CSS and JS only once
     useEffect(() => {
-        if (!isMapModalOpen || mapScriptLoaded) return;
+        if (leafletLoaded) return;
 
-        const script = document.createElement('script');
-        script.src = 'https://maps.gomaps.pro/maps/api/js?key=AlzaSyjJx7-XhuRdZZVNN8fSCQ0mXdv86fLHGZc&libraries=places&callback=initMap';
-        script.async = true;
-        script.defer = true;
-        script.onload = () => setMapScriptLoaded(true);
-        script.onerror = () => showErrorToast('Failed to load Google Maps');
-        document.head.appendChild(script);
+        // Check if Leaflet is already loaded
+        if (typeof L !== 'undefined') {
+            setLeafletLoaded(true);
+            setMapScriptLoaded(true);
+            return;
+        }
+
+        // Load Leaflet CSS
+        const leafletCSS = document.createElement('link');
+        leafletCSS.rel = 'stylesheet';
+        leafletCSS.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+        leafletCSS.integrity = 'sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=';
+        leafletCSS.crossOrigin = '';
+        document.head.appendChild(leafletCSS);
+
+        // Load Leaflet JS
+        const leafletJS = document.createElement('script');
+        leafletJS.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+        leafletJS.integrity = 'sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=';
+        leafletJS.crossOrigin = '';
+        leafletJS.onload = () => {
+            setLeafletLoaded(true);
+            setMapScriptLoaded(true);
+        };
+        leafletJS.onerror = () => {
+            showErrorToast('Failed to load Leaflet map library');
+            setLeafletLoaded(false);
+            setMapScriptLoaded(false);
+        };
+        document.head.appendChild(leafletJS);
 
         return () => {
-            document.head.removeChild(script);
+            // Only remove if no other components are using Leaflet
+            if (document.head.contains(leafletCSS)) {
+                document.head.removeChild(leafletCSS);
+            }
         };
-    }, [isMapModalOpen, mapScriptLoaded]);
+    }, [leafletLoaded]);
 
     // Initialize map when modal opens and script is loaded
     useEffect(() => {
@@ -404,181 +440,126 @@ const OrderTable = () => {
         }
 
         return () => {
-            if (map) {
-                setMap(null);
+            // Clean up map when modal closes
+            if (mapRef.current) {
+                mapRef.current.remove();
+                mapRef.current = null;
+            }
+            if (markerRef.current) {
+                markerRef.current = null;
             }
         };
     }, [isMapModalOpen, mapScriptLoaded, selectedOrder]);
 
     const initMap = () => {
         if (!selectedOrder || !hasDeliveryLocation(selectedOrder)) return;
+        
+        // Check if map already exists and remove it
+        if (mapRef.current) {
+            mapRef.current.remove();
+            mapRef.current = null;
+        }
+        
+        // Check if container exists
+        const mapContainer = document.getElementById('osm-map');
+        if (!mapContainer) return;
+        
+        // Clear any existing map content
+        while (mapContainer.firstChild) {
+            mapContainer.removeChild(mapContainer.firstChild);
+        }
 
         const deliveryLat = parseFloat(selectedOrder.deliveryLatitude);
         const deliveryLng = parseFloat(selectedOrder.deliveryLongitude);
 
-        const mapOptions = {
-            center: { lat: deliveryLat, lng: deliveryLng },
+        // Initialize the map
+        const mapInstance = L.map('osm-map', {
+            center: [deliveryLat, deliveryLng],
             zoom: 15,
-            styles: isDarkMode ? darkMapStyles : [],
-            mapTypeControl: false,
-            streetViewControl: false,
-            fullscreenControl: true,
-        };
-
-        const mapInstance = new window.google.maps.Map(document.getElementById("google-map"), mapOptions);
-        setMap(mapInstance);
-
-        const markerIcon = {
-            url: '/images/home_marker.png',
-            scaledSize: new window.google.maps.Size(40, 40),
-            origin: new window.google.maps.Point(0, 0),
-            anchor: new window.google.maps.Point(20, 40)
-        };
-
-        const marker = new window.google.maps.Marker({
-            position: { lat: deliveryLat, lng: deliveryLng },
-            map: mapInstance,
-            title: `Order #${selectedOrder.orderNumber}`,
-            icon: markerIcon
+            zoomControl: false,
+            attributionControl: false
         });
 
-        const infoWindow = new window.google.maps.InfoWindow({
-            content: `
+        // Add OSM tile layer
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: ''
+        }).addTo(mapInstance);
+
+        // Add a small attribution control at the bottom right
+        L.control.attribution({
+            position: 'bottomright'
+        }).addTo(mapInstance);
+
+        // Create custom icon
+        const customIcon = L.icon({
+            iconUrl: '/images/home_marker.png',
+            iconSize: [40, 40],
+            iconAnchor: [20, 40],
+            popupAnchor: [0, -40]
+        });
+
+        // Add marker with custom icon
+        const markerInstance = L.marker([deliveryLat, deliveryLng], { icon: customIcon }).addTo(mapInstance);
+
+        // Create popup content
+        const popupContent = `
+            <div style="
+                color: ${isDarkMode ? '#f0f0f0' : '#444'};
+                font-family: 'Roboto', Arial, sans-serif;
+                min-width: 250px;
+                padding: 12px;
+                background: ${isDarkMode ? '#10142c' : '#fff'};
+                border-radius: 8px;
+            ">
                 <div style="
-                    color: ${isDarkMode ? '#f0f0f0' : '#333'};
-                    font-family: 'Roboto', Arial, sans-serif;
-                    min-width: 250px;
-                    padding: 12px;
-                    background: ${isDarkMode ? '#2d2d2d' : '#fff'};
-                    border-radius: 8px;
-                    box-shadow: 0 2px 7px rgba(0,0,0,0.3);
+                    font-size: 18px;
+                    font-weight: 600;
+                    margin-bottom: 8px;
+                    color: ${isDarkMode ? '#fff' : '#444'};
+                    border-bottom: 1px solid ${isDarkMode ? '#444' : '#eee'};
+                    padding-bottom: 6px;
                 ">
-                    <div style="
-                        font-size: 18px;
-                        font-weight: 600;
-                        margin-bottom: 8px;
-                        color: ${isDarkMode ? '#fff' : '#1a73e8'};
-                        border-bottom: 1px solid ${isDarkMode ? '#444' : '#eee'};
-                        padding-bottom: 6px;
-                    ">
-                        Order #${selectedOrder.orderNumber}
+                    Order #${selectedOrder.orderNumber}
+                </div>
+                <div style="margin-bottom: 10px;">
+                    <div style="display: flex; margin-bottom: 4px;">
+                        <span style="flex: 1; font-weight: 500; color: ${isDarkMode ? '#bbb' : '#666'}">Customer:</span>
+                        <span style="flex: 1">${selectedOrder.customerName || 'Walk-in Customer'}</span>
                     </div>
-                    <div style="margin-bottom: 10px;">
-                        <div style="display: flex; margin-bottom: 4px;">
-                            <span style="flex: 1; font-weight: 500; color: ${isDarkMode ? '#bbb' : '#666'}">Customer:</span>
-                            <span style="flex: 1">${selectedOrder.customerName || 'Walk-in Customer'}</span>
-                        </div>
-                        <div style="display: flex; margin-bottom: 4px;">
-                            <span style="flex: 1; font-weight: 500; color: ${isDarkMode ? '#bbb' : '#666'}">Status:</span>
-                            <span style="flex: 1; color: ${selectedOrder.status === 'COMPLETED' ? '#0f9d58' :
-                    selectedOrder.status === 'PENDING' ? '#f4b400' :
-                        selectedOrder.status === 'CANCELLED' ? '#db4437' :
-                            isDarkMode ? '#fff' : '#333'
-                }">
-                                ${selectedOrder.status}
-                            </span>
-                        </div>
-                        <div style="display: flex; margin-bottom: 4px;">
-                            <span style="flex: 1; font-weight: 500; color: ${isDarkMode ? '#bbb' : '#666'}">Total:</span>
-                            <span style="flex: 1; font-weight: 600">${currencySymbol}${selectedOrder.totalAmount?.toFixed(2)}</span>
-                        </div>
+                    <div style="display: flex; margin-bottom: 4px;">
+                        <span style="flex: 1; font-weight: 500; color: ${isDarkMode ? '#bbb' : '#666'}">Status:</span>
+                        <span style="flex: 1; color: ${selectedOrder.status === 'COMPLETED' ? '#0f9d58' :
+                selectedOrder.status === 'PENDING' ? '#f4b400' :
+                    selectedOrder.status === 'CANCELLED' ? '#db4437' :
+                        isDarkMode ? '#fff' : '#333'
+            }">
+                            ${selectedOrder.status}
+                        </span>
                     </div>
-                    <div style="
-                        background: ${isDarkMode ? '#383838' : '#f8f9fa'};
-                        padding: 8px;
-                        border-radius: 4px;
-                        font-size: 14px;
-                    ">
-                        <div style="font-weight: 500; margin-bottom: 4px; color: ${isDarkMode ? '#bbb' : '#666'}">Delivery Address:</div>
-                        <div>${selectedOrder.deliveryAddress}</div>
+                    <div style="display: flex; margin-bottom: 4px;">
+                        <span style="flex: 1; font-weight: 500; color: ${isDarkMode ? '#bbb' : '#666'}">Total:</span>
+                        <span style="flex: 1; font-weight: 600">${currencySymbol}${selectedOrder.totalAmount?.toFixed(2)}</span>
                     </div>
                 </div>
-            `,
-        });
+                <div style="
+                    background: ${isDarkMode ? '#10142c' : '#f8f9fa'};
+                    padding: 8px;
+                    border-radius: 4px;
+                    font-size: 14px;
+                ">
+                    <div style="font-weight: 500; margin-bottom: 4px; color: ${isDarkMode ? '#bbb' : '#444'}">Delivery Address:</div>
+                    <div>${selectedOrder.deliveryAddress}</div>
+                </div>
+            </div>
+        `;
 
-        infoWindow.open(mapInstance, marker);
+        // Bind popup to marker
+        markerInstance.bindPopup(popupContent).openPopup();
+
+        // Store references for cleanup
+        mapRef.current = mapInstance;
+        markerRef.current = markerInstance;
     };
-
-    const darkMapStyles = [
-        { elementType: "geometry", stylers: [{ color: "#242f3e" }] },
-        { elementType: "labels.text.stroke", stylers: [{ color: "#242f3e" }] },
-        { elementType: "labels.text.fill", stylers: [{ color: "#746855" }] },
-        {
-            featureType: "administrative.locality",
-            elementType: "labels.text.fill",
-            stylers: [{ color: "#d59563" }],
-        },
-        {
-            featureType: "poi",
-            elementType: "labels.text.fill",
-            stylers: [{ color: "#d59563" }],
-        },
-        {
-            featureType: "poi.park",
-            elementType: "geometry",
-            stylers: [{ color: "#263c3f" }],
-        },
-        {
-            featureType: "poi.park",
-            elementType: "labels.text.fill",
-            stylers: [{ color: "#6b9a76" }],
-        },
-        {
-            featureType: "road",
-            elementType: "geometry",
-            stylers: [{ color: "#38414e" }],
-        },
-        {
-            featureType: "road",
-            elementType: "geometry.stroke",
-            stylers: [{ color: "#212a37" }],
-        },
-        {
-            featureType: "road",
-            elementType: "labels.text.fill",
-            stylers: [{ color: "#9ca5b3" }],
-        },
-        {
-            featureType: "road.highway",
-            elementType: "geometry",
-            stylers: [{ color: "#746855" }],
-        },
-        {
-            featureType: "road.highway",
-            elementType: "geometry.stroke",
-            stylers: [{ color: "#1f2835" }],
-        },
-        {
-            featureType: "road.highway",
-            elementType: "labels.text.fill",
-            stylers: [{ color: "#f3d19c" }],
-        },
-        {
-            featureType: "transit",
-            elementType: "geometry",
-            stylers: [{ color: "#2f3948" }],
-        },
-        {
-            featureType: "transit.station",
-            elementType: "labels.text.fill",
-            stylers: [{ color: "#d59563" }],
-        },
-        {
-            featureType: "water",
-            elementType: "geometry",
-            stylers: [{ color: "#17263c" }],
-        },
-        {
-            featureType: "water",
-            elementType: "labels.text.fill",
-            stylers: [{ color: "#515c6d" }],
-        },
-        {
-            featureType: "water",
-            elementType: "labels.text.stroke",
-            stylers: [{ color: "#17263c" }],
-        },
-    ];
 
     const EmptyState = () => {
         return (
@@ -602,10 +583,6 @@ const OrderTable = () => {
                 </div>
                 <h5 className="mb-2">No Orders Found</h5>
                 <p className="text-muted mb-4">Your order list is currently empty. New orders will appear here.</p>
-                <small className="text-muted">
-                    Connection: {wsConnected ? 'WebSocket (Real-time)' : 'API'}
-                    {wsError && ' (WebSocket failed)'}
-                </small>
             </div>
         );
     };
@@ -1058,7 +1035,7 @@ const OrderTable = () => {
                                     <Skeleton
                                         width={100}
                                         baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
-                                        highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
+                                        highlightColor={isDarkMode ? "#334155" : '#ecebeb'}
                                     />
                                 </td>
                                 <td>
@@ -1900,7 +1877,7 @@ const OrderTable = () => {
                     <Modal.Body style={{ padding: 0, height: '500px' }}>
                         {selectedOrder && hasDeliveryLocation(selectedOrder) && (
                             <div
-                                id="google-map"
+                                id="osm-map"
                                 style={{
                                     height: '100%',
                                     width: '100%',
@@ -1984,8 +1961,8 @@ const OrderTable = () => {
     border-color: #1e293b;
 }
 
-/* Google Maps container styling */
-#google-map {
+/* OSM map container styling */
+#osm-map {
     height: 100%;
     width: 100%;
 }
@@ -2003,6 +1980,25 @@ const OrderTable = () => {
 @keyframes spin {
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
+}
+
+/* Leaflet map customizations */
+.leaflet-container {
+    font-family: inherit;
+}
+
+.leaflet-popup-content-wrapper {
+    border-radius: 8px;
+}
+
+.leaflet-popup-content {
+    margin: 12px;
+    line-height: 1.4;
+}
+
+.leaflet-control-attribution {
+    font-size: 9px;
+    background-color: rgba(255, 255, 255, 0.8) !important;
 }`}
                 </style>
             </>

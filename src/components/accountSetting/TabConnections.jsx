@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { BASE_URL } from '/src/constants.js';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -368,7 +368,7 @@ const TabConnections = () => {
             <div className="tab-pane fade show active" id="connectionTab" role="tabpanel">
                 <div className="text-center p-4">
                     <h5 className="text-danger">Access Denied</h5>
-                    <p>You don't have permission to view this section.</p>
+                    <p>You don&apos;t have permission to view this section.</p>
                 </div>
             </div>
         );
@@ -612,7 +612,7 @@ const TabConnections = () => {
 
             <ToastContainer
                 position="bottom-center"
-                autoClose={5000}
+                autoClose={2000}
                 hideProgressBar={false}
                 newestOnTop={false}
                 closeOnClick

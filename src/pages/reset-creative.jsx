@@ -1,4 +1,3 @@
-import React from 'react'
 import ResetForm from '@/components/authentication/ResetForm'
 
 const ResetCreative = () => {

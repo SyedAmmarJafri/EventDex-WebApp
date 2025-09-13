@@ -678,7 +678,7 @@ const TimesheetsModal = () => {
                     </div>
 
                     <div className="text-center timesheets-footer">
-                        <Link to="/orders/list" className="fs-13 fw-semibold text-dark">View All Orders</Link>
+                        <Link to="/orders" className="fs-13 fw-semibold text-dark">View All Orders</Link>
                     </div>
                 </div>
 
@@ -915,7 +915,7 @@ const OrderDetailsModal = ({ show, onHide, order, onAccept, onReject }) => {
                                     {order.discountAmount > 0 && (
                                         <div className="d-flex justify-content-between mb-2">
                                             <h6>Discount:</h6>
-                                            <h6 className="text-danger">-${order.discountAmount.toFixed(2)}</h6>
+                                            <h6 className="text-danger">-{currencySymbol}{order.discountAmount.toFixed(2)}</h6>
                                         </div>
                                     )}
                                     {order.gstAmount > 0 && (

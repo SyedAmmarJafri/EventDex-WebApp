@@ -1,4 +1,3 @@
-import React from 'react'
 import LeadssTable from '@/components/finance/LeadsTable'
 import Footer from '@/components/shared/Footer'
 

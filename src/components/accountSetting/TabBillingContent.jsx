@@ -1,4 +1,3 @@
-import React from 'react'
 import { FiAlertOctagon, FiCheck, FiEye, FiMoreVertical, FiSend } from 'react-icons/fi';
 
 const TabBillingContent = ({billingHistoryshow}) => {

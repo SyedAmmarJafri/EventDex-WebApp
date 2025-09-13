@@ -1,6 +1,6 @@
 import { Fragment, useState, useEffect, useCallback } from 'react'
 import { FiDollarSign, FiLogOut, FiSettings, FiUser, FiX } from "react-icons/fi"
-import { useNavigate, Link } from 'react-router-dom' // Added Link import
+import { useNavigate, Link } from 'react-router-dom'
 import Button from '@mui/material/Button'
 import { BASE_URL } from '/src/constants.js';
 import Modal from 'react-bootstrap/Modal';
@@ -10,18 +10,17 @@ const ProfileModal = () => {
     const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false)
     const [notification, setNotification] = useState(null)
     const [profilePicture, setProfilePicture] = useState('')
-    
+
     // Timeout durations
     const ABSOLUTE_TIMEOUT = 24 * 60 * 60 * 1000; // 24 hours
     const INACTIVITY_TIMEOUT = 2 * 60 * 60 * 1000; // 2 hours
-    
+
     // Theme settings
     const skinTheme = localStorage.getItem('skinTheme') || 'light'
     const isDarkMode = skinTheme === 'dark'
 
     // Activity tracking
     const [lastActivity, setLastActivity] = useState(Date.now());
-    const [loginTime] = useState(Date.now());
 
     // Reset timers on activity
     const resetInactivityTimer = useCallback(() => {
@@ -30,7 +29,7 @@ const ProfileModal = () => {
 
     const setupActivityListeners = useCallback(() => {
         const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
-        
+
         events.forEach(event => {
             window.addEventListener(event, resetInactivityTimer);
         });
@@ -48,6 +47,13 @@ const ProfileModal = () => {
                 const authData = JSON.parse(localStorage.getItem('authData'))
                 if (!authData?.token) throw new Error('No authentication token found')
 
+                // Check if profile picture exists in localStorage
+                const cachedProfilePicture = localStorage.getItem('profilePicture');
+                if (cachedProfilePicture) {
+                    setProfilePicture(cachedProfilePicture);
+                    return;
+                }
+
                 const response = await fetch(`${BASE_URL}/api/client-admin/profile/picture`, {
                     method: 'GET',
                     headers: {
@@ -56,19 +62,29 @@ const ProfileModal = () => {
                     }
                 })
 
-                const data = await response.json()
-                if (!response.ok) throw new Error(data.message || 'Failed to fetch profile picture')
-                setProfilePicture(data.data)
+                // Check if response is successful
+                if (response.ok) {
+                    const data = await response.json()
+                    setProfilePicture(data.data)
+                    // Store in localStorage for future use
+                    localStorage.setItem('profilePicture', data.data);
+                } else if (response.status === 404 || response.status === 488 || response.status === 400) {
+                    // Handle case where profile picture doesn't exist
+                    setProfilePicture(null) // Set to null to use fallback avatar
+                } else {
+                    throw new Error(`Failed to fetch profile picture: ${response.status}`)
+                }
             } catch (error) {
                 console.error('Error fetching profile picture:', error)
+                setProfilePicture(null) // Ensure fallback avatar is used on error
             }
         }
 
         fetchProfilePicture()
-        
+
         // Set up activity listeners
         const cleanupListeners = setupActivityListeners();
-        
+
         // Set up timers
         const absoluteTimeout = setTimeout(() => {
             handleAutoLogout('Your session has expired after 24 hours');
@@ -117,6 +133,8 @@ const ProfileModal = () => {
             const data = await response.json()
             if (!response.ok) throw new Error(data.message || 'Logout failed')
 
+            // Remove profile picture from localStorage on logout
+            localStorage.removeItem('profilePicture');
             localStorage.removeItem('authData')
             showNotification(data.message || 'Logged out successfully', 'success')
 
@@ -138,7 +156,9 @@ const ProfileModal = () => {
         return permissions.includes(permission);
     }
 
-    const getAvatar = () => profilePicture || "/images/avatar/1.png";
+    const getAvatar = () => {
+        return profilePicture || "/images/avatar/undefined-profile.png";
+    }
 
     return (
         <Fragment>
@@ -149,13 +169,13 @@ const ProfileModal = () => {
                         alt="user-image"
                         className="img-fluid user-avtar me-0"
                         style={{
-                            width: '48px',
-                            height: '48px',
-                            borderRadius: '8px',
+                            width: '50px',
+                            height: '50px',
+                            borderRadius: '50%',
                             objectFit: 'cover',
-                            boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                            border: '1px solid #6b7280'
                         }}
-                    />                
+                    />
                 </a>
                 <div className="dropdown-menu dropdown-menu-end nxl-h-dropdown nxl-user-dropdown">
                     <div className="dropdown-header">
@@ -165,11 +185,11 @@ const ProfileModal = () => {
                                 alt={`${name}'s avatar`}
                                 className="img-fluid user-avatar"
                                 style={{
-                                    width: '48px',
-                                    height: '48px',
-                                    borderRadius: '8px',
+                                    width: '50px',
+                                    height: '50px',
+                                    borderRadius: '50%',
                                     objectFit: 'cover',
-                                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                                    border: '1px solid #6b7280'
                                 }}
                             />
                             <div className="d-flex flex-column">
@@ -183,7 +203,7 @@ const ProfileModal = () => {
                             </div>
                         </div>
                     </div>
-                    
+
                     {/* Updated to use Link component for hash routing */}
                     {(role === 'CLIENT_ADMIN' || hasPermission('PROFILE_UPDATE')) && (
                         <Link to="/account" className="dropdown-item">
@@ -191,22 +211,26 @@ const ProfileModal = () => {
                             <span>Account Information</span>
                         </Link>
                     )}
-                    
+
                     {role === 'CLIENT_ADMIN' && (
                         <Link to="/account" className="dropdown-item">
                             <i><FiDollarSign /></i>
                             <span>Subscription & Plan</span>
                         </Link>
                     )}
-                    
+
                     {(role === 'CLIENT_ADMIN' || hasPermission('TAX_READ') || hasPermission('CURRENCY_READ')) && (
                         <Link to="/account" className="dropdown-item">
                             <i><FiSettings /></i>
                             <span>System Settings</span>
                         </Link>
                     )}
-                    
-                    <a href="#" className="dropdown-item" onClick={() => setIsConfirmModalOpen(true)}>
+
+                    <a
+                        className="dropdown-item"
+                        style={{ cursor: "pointer" }}
+                        onClick={() => setIsConfirmModalOpen(true)}
+                    >
                         <i><FiLogOut /></i>
                         <span>Logout</span>
                     </a>
@@ -269,8 +293,8 @@ const ProfileModal = () => {
                         minWidth: '300px',
                         maxWidth: '90%',
                         zIndex: 1000,
-                        backgroundColor: notification.type === 'success' ? '#28a745' : 
-                                          notification.type === 'error' ? '#dc3545' : '#17a2b8',
+                        backgroundColor: notification.type === 'success' ? '#28a745' :
+                            notification.type === 'error' ? '#dc3545' : '#17a2b8',
                         boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
                         animation: 'slideIn 0.3s ease-out'
                     }}

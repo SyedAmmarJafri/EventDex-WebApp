@@ -1,4 +1,4 @@
-import React, { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { FiChevronRight } from "react-icons/fi";
 import { Link, useLocation } from "react-router-dom";
 import getIcon from "@/utils/getIcon";
@@ -334,7 +334,7 @@ export const menuList = [
     },
     {
         id: 11,
-        name: "Live Tracker",
+        name: "Live Tracking",
         path: "/tracker",
         icon: 'feather-map-pin',
         dropdownMenu: []

@@ -39,6 +39,10 @@ const TemplatesTable = () => {
     const [configFormErrors, setConfigFormErrors] = useState({});
     const [activeTab, setActiveTab] = useState('edit');
     const [editActiveTab, setEditActiveTab] = useState('edit');
+    const [creating, setCreating] = useState(false);
+    const [updating, setUpdating] = useState(false);
+    const [deleting, setDeleting] = useState(false);
+    const [configuring, setConfiguring] = useState(false);
     const skinTheme = localStorage.getItem('skinTheme') || 'light';
     const isDarkMode = skinTheme === 'dark';
 
@@ -133,7 +137,7 @@ const TemplatesTable = () => {
                     </svg>
                 </div>
                 <h5 className="mb-2">No Templates Found</h5>
-                <p className="text-muted mb-4">You haven't created any templates yet. Start by adding a new template.</p>
+                <p className="text-muted mb-4">You haven&apos;t created any templates yet. Start by adding a new template.</p>
                 {canWrite && (
                     <Button
                         variant="contained"
@@ -275,6 +279,7 @@ const TemplatesTable = () => {
         if (!validateConfigForm(emailConfig)) return;
 
         try {
+            setConfiguring(true);
             const response = await fetch(`${BASE_URL}/api/admin/marketing/email-configuration`, {
                 method: 'POST',
                 headers: {
@@ -299,6 +304,8 @@ const TemplatesTable = () => {
             setIsConfigModalOpen(false);
         } catch (err) {
             toast.error(err.message);
+        } finally {
+            setConfiguring(false);
         }
     };
 
@@ -307,6 +314,7 @@ const TemplatesTable = () => {
         if (!validateForm(newTemplate, setFormErrors)) return;
 
         try {
+            setCreating(true);
             const response = await fetch(`${BASE_URL}/api/admin/marketing/templates`, {
                 method: 'POST',
                 headers: {
@@ -334,6 +342,8 @@ const TemplatesTable = () => {
             setActiveTab('edit');
         } catch (err) {
             toast.error(err.message);
+        } finally {
+            setCreating(false);
         }
     };
 
@@ -342,6 +352,7 @@ const TemplatesTable = () => {
         if (!validateForm(editTemplate, setEditFormErrors)) return;
 
         try {
+            setUpdating(true);
             const response = await fetch(`${BASE_URL}/api/admin/marketing/templates/${editTemplate.id}`, {
                 method: 'PUT',
                 headers: {
@@ -368,6 +379,8 @@ const TemplatesTable = () => {
             setEditActiveTab('edit');
         } catch (err) {
             toast.error(err.message);
+        } finally {
+            setUpdating(false);
         }
     };
 
@@ -393,6 +406,7 @@ const TemplatesTable = () => {
 
     const handleDeleteTemplate = async () => {
         try {
+            setDeleting(true);
             // Optimistically update the UI
             const updatedTemplates = templates.filter(t => t.id !== templateToDelete.id);
             setTemplates(updatedTemplates);
@@ -435,6 +449,8 @@ const TemplatesTable = () => {
                 progress: undefined,
                 theme: "colored",
             });
+        } finally {
+            setDeleting(false);
         }
     };
 
@@ -652,17 +668,25 @@ const TemplatesTable = () => {
                                 {formErrors.content && <div className="invalid-feedback">{formErrors.content}</div>}
                             </div>
                         </form>
-                        <h8 className="form-text mb-2">
+                        <p className="text-dark form-text mb-2">
                             HTML code is supported. Switch between tabs to edit and preview.
-                        </h8>
+                        </p>
                     </Modal.Body>
                     <Modal.Footer>
                         <Button
                             variant="contained"
                             onClick={handleSubmit}
                             style={{ backgroundColor: '#1976d2', color: 'white' }}
+                            disabled={creating}
                         >
-                            Create
+                            {creating ? (
+                                <>
+                                    <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                    Creating...
+                                </>
+                            ) : (
+                                'Create'
+                            )}
                         </Button>
                     </Modal.Footer>
                 </Modal>
@@ -746,17 +770,25 @@ const TemplatesTable = () => {
                                 {editFormErrors.content && <div className="invalid-feedback">{editFormErrors.content}</div>}
                             </div>
                         </form>
-                        <h8 className="form-text mb-2">
+                        <p className="text-dark form-text mb-2">
                             HTML code is supported. Switch between tabs to edit and preview.
-                        </h8>
+                        </p>
                     </Modal.Body>
                     <Modal.Footer>
                         <Button
                             variant="contained"
                             onClick={handleEditSubmit}
                             style={{ backgroundColor: '#1976d2', color: 'white' }}
+                            disabled={updating}
                         >
-                            Update
+                            {updating ? (
+                                <>
+                                    <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                    Updating...
+                                </>
+                            ) : (
+                                'Update'
+                            )}
                         </Button>
                     </Modal.Footer>
                 </Modal>
@@ -773,11 +805,11 @@ const TemplatesTable = () => {
                             <div>
                                 <div className="mb-4">
                                     <h5>Name</h5>
-                                    <h8>{selectedTemplate.name}</h8>
+                                    <p className="text-dark">{selectedTemplate.name}</p>
                                 </div>
                                 <div className="mb-4">
                                     <h5>Subject</h5>
-                                    <h8>{selectedTemplate.subject}</h8>
+                                    <p className="text-dark">{selectedTemplate.subject}</p>
                                 </div>
                                 <div className="mb-4">
                                     <h5>Content</h5>
@@ -790,11 +822,11 @@ const TemplatesTable = () => {
                                 <div className="row mb-4">
                                     <div className="col-md-6">
                                         <h5>Created At</h5>
-                                        <h8>{new Date(selectedTemplate.createdAt).toLocaleString()}</h8>
+                                        <p className="text-dark">{new Date(selectedTemplate.createdAt).toLocaleString()}</p>
                                     </div>
                                     <div className="col-md-6">
                                         <h5>Updated At</h5>
-                                        <h8>{new Date(selectedTemplate.updatedAt).toLocaleString()}</h8>
+                                        <p className="text-dark">{new Date(selectedTemplate.updatedAt).toLocaleString()}</p>
                                     </div>
                                 </div>
                             </div>
@@ -805,16 +837,20 @@ const TemplatesTable = () => {
 
             {/* Delete Confirmation Modal */}
             {canDelete && (
-                <Modal show={isDeleteModalOpen} onHide={() => setIsDeleteModalOpen(false)} centered>
-                    <Modal.Header closeButton>
+                <Modal show={isDeleteModalOpen} onHide={() => {
+                    if (!deleting) {
+                        setIsDeleteModalOpen(false);
+                    }
+                }} centered>
+                    <Modal.Header closeButton={!deleting}>
                         <Modal.Title>Delete Template</Modal.Title>
                     </Modal.Header>
                     <Modal.Body>
                         {templateToDelete && (
-                            <>
-                                <h8>Are you sure you want to delete the template <strong>{templateToDelete.name}</strong>? </h8>
-                                <h8>This action cannot be undone.</h8>
-                            </>
+                            <p className="text-dark">
+                                Are you sure you want to delete the template <strong>{templateToDelete.name}</strong>?
+                                This action cannot be undone.
+                            </p>
                         )}
                     </Modal.Body>
                     <Modal.Footer>
@@ -822,8 +858,16 @@ const TemplatesTable = () => {
                             variant="contained"
                             onClick={handleDeleteTemplate}
                             style={{ backgroundColor: '#d32f2f', color: 'white' }}
+                            disabled={deleting}
                         >
-                            Delete
+                            {deleting ? (
+                                <>
+                                    <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                    Deleting...
+                                </>
+                            ) : (
+                                'Delete'
+                            )}
                         </Button>
                     </Modal.Footer>
                 </Modal>
@@ -865,9 +909,9 @@ const TemplatesTable = () => {
                                     placeholder="Enter new app password"
                                 />
                                 {configFormErrors.appPassword && <div className="invalid-feedback">{configFormErrors.appPassword}</div>}
-                                <h8 className="form-text">
+                                <p className="text-dark form-text">
                                     Note: This is the app-specific password for your email account, not your regular password.
-                                </h8>
+                                </p>
                             </div>
                         </form>
                     </Modal.Body>
@@ -876,8 +920,16 @@ const TemplatesTable = () => {
                             variant="contained"
                             onClick={handleConfigSubmit}
                             style={{ backgroundColor: '#1976d2', color: 'white' }}
+                            disabled={configuring}
                         >
-                            Save Configuration
+                            {configuring ? (
+                                <>
+                                    <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                    Saving...
+                                </>
+                            ) : (
+                                'Save Configuration'
+                            )}
                         </Button>
                     </Modal.Footer>
                 </Modal>

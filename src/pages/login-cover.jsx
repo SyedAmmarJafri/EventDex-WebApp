@@ -1,4 +1,3 @@
-import React from 'react'
 import LoginForm from '@/components/authentication/LoginForm'
 
 const LoginCover = () => {
@@ -23,7 +22,7 @@ const LoginCover = () => {
                 style={{ width: '300px', maxWidth: '100%' }}
               />
             </div>
-            <LoginForm registerPath={"/authentication/register/cover"} resetPath={"/authentication/reset/cover"}/>
+            <LoginForm registerPath={"/register"} resetPath={"/reset"}/>
           </div>
         </div>
       </div>

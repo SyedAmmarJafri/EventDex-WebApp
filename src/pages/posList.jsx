@@ -1,4 +1,3 @@
-import React from 'react'
 import PossTable from '@/components/pos/PosTable'
 const LeadsList = () => {
     return (

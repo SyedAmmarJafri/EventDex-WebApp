@@ -92,6 +92,9 @@ const RolesTable = () => {
     const [editFormErrors, setEditFormErrors] = useState({});
     const skinTheme = localStorage.getItem('skinTheme') || 'light';
     const isDarkMode = skinTheme === 'dark';
+    const [creating, setCreating] = useState(false);
+    const [updating, setUpdating] = useState(false);
+    const [deleting, setDeleting] = useState(false);
 
     // Get user role and permissions from authData
     const authData = JSON.parse(localStorage.getItem("authData"));
@@ -337,7 +340,7 @@ const RolesTable = () => {
                     </svg>
                 </div>
                 <h5 className="mb-2">No Roles Found</h5>
-                <p className="text-muted mb-4">You haven't added any roles yet. Start by adding a new role.</p>
+                <p className="text-muted mb-4">You haven&apos;t added any roles yet. Start by adding a new role.</p>
                 {canCreateRoles && (
                     <Button
                         variant="contained"
@@ -434,7 +437,7 @@ const RolesTable = () => {
 
     const handleTabPermissionChange = (tab, isChecked) => {
         if (tab === 'dashboard') return;
-        
+
         setNewRole(prev => ({
             ...prev,
             tabPermissions: {
@@ -446,7 +449,7 @@ const RolesTable = () => {
 
     const handleEditTabPermissionChange = (tab, isChecked) => {
         if (tab === 'dashboard') return;
-        
+
         setEditRole(prev => ({
             ...prev,
             tabPermissions: {
@@ -465,7 +468,7 @@ const RolesTable = () => {
         const hasTabPermission = Object.entries(formData.tabPermissions)
             .filter(([tab]) => tab !== 'dashboard')
             .some(([_, val]) => val);
-            
+
         if (!hasTabPermission) errors.tabPermissions = 'At least one tab access (other than Dashboard) must be selected';
 
         setErrors(errors);
@@ -477,6 +480,7 @@ const RolesTable = () => {
         if (!validateForm(newRole, setFormErrors)) return;
 
         try {
+            setCreating(true);
             const authData = JSON.parse(localStorage.getItem("authData"));
 
             const response = await fetch(`${BASE_URL}/api/client-admin/roles`, {
@@ -515,6 +519,8 @@ const RolesTable = () => {
             });
         } catch (err) {
             toast.error(err.message);
+        } finally {
+            setCreating(false);
         }
     };
 
@@ -523,6 +529,7 @@ const RolesTable = () => {
         if (!validateForm(editRole, setEditFormErrors)) return;
 
         try {
+            setUpdating(true);
             const authData = JSON.parse(localStorage.getItem("authData"));
 
             const response = await fetch(`${BASE_URL}/api/client-admin/roles/${editRole.id}`, {
@@ -550,6 +557,8 @@ const RolesTable = () => {
             setIsEditModalOpen(false);
         } catch (err) {
             toast.error(err.message);
+        } finally {
+            setUpdating(false);
         }
     };
 
@@ -564,7 +573,7 @@ const RolesTable = () => {
             name: role.name,
             description: role.description,
             permissions: role.permissions || [],
-            tabPermissions: { 
+            tabPermissions: {
                 ...TAB_PERMISSIONS.reduce((acc, tab) => {
                     acc[tab.toLowerCase()] = tab === 'DASHBOARD' ? true : false;
                     return acc;
@@ -587,6 +596,7 @@ const RolesTable = () => {
         if (!roleToDelete) return;
 
         try {
+            setDeleting(true);
             const authData = JSON.parse(localStorage.getItem("authData"));
 
             // Optimistic update
@@ -613,6 +623,7 @@ const RolesTable = () => {
             toast.error(err.message);
         } finally {
             setRoleToDelete(null);
+            setDeleting(false);
         }
     };
 
@@ -713,7 +724,7 @@ const RolesTable = () => {
                     </svg>
                 </div>
                 <h5 className="mb-2">Access Denied</h5>
-                <p className="text-muted mb-4">You don't have permission to view roles.</p>
+                <p className="text-muted mb-4">You don&apos;t have permission to view roles.</p>
             </div>
         );
     }
@@ -787,10 +798,40 @@ const RolesTable = () => {
                                 id="roleType"
                                 onChange={handleRoleTypeChange}
                                 value={newRole.isCustomRole ? 'OTHER' : newRole.name || ''}
+                                style={{
+                                    backgroundColor: 'transparent',
+                                    cursor: 'pointer',
+                                    paddingRight: '2.5rem',
+                                    backgroundImage:
+                                        'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'16\' height=\'16\' fill=\'%230092ff\' viewBox=\'0 0 16 16\'%3E%3Cpath d=\'M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z\'/%3E%3C/svg%3E")',
+                                    backgroundRepeat: 'no-repeat',
+                                    backgroundPosition: 'right 0.75rem center',
+                                    backgroundSize: '16px 12px',
+                                    appearance: 'none',
+                                }}
                             >
-                                <option value="">Select a role type</option>
+                                <option
+                                    value=""
+                                    style={{
+                                        color: '#6c757d',
+                                        backgroundColor: '#fff',
+                                        fontSize: '0.9rem',
+                                        padding: '0.5rem 1rem',
+                                    }}
+                                >
+                                    Select a role type
+                                </option>
                                 {COMMON_ROLES.map(role => (
-                                    <option key={role} value={role}>
+                                    <option
+                                        key={role}
+                                        value={role}
+                                        style={{
+                                            color: '#000000ff',
+                                            backgroundColor: '#fff',
+                                            fontSize: '0.9rem',
+                                            padding: '0.5rem 1rem',
+                                        }}
+                                    >
                                         {role.replace(/_/g, ' ')}
                                     </option>
                                 ))}
@@ -907,8 +948,16 @@ const RolesTable = () => {
                         variant="contained"
                         onClick={handleSubmit}
                         style={{ backgroundColor: '#1976d2', color: 'white' }}
+                        disabled={creating}
                     >
-                        Create Role
+                        {creating ? (
+                            <>
+                                <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                Creating...
+                            </>
+                        ) : (
+                            'Create Role'
+                        )}
                     </Button>
                 </Modal.Footer>
             </Modal>
@@ -941,10 +990,40 @@ const RolesTable = () => {
                                     }
                                 }}
                                 value={editRole.isCustomRole ? 'OTHER' : editRole.name || ''}
+                                style={{
+                                    backgroundColor: 'transparent',
+                                    cursor: 'pointer',
+                                    paddingRight: '2.5rem',
+                                    backgroundImage:
+                                        'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'16\' height=\'16\' fill=\'%230092ff\' viewBox=\'0 0 16 16\'%3E%3Cpath d=\'M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z\'/%3E%3C/svg%3E")',
+                                    backgroundRepeat: 'no-repeat',
+                                    backgroundPosition: 'right 0.75rem center',
+                                    backgroundSize: '16px 12px',
+                                    appearance: 'none',
+                                }}
                             >
-                                <option value="">Select a role type</option>
+                                <option
+                                    value=""
+                                    style={{
+                                        color: '#6c757d',
+                                        backgroundColor: '#fff',
+                                        fontSize: '0.9rem',
+                                        padding: '0.5rem 1rem',
+                                    }}
+                                >
+                                    Select a role type
+                                </option>
                                 {COMMON_ROLES.map(role => (
-                                    <option key={role} value={role}>
+                                    <option
+                                        key={role}
+                                        value={role}
+                                        style={{
+                                            color: '#000000ff',
+                                            backgroundColor: '#fff',
+                                            fontSize: '0.9rem',
+                                            padding: '0.5rem 1rem',
+                                        }}
+                                    >
                                         {role.replace(/_/g, ' ')}
                                     </option>
                                 ))}
@@ -1064,8 +1143,16 @@ const RolesTable = () => {
                         variant="contained"
                         onClick={handleEditSubmit}
                         style={{ backgroundColor: '#1976d2', color: 'white' }}
+                        disabled={updating}
                     >
-                        Update Role
+                        {updating ? (
+                            <>
+                                <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                Updating...
+                            </>
+                        ) : (
+                            'Update Role'
+                        )}
                     </Button>
                 </Modal.Footer>
             </Modal>
@@ -1134,8 +1221,12 @@ const RolesTable = () => {
             </Modal>
 
             {/* Delete Confirmation Modal */}
-            <Modal show={isDeleteModalOpen} onHide={() => setIsDeleteModalOpen(false)} centered>
-                <Modal.Header closeButton>
+            <Modal show={isDeleteModalOpen} onHide={() => {
+                if (!deleting) {
+                    setIsDeleteModalOpen(false);
+                }
+            }} centered>
+                <Modal.Header closeButton={!deleting}>
                     <Modal.Title>Confirm Deletion</Modal.Title>
                 </Modal.Header>
                 <Modal.Body>
@@ -1151,8 +1242,16 @@ const RolesTable = () => {
                         variant="contained"
                         onClick={handleDeleteRole}
                         style={{ backgroundColor: '#d32f2f', color: 'white' }}
+                        disabled={deleting}
                     >
-                        Delete Role
+                        {deleting ? (
+                            <>
+                                <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                Deleting...
+                            </>
+                        ) : (
+                            'Delete Role'
+                        )}
                     </Button>
                 </Modal.Footer>
             </Modal>

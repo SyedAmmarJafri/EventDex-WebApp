@@ -28,6 +28,8 @@ const InventoryTable = () => {
     const [editFormErrors, setEditFormErrors] = useState({});
     const [userPermissions, setUserPermissions] = useState([]);
     const [userRole, setUserRole] = useState('');
+    const [isUpdating, setIsUpdating] = useState(false);
+    const [categories, setCategories] = useState([]);
     const skinTheme = localStorage.getItem('skinTheme') || 'light';
     const isDarkMode = skinTheme === 'dark';
 
@@ -41,16 +43,16 @@ const InventoryTable = () => {
     }, []);
 
     // Check if user has permission
-    const hasPermission = (permission) => {
+    const hasPermission = useCallback((permission) => {
         if (userRole === 'CLIENT_ADMIN') return true;
         return userPermissions.includes(permission);
-    };
+    }, [userRole, userPermissions]);
 
     // Custom toast notification function
     const showToast = (message, type = 'success') => {
         const toastOptions = {
             position: "bottom-center",
-            autoClose: 5000,
+            autoClose: 2000,
             hideProgressBar: false,
             closeOnClick: true,
             pauseOnHover: true,
@@ -224,6 +226,11 @@ const InventoryTable = () => {
             if (!response.ok) {
                 throw new Error('Failed to fetch categories');
             }
+
+            const data = await response.json();
+            if (data.status === 200 && data.data) {
+                setCategories(data.data);
+            }
         } catch (err) {
             showToast(err.message, 'error');
         }
@@ -235,8 +242,11 @@ const InventoryTable = () => {
     }, [fetchItems, fetchCategories]);
 
     const handleEditInputChange = (e) => {
-        const { name, value } = e.target;
-        setEditItem(prev => ({ ...prev, [name]: value }));
+        const { name, value, type, checked } = e.target;
+        setEditItem(prev => ({
+            ...prev,
+            [name]: type === 'checkbox' ? checked : value
+        }));
         if (editFormErrors[name]) {
             setEditFormErrors(prev => ({ ...prev, [name]: '' }));
         }
@@ -244,11 +254,8 @@ const InventoryTable = () => {
 
     const validateForm = (formData, setErrors) => {
         const errors = {};
-        if (!formData.name.trim()) errors.name = 'Name is required';
-        if (!formData.description.trim()) errors.description = 'Description is required';
         if (formData.quantity < 0) errors.quantity = 'Quantity cannot be negative';
         if (formData.lowStockThreshold < 0) errors.lowStockThreshold = 'Threshold cannot be negative';
-        if (!formData.category) errors.category = 'Category is required';
         setErrors(errors);
         return Object.keys(errors).length === 0;
     };
@@ -258,7 +265,10 @@ const InventoryTable = () => {
         if (!validateForm(editItem, setEditFormErrors)) return;
 
         try {
+            setIsUpdating(true);
             const authData = JSON.parse(localStorage.getItem("authData"));
+
+            // Correct API endpoint path
             const response = await fetch(`${BASE_URL}/api/client-admin/items/${editItem.id}`, {
                 method: 'PUT',
                 headers: {
@@ -266,8 +276,8 @@ const InventoryTable = () => {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    quantity: editItem.quantity,
-                    lowStockThreshold: editItem.lowStockThreshold,
+                    quantity: parseInt(editItem.quantity),
+                    lowStockThreshold: parseInt(editItem.lowStockThreshold),
                 })
             });
 
@@ -281,6 +291,8 @@ const InventoryTable = () => {
             setIsEditModalOpen(false);
         } catch (err) {
             showToast(err.message, 'error');
+        } finally {
+            setIsUpdating(false);
         }
     };
 
@@ -312,7 +324,7 @@ const InventoryTable = () => {
                         style={{ width: '40px', height: '40px', objectFit: 'cover' }}
                     />
                 ) : <img
-                    src="/images/avatar/1.png"
+                    src="/images/avatar/undefined.png"
                     alt="Item"
                     style={{ width: '40px', height: '40px', objectFit: 'cover' }}
                 />
@@ -379,7 +391,7 @@ const InventoryTable = () => {
                 setEditFormErrors({});
             }} centered size="lg">
                 <Modal.Header closeButton>
-                    <Modal.Title>Update Inventory</Modal.Title>
+                    <Modal.Title>Update Inventory - {editItem.name}</Modal.Title>
                 </Modal.Header>
                 <Modal.Body>
                     <form onSubmit={handleEditSubmit}>
@@ -418,15 +430,23 @@ const InventoryTable = () => {
                         variant="contained"
                         onClick={handleEditSubmit}
                         style={{ backgroundColor: '#1976d2', color: 'white' }}
+                        disabled={isUpdating}
                     >
-                        Update
+                        {isUpdating ? (
+                            <>
+                                <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                Updating...
+                            </>
+                        ) : (
+                            'Update'
+                        )}
                     </Button>
                 </Modal.Footer>
             </Modal>
 
             <ToastContainer
                 position="bottom-center"
-                autoClose={5000}
+                autoClose={2000}
                 hideProgressBar={false}
                 newestOnTop={false}
                 closeOnClick

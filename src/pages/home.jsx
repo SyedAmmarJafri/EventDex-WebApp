@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
     Card,
     Row,
@@ -37,7 +37,7 @@ import { BASE_URL } from '/src/constants.js';
 
 const { Title, Text } = Typography;
 
-const COLORS = ['rgb(246, 185, 0)', '#10b981', '#003b8dff', '#0092ff', '#c026d3', '#f97316' , '#7c3aed', '#ad0000ff', '#00cc41ff'];
+const COLORS = ['rgb(246, 185, 0)', '#10b981', '#003b8dff', '#0092ff', '#c026d3', '#f97316', '#7c3aed', '#ad0000ff', '#00cc41ff'];
 
 // Custom Tooltip component for BarChart
 const CustomBarTooltip = ({ active, payload }) => {
@@ -422,94 +422,12 @@ const Dashboard = () => {
                 )}
             </div>
 
-            <Card
-                className="card bg-white text-light"
-                bordered={false}
-                style={{
-                    borderRadius: '12px',
-                    marginBottom: '24px',
-                    background: 'linear-gradient(135deg, #0092ff 0%, #005ece 100%)',
-                    color: 'white',
-                    border: 'none',
-                    overflow: 'hidden',
-                    position: 'relative'
-                }}
-                bodyStyle={{ padding: '24px' }}
-            >
-                <div style={{
-                    position: 'absolute',
-                    top: '-50px',
-                    right: '-50px',
-                    width: '200px',
-                    height: '200px',
-                    borderRadius: '50%',
-                    background: 'rgba(255, 255, 255, 0.1)'
-                }} />
-                <div style={{
-                    position: 'absolute',
-                    bottom: '-80px',
-                    right: '0',
-                    width: '160px',
-                    height: '160px',
-                    borderRadius: '50%',
-                    background: 'rgba(255, 255, 255, 0.1)'
-                }} />
-
-                <Row align="middle" gutter={16}>
-                    <Col flex="auto">
-                        <Title level={3} style={{
-                            color: 'white',
-                            marginBottom: '8px',
-                            fontWeight: 600
-                        }}>
-                            Welcome {userName}!
-                        </Title>
-                        <Text style={{
-                            color: 'rgba(255, 255, 255, 0.85)',
-                            display: 'block',
-                            marginBottom: '16px',
-                            fontSize: '16px'
-                        }}>
-                            Here's what's happening with business today.
-                        </Text>
-                        <Button
-                            type="default"
-                            icon={<CalendarOutlined />}
-                            style={{
-                                background: 'rgba(255, 255, 255, 0.1)',
-                                border: '1px solid rgba(255, 255, 255, 0.2)',
-                                color: 'white',
-                                fontWeight: 500,
-                                borderRadius: '6px',
-                            }}
-                        >
-                            <span style={{ color: '#ffffff' }}>
-                                {currentTime.format('dddd, MMMM D, YYYY · h:mm:ss A')}
-                            </span>
-                        </Button>
-                    </Col>
-                    <Col>
-                        <div style={{
-                            width: '96px',
-                            height: '96px',
-                            background: 'rgba(255, 255, 255, 0.1)',
-                            borderRadius: '50%',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            backdropFilter: 'blur(4px)',
-                            border: '1px solid rgba(255, 255, 255, 0.2)'
-                        }}>
-                            <UserOutlined style={{ fontSize: '48px', color: 'white' }} />
-                        </div>
-                    </Col>
-                </Row>
-            </Card>
+            <Card className="card bg-white text-light" variant="borderless" styles={{ body: { padding: '24px', background: 'linear-gradient(135deg, #0092ff 0%, #005ece 100%)', color: 'white', borderRadius: '12px', position: 'relative', overflow: 'hidden' } }} style={{ marginBottom: '24px', }} > <div style={{ position: 'absolute', top: '-50px', right: '-50px', width: '200px', height: '200px', borderRadius: '50%', background: 'rgba(255, 255, 255, 0.1)' }} /> <div style={{ position: 'absolute', bottom: '-80px', right: '0', width: '160px', height: '160px', borderRadius: '50%', background: 'rgba(255, 255, 255, 0.1)' }} /> <Row align="middle" gutter={16}> <Col flex="auto"> <Title level={3} style={{ color: 'white', marginBottom: '8px', fontWeight: 600 }}> Welcome {userName}! </Title> <Text style={{ color: 'rgba(255, 255, 255, 0.85)', display: 'block', marginBottom: '16px', fontSize: '16px' }}> Here&apos;s what&apos;s happening with business today. </Text> <Button type="default" icon={<CalendarOutlined />} style={{ background: 'rgba(255, 255, 255, 0.1)', border: '1px solid rgba(255, 255, 255, 0.2)', color: 'white', fontWeight: 500, borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', }} > <span style={{ color: '#ffffff', fontSize: 'clamp(12px, 2vw, 16px)', }} > {currentTime.format('dddd, MMMM D, YYYY · h:mm:ss A')} </span> </Button> </Col> </Row> </Card>
 
             {!hasAnalyticsPermission && (
                 <Card className="card bg-white text-light" bordered={false} style={{ marginBottom: '24px' }}>
                     <Text className="text-dark">
-                        You don't have permission to view analytics data. Please contact your administrator.
+                        You don&apos;t have permission to view analytics data. Please contact your administrator.
                     </Text>
                 </Card>
             )}
@@ -553,7 +471,7 @@ const Dashboard = () => {
                                         <DollarOutlined style={{ fontSize: '16px', color: '#0092ff' }} />
                                     </div>
                                     <div>
-                                        <Text style={{ fontSize: '12px' }} className="text-dark">Today's Revenue</Text>
+                                        <Text style={{ fontSize: '12px' }} className="text-dark">Today&apos;s Revenue</Text>
                                         <Title level={4} style={{ margin: 0, fontSize: '18px' }}>
                                             {currencySymbol}{dashboardData.todayRevenue.toFixed(2)}
                                         </Title>
@@ -592,7 +510,7 @@ const Dashboard = () => {
                                         <ShoppingCartOutlined style={{ fontSize: '16px', color: '#0092ff' }} />
                                     </div>
                                     <div>
-                                        <Text style={{ fontSize: '12px' }} className="text-dark">Today's Orders</Text>
+                                        <Text style={{ fontSize: '12px' }} className="text-dark">Today&apos;s Orders</Text>
                                         <Title level={4} style={{ margin: 0, fontSize: '18px' }}>
                                             {dashboardData.todayOrders}
                                         </Title>
@@ -631,7 +549,7 @@ const Dashboard = () => {
                                         <UserOutlined style={{ fontSize: '16px', color: '#0092ff' }} />
                                     </div>
                                     <div>
-                                        <Text style={{ fontSize: '12px' }} className="text-dark">Today's Customers</Text>
+                                        <Text style={{ fontSize: '12px' }} className="text-dark">Today&apos;s Customers</Text>
                                         <Title level={4} style={{ margin: 0, fontSize: '18px' }}>
                                             {dashboardData.todayCustomers}
                                         </Title>
@@ -716,7 +634,7 @@ const Dashboard = () => {
                                     >
                                         <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                                         <XAxis type="number" />
-                                        <YAxis type="category"/>
+                                        <YAxis type="category" />
                                         <Tooltip content={<CustomBarTooltip />} />
                                         <Bar
                                             dataKey="value"

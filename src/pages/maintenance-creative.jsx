@@ -1,4 +1,3 @@
-import React from 'react'
 import MaintenaceForm from '@/components/authentication/MaintenaceForm'
 
 const MaintenanceCreative = () => {

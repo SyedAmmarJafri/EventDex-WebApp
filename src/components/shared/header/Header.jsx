@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useState } from 'react'
+import { useContext, useEffect, useState } from 'react'
 import { FiAlignLeft, FiMaximize, FiMinimize, FiMoon, FiSun } from "react-icons/fi";
 import NotificationsModal from './NotificationsModal';
 import ProfileModal from './ProfileModal';
@@ -11,6 +11,7 @@ const Header = () => {
     const [navigationExpend, setNavigationExpend] = useState(false);
     const [isMobile, setIsMobile] = useState(false);
     const [darkMode, setDarkMode] = useState(false);
+    const [isFullScreen, setIsFullScreen] = useState(false);
     const [userPermissions, setUserPermissions] = useState({
         role: '',
         permissions: []
@@ -51,7 +52,7 @@ const Header = () => {
         const handleResize = () => {
             const newWindowWidth = window.innerWidth;
             setIsMobile(newWindowWidth <= 1024);
-            
+
             if (newWindowWidth <= 1024) {
                 document.documentElement.classList.remove('minimenu');
                 const downNav = document.querySelector('.navigation-down-1600');
@@ -66,7 +67,7 @@ const Header = () => {
                     document.documentElement.classList.add('minimenu');
                     setNavigationExpend(false);
                 }
-                
+
                 const upNav = document.querySelector('.navigation-up-1600');
                 const downNav = document.querySelector('.navigation-down-1600');
                 if (upNav) upNav.style.display = 'none';
@@ -99,8 +100,27 @@ const Header = () => {
             }
         }
 
+        // Check if we're already in fullscreen mode
+        const checkFullScreen = () => {
+            setIsFullScreen(
+                document.fullscreenElement ||
+                document.webkitFullscreenElement ||
+                document.mozFullScreenElement ||
+                document.msFullscreenElement
+            );
+        };
+
+        document.addEventListener('fullscreenchange', checkFullScreen);
+        document.addEventListener('webkitfullscreenchange', checkFullScreen);
+        document.addEventListener('mozfullscreenchange', checkFullScreen);
+        document.addEventListener('MSFullscreenChange', checkFullScreen);
+
         return () => {
             window.removeEventListener('resize', handleResize);
+            document.removeEventListener('fullscreenchange', checkFullScreen);
+            document.removeEventListener('webkitfullscreenchange', checkFullScreen);
+            document.removeEventListener('mozfullscreenchange', checkFullScreen);
+            document.removeEventListener('MSFullscreenChange', checkFullScreen);
         };
     }, []);
 
@@ -117,48 +137,55 @@ const Header = () => {
         }
     };
 
-    const fullScreenMaximize = () => {
-        const elem = document.documentElement;
-        if (elem.requestFullscreen) {
-            elem.requestFullscreen();
-        } else if (elem.mozRequestFullScreen) {
-            elem.mozRequestFullScreen();
-        } else if (elem.webkitRequestFullscreen) {
-            elem.webkitRequestFullscreen();
-        } else if (elem.msRequestFullscreen) {
-            elem.msRequestFullscreen();
+    const toggleFullScreen = () => {
+        if (!document.fullscreenElement &&
+            !document.webkitFullscreenElement &&
+            !document.mozFullScreenElement &&
+            !document.msFullscreenElement) {
+            // Enter fullscreen
+            const elem = document.documentElement;
+            if (elem.requestFullscreen) {
+                elem.requestFullscreen();
+            } else if (elem.mozRequestFullScreen) {
+                elem.mozRequestFullScreen();
+            } else if (elem.webkitRequestFullscreen) {
+                elem.webkitRequestFullscreen();
+            } else if (elem.msRequestFullscreen) {
+                elem.msRequestFullscreen();
+            }
+
+            document.documentElement.classList.add("fsh-infullscreen");
+            document.body.classList.add("full-screen-helper");
+            setIsFullScreen(true);
+        } else {
+            // Exit fullscreen
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+            } else if (document.mozCancelFullScreen) {
+                document.mozCancelFullScreen();
+            } else if (document.webkitExitFullscreen) {
+                document.webkitExitFullscreen();
+            } else if (document.msExitFullscreen) {
+                document.msExitFullscreen();
+            }
+
+            document.documentElement.classList.remove("fsh-infullscreen");
+            document.body.classList.remove("full-screen-helper");
+            setIsFullScreen(false);
         }
-
-        document.documentElement.classList.add("fsh-infullscreen");
-        document.body.classList.add("full-screen-helper");
-    };
-
-    const fullScreenMinimize = () => {
-        if (document.exitFullscreen) {
-            document.exitFullscreen();
-        } else if (document.mozCancelFullScreen) { 
-            document.mozCancelFullScreen();
-        } else if (document.webkitExitFullscreen) {
-            document.webkitExitFullscreen();
-        } else if (document.msExitFullscreen) {
-            document.msExitFullscreen();
-        }
-
-        document.documentElement.classList.remove("fsh-infullscreen");
-        document.body.classList.remove("full-screen-helper");
     };
 
     return (
         <header className="nxl-header">
             <div className="header-wrapper">
                 <div className="header-left d-flex align-items-center gap-4">
-                    <a 
-                        href="#" 
-                        className="nxl-head-mobile-toggler" 
+                    <a
+                        href="#"
+                        className="nxl-head-mobile-toggler"
                         onClick={(e) => {
                             e.preventDefault();
                             setNavigationOpen(true);
-                        }} 
+                        }}
                         id="mobile-collapse"
                     >
                         <div className={`hamburger hamburger--arrowturn ${navigationOpen ? "is-active" : ""}`}>
@@ -167,45 +194,50 @@ const Header = () => {
                             </div>
                         </div>
                     </a>
-                    
+
                     {!isMobile && (
                         <>
-                            <div className="nxl-navigation-toggle navigation-up-1600">
-                                <a 
-                                    href="#" 
-                                    onClick={(e) => handleNavigationExpendUp(e, navigationExpend ? "hide" : "show")} 
+                            <div
+                                className="nxl-navigation-toggle navigation-up-1600"
+                                style={{ paddingTop: "15px" }}
+                            >
+                                <a
+                                    href="#"
+                                    onClick={(e) => handleNavigationExpendUp(e, navigationExpend ? "hide" : "show")}
                                     id="menu-toggle-button"
                                 >
-                                    <FiAlignLeft size={24} />
+                                    <FiAlignLeft size={25} />
                                 </a>
                             </div>
                         </>
                     )}
                 </div>
-                
                 <div className="header-right ms-auto">
-                    <div className="d-flex align-items-center">
+                    <div className="d-flex justify-content-end align-items-center w-100">
                         <Support />
                         <div className="nxl-h-item d-none d-sm-flex">
-                            <div className="full-screen-switcher">
+                            <div className="full-screen-switcher" onClick={toggleFullScreen} style={{ cursor: 'pointer' }}>
                                 <span className="nxl-head-link me-0">
-                                    <FiMaximize size={20} className="maximize" onClick={fullScreenMaximize} />
-                                    <FiMinimize size={20} className="minimize" onClick={fullScreenMinimize} />
+                                    {!isFullScreen ? (
+                                        <FiMaximize size={20} className="maximize" />
+                                    ) : (
+                                        <FiMinimize size={20} className="minimize" />
+                                    )}
                                 </span>
                             </div>
                         </div>
                         <div className="nxl-h-item dark-light-theme">
-                            <div 
-                                className="nxl-head-link me-0 dark-button" 
+                            <div
+                                className="nxl-head-link me-0 dark-button"
                                 onClick={() => handleThemeMode("dark")}
-                                style={{ display: darkMode ? "none" : "block" }}
+                                style={{ display: darkMode ? "none" : "block", cursor: 'pointer' }}
                             >
                                 <FiMoon size={20} />
                             </div>
-                            <div 
-                                className="nxl-head-link me-0 light-button" 
+                            <div
+                                className="nxl-head-link me-0 light-button"
                                 onClick={() => handleThemeMode("light")}
-                                style={{ display: darkMode ? "block" : "none" }}
+                                style={{ display: darkMode ? "block" : "none", cursor: 'pointer' }}
                             >
                                 <FiSun size={20} />
                             </div>

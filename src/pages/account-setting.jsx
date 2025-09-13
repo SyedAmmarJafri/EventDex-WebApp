@@ -1,4 +1,3 @@
-import React from 'react'
 import CustomerCreateContent from '@/components/accountSetting/CustomerCreateContent'
 
 const CustomersCreate = () => {

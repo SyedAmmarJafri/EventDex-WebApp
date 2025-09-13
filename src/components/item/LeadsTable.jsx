@@ -18,6 +18,7 @@ const ItemsTable = () => {
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+    const [deleteLoading, setDeleteLoading] = useState(false);
     const [selectedItem, setSelectedItem] = useState(null);
     const [itemToDelete, setItemToDelete] = useState(null);
     const [newItem, setNewItem] = useState({
@@ -59,6 +60,7 @@ const ItemsTable = () => {
     const [selectedFile, setSelectedFile] = useState(null);
     const [imagePreview, setImagePreview] = useState('');
     const [expandedVariantIndex, setExpandedVariantIndex] = useState(null);
+    const [imageSizeError, setImageSizeError] = useState('');
     const skinTheme = localStorage.getItem('skinTheme') || 'light';
     const isDarkMode = skinTheme === 'dark';
 
@@ -81,7 +83,7 @@ const ItemsTable = () => {
     const showSuccessToast = (message) => {
         toast.success(message, {
             position: "bottom-center",
-            autoClose: 5000,
+            autoClose: 2000,
             hideProgressBar: false,
             closeOnClick: true,
             pauseOnHover: true,
@@ -94,7 +96,7 @@ const ItemsTable = () => {
     const showErrorToast = (message) => {
         toast.error(message, {
             position: "bottom-center",
-            autoClose: 5000,
+            autoClose: 2000,
             hideProgressBar: false,
             closeOnClick: true,
             pauseOnHover: true,
@@ -256,7 +258,7 @@ const ItemsTable = () => {
                     </svg>
                 </div>
                 <h5 className="mb-2">No Items Found</h5>
-                <p className="text-muted mb-4">You haven't added any items yet. Start by adding a new item.</p>
+                <p className="text-muted mb-4">You haven&apos;t added any items yet. Start by adding a new item.</p>
                 {canWrite && (
                     <Button
                         variant="contained"
@@ -324,7 +326,7 @@ const ItemsTable = () => {
                                     <Skeleton
                                         width={80}
                                         baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
-                                        highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
+                                        highlightColor={isDarkMode ? "#334155" : '#ecebeb'}
                                     />
                                 </td>
                                 <td>
@@ -332,7 +334,7 @@ const ItemsTable = () => {
                                         width={60}
                                         height={24}
                                         baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
-                                        highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
+                                        highlightColor={isDarkMode ? "#334155" : '#ecebeb'}
                                     />
                                 </td>
                                 <td>
@@ -342,21 +344,21 @@ const ItemsTable = () => {
                                             width={24}
                                             height={24}
                                             baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
-                                            highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
+                                            highlightColor={isDarkMode ? "#334155" : '#ecebeb'}
                                         />
                                         <Skeleton
                                             circle
                                             width={24}
                                             height={24}
                                             baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
-                                            highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
+                                            highlightColor={isDarkMode ? "#334155" : '#ecebeb'}
                                         />
                                         <Skeleton
                                             circle
                                             width={24}
                                             height={24}
                                             baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
-                                            highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
+                                            highlightColor={isDarkMode ? "#334155" : '#ecebeb'}
                                         />
                                     </div>
                                 </td>
@@ -509,11 +511,14 @@ const ItemsTable = () => {
             return;
         }
 
-        if (file.size > 5 * 1024 * 1024) {
-            showErrorToast('File size should be less than 5MB');
+        if (file.size > 250 * 1024) { // 200 KB limit
+            setImageSizeError('File size should be less than 200KB');
+            setSelectedFile(null);
+            setImagePreview('');
             return;
         }
 
+        setImageSizeError('');
         setSelectedFile(file);
 
         const reader = new FileReader();
@@ -607,6 +612,11 @@ const ItemsTable = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!validateForm(newItem, setFormErrors)) return;
+        
+        if (selectedFile && selectedFile.size > 250 * 1024) {
+            setImageSizeError('File size should be less than 200KB');
+            return;
+        }
 
         try {
             setUploadingImage(true);
@@ -675,6 +685,7 @@ const ItemsTable = () => {
             });
             setSelectedFile(null);
             setImagePreview('');
+            setImageSizeError('');
         } catch (err) {
             showErrorToast(err.message);
         } finally {
@@ -685,6 +696,11 @@ const ItemsTable = () => {
     const handleEditSubmit = async (e) => {
         e.preventDefault();
         if (!validateForm(editItem, setEditFormErrors)) return;
+        
+        if (selectedFile && selectedFile.size > 250 * 1024) {
+            setImageSizeError('File size should be less than 200KB');
+            return;
+        }
 
         try {
             setUploadingImage(true);
@@ -750,6 +766,7 @@ const ItemsTable = () => {
             setIsEditModalOpen(false);
             setSelectedFile(null);
             setImagePreview('');
+            setImageSizeError('');
         } catch (err) {
             showErrorToast(err.message);
         } finally {
@@ -759,6 +776,7 @@ const ItemsTable = () => {
 
     const handleDeleteItem = async () => {
         try {
+            setDeleteLoading(true);
             const authData = JSON.parse(localStorage.getItem("authData"));
             const response = await fetch(`${BASE_URL}/api/client-admin/items/${itemToDelete.id}`, {
                 method: 'DELETE',
@@ -778,6 +796,8 @@ const ItemsTable = () => {
             setIsDeleteModalOpen(false);
         } catch (err) {
             showErrorToast(err.message);
+        } finally {
+            setDeleteLoading(false);
         }
     };
 
@@ -809,6 +829,7 @@ const ItemsTable = () => {
         });
         setSelectedFile(null);
         setImagePreview('');
+        setImageSizeError('');
         setIsEditModalOpen(true);
     };
 
@@ -831,7 +852,7 @@ const ItemsTable = () => {
                     />
                 ) : (
                     <img
-                        src="/images/avatar/1.png"
+                        src="/images/avatar/undefined.png"
                         alt="Item"
                         style={{ width: '40px', height: '40px', objectFit: 'cover' }}
                     />
@@ -933,7 +954,7 @@ const ItemsTable = () => {
         <>
             <ToastContainer
                 position="bottom-center"
-                autoClose={5000}
+                autoClose={2000}
                 hideProgressBar={false}
                 newestOnTop={false}
                 closeOnClick
@@ -973,27 +994,30 @@ const ItemsTable = () => {
             {/* Add Item Modal */}
             {canWrite && (
                 <Modal show={isModalOpen} onHide={() => {
-                    setIsModalOpen(false);
-                    setNewItem({
-                        name: '',
-                        description: '',
-                        price: 0,
-                        discountedPrice: 0,
-                        itemDiscountRate: 0,
-                        itemDiscountEnabled: false,
-                        quantity: 0,
-                        category: '',
-                        primaryImageUrl: '',
-                        active: true,
-                        barcode: '',
-                        lowStockThreshold: 0,
-                        variants: []
-                    });
-                    setFormErrors({});
-                    setSelectedFile(null);
-                    setImagePreview('');
+                    if (!uploadingImage) {
+                        setIsModalOpen(false);
+                        setNewItem({
+                            name: '',
+                            description: '',
+                            price: 0,
+                            discountedPrice: 0,
+                            itemDiscountRate: 0,
+                            itemDiscountEnabled: false,
+                            quantity: 0,
+                            category: '',
+                            primaryImageUrl: '',
+                            active: true,
+                            barcode: '',
+                            lowStockThreshold: 0,
+                            variants: []
+                        });
+                        setFormErrors({});
+                        setSelectedFile(null);
+                        setImagePreview('');
+                        setImageSizeError('');
+                    }
                 }} centered size="lg">
-                    <Modal.Header closeButton>
+                    <Modal.Header closeButton={!uploadingImage}>
                         <Modal.Title>Add Item</Modal.Title>
                     </Modal.Header>
                     <Modal.Body>
@@ -1039,7 +1063,7 @@ const ItemsTable = () => {
                                             min="0"
                                         />
                                         {formErrors.price && <div className="invalid-feedback">{formErrors.price}</div>}
-                                    </div>
+                                </div>
                                 </div>
                                 <div className="col-md-6">
                                     <label htmlFor="category" className="form-label" style={{ color: '#0092ff' }}>
@@ -1343,6 +1367,7 @@ const ItemsTable = () => {
                                                 <>
                                                     <FiUpload size={20} className="mb-1" />
                                                     <h8 className="small">Add Image</h8>
+                                                    <h8 className="small">Max 200 KB</h8>
                                                 </>
                                             )}
                                         </div>
@@ -1355,6 +1380,9 @@ const ItemsTable = () => {
                                         />
                                     </div>
                                 </div>
+                                {imageSizeError && (
+                                    <div className="text-danger small">{imageSizeError}</div>
+                                )}
                             </div>
                         </form>
                     </Modal.Body>
@@ -1381,13 +1409,16 @@ const ItemsTable = () => {
             {/* Edit Item Modal */}
             {canUpdate && (
                 <Modal show={isEditModalOpen} onHide={() => {
-                    setIsEditModalOpen(false);
-                    setEditFormErrors({});
-                    setSelectedFile(null);
-                    setImagePreview('');
-                    setExpandedVariantIndex(null);
+                    if (!uploadingImage) {
+                        setIsEditModalOpen(false);
+                        setEditFormErrors({});
+                        setSelectedFile(null);
+                        setImagePreview('');
+                        setExpandedVariantIndex(null);
+                        setImageSizeError('');
+                    }
                 }} centered size="lg">
-                    <Modal.Header closeButton>
+                    <Modal.Header closeButton={!uploadingImage}>
                         <Modal.Title>Edit Item</Modal.Title>
                     </Modal.Header>
                     <Modal.Body>
@@ -1753,6 +1784,7 @@ const ItemsTable = () => {
                                                 <>
                                                     <FiUpload size={20} className="mb-1" />
                                                     <h8 className="small">Add Image</h8>
+                                                    <h8 className="small">Max 200 KB</h8>
                                                 </>
                                             )}
                                         </div>
@@ -1765,6 +1797,9 @@ const ItemsTable = () => {
                                         />
                                     </div>
                                 </div>
+                                {imageSizeError && (
+                                    <div className="text-danger small">{imageSizeError}</div>
+                                )}
                             </div>
                         </form>
                     </Modal.Body>
@@ -1932,7 +1967,7 @@ const ItemsTable = () => {
                                         ) : (
                                             <div style={{ width: '100px', height: '100px' }}>
                                                 <img
-                                                    src="/images/avatar/1.png"
+                                                    src="/images/avatar/undefined.png"
                                                     alt="Item"
                                                     className="w-100 h-100"
                                                     style={{
@@ -1952,8 +1987,12 @@ const ItemsTable = () => {
 
             {/* Delete Confirmation Modal */}
             {canDelete && (
-                <Modal show={isDeleteModalOpen} onHide={() => setIsDeleteModalOpen(false)} centered>
-                    <Modal.Header closeButton>
+                <Modal show={isDeleteModalOpen} onHide={() => {
+                    if (!deleteLoading) {
+                        setIsDeleteModalOpen(false);
+                    }
+                }} centered>
+                    <Modal.Header closeButton={!deleteLoading}>
                         <Modal.Title>Delete Item</Modal.Title>
                     </Modal.Header>
                     <Modal.Body>
@@ -1969,8 +2008,16 @@ const ItemsTable = () => {
                             variant="contained"
                             onClick={handleDeleteItem}
                             style={{ backgroundColor: '#d32f2f', color: 'white' }}
+                            disabled={deleteLoading}
                         >
-                            Delete
+                            {deleteLoading ? (
+                                <>
+                                    <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                    Deleting...
+                                </>
+                            ) : (
+                                'Delete'
+                            )}
                         </Button>
                     </Modal.Footer>
                 </Modal>

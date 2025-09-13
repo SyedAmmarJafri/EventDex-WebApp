@@ -1,4 +1,3 @@
-import React from 'react'
 import { FiFacebook, FiGithub, FiInstagram, FiLinkedin, FiTwitter } from 'react-icons/fi'
 
 const MaintenaceForm = () => {
@@ -6,7 +5,7 @@ const MaintenaceForm = () => {
         <>
             <h2 className="fs-20 fw-bolder mb-4">Maintenance</h2>
             <h4 className="fs-13 fw-bold mb-2">Now we are under maintenance</h4>
-            <p className="fs-12 fw-medium text-muted">Sorry for the inconvenience but we're performing some maintenance at the moment.</p>
+            <p className="fs-12 fw-medium text-muted">Sorry for the inconvenience but we&apos;re performing some maintenance at the moment.</p>
             <form action="#" className="w-100 mt-4 pt-2">
                 <div className="mb-4">
                     <input type="email" className="form-control" placeholder="Enter Your Email" required />

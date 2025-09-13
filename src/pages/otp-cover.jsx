@@ -1,4 +1,3 @@
-import React from 'react'
 import OtpVerifyForm from '@/components/authentication/OtpVerifyForm'
 
 const OtpCover = () => {

@@ -34,8 +34,10 @@ const CategoriesTable = () => {
     const [formErrors, setFormErrors] = useState({});
     const [editFormErrors, setEditFormErrors] = useState({});
     const [uploadingImage, setUploadingImage] = useState(false);
+    const [deletingCategory, setDeletingCategory] = useState(false);
     const [selectedFile, setSelectedFile] = useState(null);
     const [imagePreview, setImagePreview] = useState('');
+    const [imageSizeError, setImageSizeError] = useState('');
     const skinTheme = localStorage.getItem('skinTheme') || 'light';
     const isDarkMode = skinTheme === 'dark';
 
@@ -43,7 +45,7 @@ const CategoriesTable = () => {
     const authData = JSON.parse(localStorage.getItem("authData")) || {};
     const userRole = authData?.role || '';
     const userPermissions = authData?.permissions || [];
-    
+
     // Permission checks
     const canRead = userRole === 'CLIENT_ADMIN' || userPermissions.includes('CATEGORY_READ');
     const canWrite = userRole === 'CLIENT_ADMIN' || userPermissions.includes('CATEGORY_WRITE');
@@ -153,7 +155,7 @@ const CategoriesTable = () => {
                     </svg>
                 </div>
                 <h5 className="mb-2">No Categories Found</h5>
-                <p className="text-muted mb-4">You haven't added any categories yet. Start by adding a new category.</p>
+                <p className="text-muted mb-4">  You haven&apos;t added any categories yet. Start by adding a new category.</p>
                 {canWrite && (
                     <Button
                         variant="contained"
@@ -175,7 +177,7 @@ const CategoriesTable = () => {
         if (!file.type.match('image.*')) {
             toast.error('Please select an image file', {
                 position: "bottom-center",
-                autoClose: 5000,
+                autoClose: 2000,
                 hideProgressBar: false,
                 closeOnClick: true,
                 pauseOnHover: true,
@@ -186,20 +188,14 @@ const CategoriesTable = () => {
             return;
         }
 
-        if (file.size > 5 * 1024 * 1024) {
-            toast.error('File size should be less than 5MB', {
-                position: "bottom-center",
-                autoClose: 5000,
-                hideProgressBar: false,
-                closeOnClick: true,
-                pauseOnHover: true,
-                draggable: true,
-                progress: undefined,
-                theme: "colored",
-            });
+        if (file.size > 250 * 1024) { // 200 KB limit
+            setImageSizeError('File size should be less than 200KB');
+            setSelectedFile(null);
+            setImagePreview('');
             return;
         }
 
+        setImageSizeError('');
         setSelectedFile(file);
 
         const reader = new FileReader();
@@ -232,7 +228,7 @@ const CategoriesTable = () => {
 
             toast.success('Image deleted successfully', {
                 position: "bottom-center",
-                autoClose: 5000,
+                autoClose: 2000,
                 hideProgressBar: false,
                 closeOnClick: true,
                 pauseOnHover: true,
@@ -258,7 +254,7 @@ const CategoriesTable = () => {
         } catch (err) {
             toast.error(err.message, {
                 position: "bottom-center",
-                autoClose: 5000,
+                autoClose: 2000,
                 hideProgressBar: false,
                 closeOnClick: true,
                 pauseOnHover: true,
@@ -276,7 +272,7 @@ const CategoriesTable = () => {
             if (!authData?.token) {
                 toast.error("Authentication token not found", {
                     position: "bottom-center",
-                    autoClose: 5000,
+                    autoClose: 2000,
                     hideProgressBar: false,
                     closeOnClick: true,
                     pauseOnHover: true,
@@ -315,7 +311,7 @@ const CategoriesTable = () => {
         } catch (err) {
             toast.error(err.message, {
                 position: "bottom-center",
-                autoClose: 5000,
+                autoClose: 2000,
                 hideProgressBar: false,
                 closeOnClick: true,
                 pauseOnHover: true,
@@ -354,6 +350,11 @@ const CategoriesTable = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!validateForm(newCategory, setFormErrors)) return;
+        
+        if (selectedFile && selectedFile.size > 250 * 1024) {
+            setImageSizeError('File size should be less than 200KB');
+            return;
+        }
 
         try {
             setUploadingImage(true);
@@ -395,7 +396,7 @@ const CategoriesTable = () => {
 
             toast.success('Category created successfully', {
                 position: "bottom-center",
-                autoClose: 5000,
+                autoClose: 2000,
                 hideProgressBar: false,
                 closeOnClick: true,
                 pauseOnHover: true,
@@ -412,10 +413,11 @@ const CategoriesTable = () => {
             });
             setSelectedFile(null);
             setImagePreview('');
+            setImageSizeError('');
         } catch (err) {
             toast.error(err.message, {
                 position: "bottom-center",
-                autoClose: 5000,
+                autoClose: 2000,
                 hideProgressBar: false,
                 closeOnClick: true,
                 pauseOnHover: true,
@@ -423,7 +425,6 @@ const CategoriesTable = () => {
                 progress: undefined,
                 theme: "colored",
             });
-            setIsModalOpen(false);
         } finally {
             setUploadingImage(false);
         }
@@ -432,6 +433,11 @@ const CategoriesTable = () => {
     const handleEditSubmit = async (e) => {
         e.preventDefault();
         if (!validateForm(editCategory, setEditFormErrors)) return;
+        
+        if (selectedFile && selectedFile.size > 250 * 1024) {
+            setImageSizeError('File size should be less than 200KB');
+            return;
+        }
 
         try {
             setUploadingImage(true);
@@ -480,7 +486,7 @@ const CategoriesTable = () => {
 
             toast.success('Category updated successfully', {
                 position: "bottom-center",
-                autoClose: 5000,
+                autoClose: 2000,
                 hideProgressBar: false,
                 closeOnClick: true,
                 pauseOnHover: true,
@@ -492,10 +498,11 @@ const CategoriesTable = () => {
             setIsEditModalOpen(false);
             setSelectedFile(null);
             setImagePreview('');
+            setImageSizeError('');
         } catch (err) {
             toast.error(err.message, {
                 position: "bottom-center",
-                autoClose: 5000,
+                autoClose: 2000,
                 hideProgressBar: false,
                 closeOnClick: true,
                 pauseOnHover: true,
@@ -503,7 +510,6 @@ const CategoriesTable = () => {
                 progress: undefined,
                 theme: "colored",
             });
-            setIsEditModalOpen(false);
         } finally {
             setUploadingImage(false);
         }
@@ -537,7 +543,7 @@ const CategoriesTable = () => {
 
             toast.success(`Category ${newStatus ? 'activated' : 'deactivated'} successfully`, {
                 position: "bottom-center",
-                autoClose: 5000,
+                autoClose: 2000,
                 hideProgressBar: false,
                 closeOnClick: true,
                 pauseOnHover: true,
@@ -550,7 +556,7 @@ const CategoriesTable = () => {
         } catch (err) {
             toast.error(err.message, {
                 position: "bottom-center",
-                autoClose: 5000,
+                autoClose: 2000,
                 hideProgressBar: false,
                 closeOnClick: true,
                 pauseOnHover: true,
@@ -582,6 +588,7 @@ const CategoriesTable = () => {
         });
         setSelectedFile(null);
         setImagePreview('');
+        setImageSizeError('');
         setIsEditModalOpen(true);
     };
 
@@ -593,6 +600,7 @@ const CategoriesTable = () => {
 
     const handleDeleteCategory = async () => {
         try {
+            setDeletingCategory(true);
             const authData = JSON.parse(localStorage.getItem("authData"));
             const response = await fetch(`${BASE_URL}/api/client-admin/categories/${categoryToDelete.id}`, {
                 method: 'DELETE',
@@ -610,7 +618,7 @@ const CategoriesTable = () => {
 
             toast.success('Category deleted successfully', {
                 position: "bottom-center",
-                autoClose: 5000,
+                autoClose: 2000,
                 hideProgressBar: false,
                 closeOnClick: true,
                 pauseOnHover: true,
@@ -624,7 +632,7 @@ const CategoriesTable = () => {
         } catch (err) {
             toast.error(err.message, {
                 position: "bottom-center",
-                autoClose: 5000,
+                autoClose: 2000,
                 hideProgressBar: false,
                 closeOnClick: true,
                 pauseOnHover: true,
@@ -633,6 +641,8 @@ const CategoriesTable = () => {
                 theme: "colored",
             });
             setIsDeleteModalOpen(false);
+        } finally {
+            setDeletingCategory(false);
         }
     };
 
@@ -649,7 +659,7 @@ const CategoriesTable = () => {
                     />
                 ) : (
                     <img
-                        src="/images/avatar/1.png"
+                        src="/images/avatar/undefined.png"
                         alt="Category"
                         style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px' }}
                     />
@@ -726,7 +736,7 @@ const CategoriesTable = () => {
         <>
             <ToastContainer
                 position="bottom-center"
-                autoClose={5000}
+                autoClose={2000}
                 hideProgressBar={false}
                 newestOnTop={false}
                 closeOnClick
@@ -766,13 +776,16 @@ const CategoriesTable = () => {
             {/* Add Category Modal */}
             {canWrite && (
                 <Modal show={isModalOpen} onHide={() => {
-                    setIsModalOpen(false);
-                    setNewCategory({ name: '', description: '', primaryImageUrl: '' });
-                    setFormErrors({});
-                    setSelectedFile(null);
-                    setImagePreview('');
+                    if (!uploadingImage) {
+                        setIsModalOpen(false);
+                        setNewCategory({ name: '', description: '', primaryImageUrl: '' });
+                        setFormErrors({});
+                        setSelectedFile(null);
+                        setImagePreview('');
+                        setImageSizeError('');
+                    }
                 }} centered size="lg">
-                    <Modal.Header closeButton>
+                    <Modal.Header closeButton={!uploadingImage}>
                         <Modal.Title>Add Category</Modal.Title>
                     </Modal.Header>
                     <Modal.Body>
@@ -827,6 +840,7 @@ const CategoriesTable = () => {
                                                 <>
                                                     <FiUpload size={20} className="mb-1" />
                                                     <h8 className="small">Add Image</h8>
+                                                    <h8 className="small">Max 200 KB</h8>
                                                 </>
                                             )}
                                         </div>
@@ -839,6 +853,9 @@ const CategoriesTable = () => {
                                         />
                                     </div>
                                 </div>
+                                {imageSizeError && (
+                                    <div className="text-danger small">{imageSizeError}</div>
+                                )}
                             </div>
                         </form>
                     </Modal.Body>
@@ -865,12 +882,15 @@ const CategoriesTable = () => {
             {/* Edit Category Modal */}
             {canUpdate && (
                 <Modal show={isEditModalOpen} onHide={() => {
-                    setIsEditModalOpen(false);
-                    setEditFormErrors({});
-                    setSelectedFile(null);
-                    setImagePreview('');
+                    if (!uploadingImage) {
+                        setIsEditModalOpen(false);
+                        setEditFormErrors({});
+                        setSelectedFile(null);
+                        setImagePreview('');
+                        setImageSizeError('');
+                    }
                 }} centered size="lg">
-                    <Modal.Header closeButton>
+                    <Modal.Header closeButton={!uploadingImage}>
                         <Modal.Title>Edit Category</Modal.Title>
                     </Modal.Header>
                     <Modal.Body>
@@ -963,6 +983,7 @@ const CategoriesTable = () => {
                                                 <>
                                                     <FiUpload size={20} className="mb-1" />
                                                     <h8 className="small">Add Image</h8>
+                                                    <h8 className="small">Max 200 KB</h8>
                                                 </>
                                             )}
                                         </div>
@@ -975,6 +996,9 @@ const CategoriesTable = () => {
                                         />
                                     </div>
                                 </div>
+                                {imageSizeError && (
+                                    <div className="text-danger small">{imageSizeError}</div>
+                                )}
                             </div>
                         </form>
                     </Modal.Body>
@@ -1049,7 +1073,7 @@ const CategoriesTable = () => {
                                         ) : (
                                             <div style={{ width: '100px', height: '100px' }}>
                                                 <img
-                                                    src="/images/avatar/1.png"
+                                                    src="/images/avatar/undefined.png"
                                                     alt="Category"
                                                     className="w-100 h-100"
                                                     style={{
@@ -1069,8 +1093,12 @@ const CategoriesTable = () => {
 
             {/* Delete Confirmation Modal */}
             {canDelete && (
-                <Modal show={isDeleteModalOpen} onHide={() => setIsDeleteModalOpen(false)} centered>
-                    <Modal.Header closeButton>
+                <Modal show={isDeleteModalOpen} onHide={() => {
+                    if (!deletingCategory) {
+                        setIsDeleteModalOpen(false);
+                    }
+                }} centered>
+                    <Modal.Header closeButton={!deletingCategory}>
                         <Modal.Title>Delete Category</Modal.Title>
                     </Modal.Header>
                     <Modal.Body>
@@ -1086,8 +1114,16 @@ const CategoriesTable = () => {
                             variant="contained"
                             onClick={handleDeleteCategory}
                             style={{ backgroundColor: '#d32f2f', color: 'white' }}
+                            disabled={deletingCategory}
                         >
-                            Delete
+                            {deletingCategory ? (
+                                <>
+                                    <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                    Deleting...
+                                </>
+                            ) : (
+                                'Delete'
+                            )}
                         </Button>
                     </Modal.Footer>
                 </Modal>

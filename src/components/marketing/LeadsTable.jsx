@@ -55,7 +55,7 @@ const MarketingTable = () => {
     const showErrorToast = (message) => {
         toast.error(message, {
             position: "bottom-center",
-            autoClose: 5000,
+            autoClose: 2000,
             hideProgressBar: false,
             closeOnClick: true,
             pauseOnHover: true,
@@ -88,7 +88,7 @@ const MarketingTable = () => {
     const showSuccessToast = (message) => {
         toast.success(message, {
             position: "bottom-center",
-            autoClose: 5000,
+            autoClose: 2000,
             hideProgressBar: false,
             closeOnClick: true,
             pauseOnHover: true,
@@ -558,7 +558,7 @@ const MarketingTable = () => {
         <>
             <ToastContainer
                 position="bottom-center"
-                autoClose={5000}
+                autoClose={2000}
                 hideProgressBar={false}
                 newestOnTop={false}
                 closeOnClick

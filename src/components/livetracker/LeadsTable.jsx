@@ -1,7 +1,28 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Card, ListGroup, Badge, Button, ButtonGroup } from 'react-bootstrap';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Card, ListGroup, Badge, Button } from 'react-bootstrap';
 import { Map, Satellite, Users } from 'lucide-react';
 import { BASE_URL } from '/src/constants.js';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+
+// Fix for default markers in Leaflet
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+});
+
+// Custom rider marker
+const createRiderIcon = (size, isSelected = false) => {
+  return L.icon({
+    iconUrl: '/images/rider_marker.png',
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size],
+    popupAnchor: [0, -size],
+    className: isSelected ? 'selected-marker' : ''
+  });
+};
 
 const RidersAndMapView = () => {
   const [riders, setRiders] = useState([]);
@@ -27,32 +48,58 @@ const RidersAndMapView = () => {
     connectionTimeout: 10000,
   };
 
-  // Load Google Maps API
+  // Initialize map
   useEffect(() => {
-    if (window.google && window.google.maps) {
-      setMapLoaded(true);
-      return;
-    }
+    if (mapRef.current) return;
 
-    const script = document.createElement('script');
-    script.src = 'https://maps.gomaps.pro/maps/api/js?key=AlzaSyjJx7-XhuRdZZVNN8fSCQ0mXdv86fLHGZc&libraries=places&callback=initMap';
-    script.async = true;
-    script.defer = true;
+    const map = L.map('map-container', {
+      zoomControl: false // This removes the zoom buttons
+    }).setView([24.8607, 67.0011], 10);
+    mapRef.current = map;
 
-    window.initMap = () => {
-      setMapLoaded(true);
+    // Add base layer
+    const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: ''
+    }).addTo(map);
+
+    // Add satellite layer (but don't add it to map initially)
+    const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      attribution: ''
+    });
+
+    // Store layers for later use
+    map._layers = {
+      roadmap: osmLayer,
+      satellite: satelliteLayer
     };
 
-    script.onerror = () => {
-      console.error('Failed to load Google Maps script');
-      setError('Failed to load map');
-    };
-
-    document.head.appendChild(script);
+    setMapLoaded(true);
 
     return () => {
-      document.head.removeChild(script);
-      delete window.initMap;
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+      }
+    };
+  }, []);
+
+  // Update map container size when component mounts or resizes
+  useEffect(() => {
+    const handleResize = () => {
+      if (mapRef.current) {
+        setTimeout(() => {
+          mapRef.current.invalidateSize();
+        }, 100);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    
+    // Initial resize after a short delay to ensure container is rendered
+    setTimeout(handleResize, 300);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
     };
   }, []);
 
@@ -112,29 +159,24 @@ const RidersAndMapView = () => {
     setSelectedRiderId(null);
     setViewMode('seeAll');
 
-    // Reset all markers to normal size
+    // Show all markers
     Object.keys(markersRef.current).forEach(id => {
       const marker = markersRef.current[id];
-      marker.setIcon({
-        url: '/images/rider_marker.png',
-        scaledSize: new google.maps.Size(40, 40),
-        anchor: new google.maps.Point(20, 40)
-      });
+      marker.setIcon(createRiderIcon(40));
+      marker.addTo(mapRef.current);
     });
 
     // Fit bounds to show all markers
-    const bounds = new google.maps.LatLngBounds();
-    riders.forEach(rider => {
-      if (rider.latitude && rider.longitude) {
-        bounds.extend(new google.maps.LatLng(rider.latitude, rider.longitude));
-      }
-    });
+    const bounds = L.latLngBounds(riders
+      .filter(rider => rider.latitude && rider.longitude)
+      .map(rider => [rider.latitude, rider.longitude])
+    );
 
-    if (!bounds.isEmpty()) {
+    if (bounds.isValid()) {
       const currentZoom = mapRef.current.getZoom();
       mapRef.current.fitBounds(bounds, {
-        padding: 50,
-        maxZoom: Math.max(currentZoom, 12) // Don't zoom in more than zoom level 12
+        padding: [50, 50],
+        maxZoom: Math.max(currentZoom, 12)
       });
     }
   }, [riders]);
@@ -145,35 +187,22 @@ const RidersAndMapView = () => {
     setSelectedRiderId(rider.riderId);
     setViewMode('focused');
 
-    const marker = markersRef.current[rider.riderId];
-    if (marker) {
-      if (marker.infoWindow) {
-        marker.infoWindow.open(mapRef.current, marker);
+    // Hide all other markers except the selected one
+    Object.keys(markersRef.current).forEach(id => {
+      const marker = markersRef.current[id];
+      if (id === rider.riderId) {
+        // Show and highlight selected marker
+        marker.addTo(mapRef.current);
+        marker.setIcon(createRiderIcon(50, true));
+        marker.openPopup();
+      } else {
+        // Remove other markers from map
+        mapRef.current.removeLayer(marker);
       }
+    });
 
-      // Set center and slightly zoomed in level
-      mapRef.current.setCenter(new google.maps.LatLng(rider.latitude, rider.longitude));
-      mapRef.current.setZoom(17); // Increased from 14 to 16 for a closer view
-
-      // Larger size for selected marker
-      marker.setIcon({
-        url: '/images/rider_marker.png',
-        scaledSize: new google.maps.Size(50, 50),
-        anchor: new google.maps.Point(25, 50)
-      });
-
-      // Reset other markers to normal size
-      Object.keys(markersRef.current).forEach(id => {
-        if (id !== rider.riderId) {
-          const otherMarker = markersRef.current[id];
-          otherMarker.setIcon({
-            url: '/images/rider_marker.png',
-            scaledSize: new google.maps.Size(40, 40),
-            anchor: new google.maps.Point(20, 40)
-          });
-        }
-      });
-    }
+    // Set center and zoom to selected rider
+    mapRef.current.setView([rider.latitude, rider.longitude], 17);
   }, []);
 
   const toggleMapType = useCallback(() => {
@@ -181,7 +210,16 @@ const RidersAndMapView = () => {
 
     const newMapType = mapType === 'roadmap' ? 'satellite' : 'roadmap';
     setMapType(newMapType);
-    mapRef.current.setMapTypeId(newMapType);
+
+    // Remove current layer
+    Object.values(mapRef.current._layers).forEach(layer => {
+      if (layer instanceof L.TileLayer) {
+        mapRef.current.removeLayer(layer);
+      }
+    });
+
+    // Add new layer
+    mapRef.current.addLayer(mapRef.current._layers[newMapType]);
   }, [mapType]);
 
   const fetchLiveRiderLocations = useCallback(async () => {
@@ -203,7 +241,7 @@ const RidersAndMapView = () => {
         }
       });
 
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      if (!response.ok) throw new Error(``);
 
       const data = await response.json();
       setRiders(data.map(rider => ({
@@ -220,46 +258,6 @@ const RidersAndMapView = () => {
     }
   }, [getClientId, getAuthToken]);
 
-  const initializeMap = useCallback(() => {
-    if (mapRef.current || !mapLoaded) return;
-
-    const defaultLat = riders.length > 0 ? riders[0].latitude : 24.8607;
-    const defaultLng = riders.length > 0 ? riders[0].longitude : 67.0011;
-    const defaultZoom = riders.length > 0 ? 12 : 10;
-
-    mapRef.current = new google.maps.Map(document.getElementById('map-container'), {
-      center: { lat: defaultLat, lng: defaultLng },
-      zoom: defaultZoom,
-      mapTypeId: mapType,
-      streetViewControl: false,
-      mapTypeControl: false,
-      fullscreenControl: false,
-      zoomControl: true,
-      scaleControl: true
-    });
-
-    if (riders.length > 0) {
-      updateMapMarkers(riders);
-      // Set to see all by default after map is initialized
-      setTimeout(() => {
-        if (mapRef.current && riders.length > 0) {
-          const bounds = new google.maps.LatLngBounds();
-          riders.forEach(rider => {
-            if (rider.latitude && rider.longitude) {
-              bounds.extend(new google.maps.LatLng(rider.latitude, rider.longitude));
-            }
-          });
-          if (!bounds.isEmpty()) {
-            mapRef.current.fitBounds(bounds, {
-              padding: 50,
-              maxZoom: 12
-            });
-          }
-        }
-      }, 100);
-    }
-  }, [riders, mapLoaded, mapType]);
-
   const updateMapMarkers = useCallback((riderData) => {
     if (!mapRef.current) return;
 
@@ -274,54 +272,46 @@ const RidersAndMapView = () => {
 
       if (markersRef.current[riderId]) {
         const marker = markersRef.current[riderId];
-        const newPosition = new google.maps.LatLng(lat, lng);
-        if (!marker.getPosition().equals(newPosition)) {
-          marker.setPosition(newPosition);
+        const newPosition = L.latLng(lat, lng);
+        if (!marker.getLatLng().equals(newPosition)) {
+          marker.setLatLng(newPosition);
 
-          // Only pan to rider if in focused mode, don't change zoom
+          // Only pan to rider if in focused mode and this is the selected rider
           if (selectedRiderId === riderId && viewMode === 'focused') {
             mapRef.current.panTo(newPosition);
-            mapRef.current.setZoom(17); // Maintain the zoom level
           }
         }
       } else {
-        const marker = new google.maps.Marker({
-          position: { lat, lng },
-          map: mapRef.current,
-          icon: {
-            url: '/images/rider_marker.png',
-            scaledSize: new google.maps.Size(40, 40),
-            anchor: new google.maps.Point(20, 40)
-          },
+        const marker = L.marker([lat, lng], {
+          icon: createRiderIcon(40),
           title: rider.riderName
         });
 
-        const infoWindow = new google.maps.InfoWindow({
-          content: `
-            <div class="rider-popup">
-              <p><b>${rider.riderName}</b></p>
-              <p>Phone: ${rider.riderPhone}</p>
-              <p>Status: <span class="status-badge" style="background-color: ${getStatusColor(rider.status)}">
-                ${rider.status.replace('_', ' ')}
-              </span></p>
-              <small>Last updated: ${new Date(rider.timestamp).toLocaleTimeString()}</small>
-            </div>
-          `
-        });
+        const popupContent = `
+          <div class="rider-popup">
+            <p><b>${rider.riderName}</b></p>
+            <p>Phone: ${rider.riderPhone}</p>
+            <p>Status: <span class="status-badge" style="background-color: ${getStatusColor(rider.status)}">
+              ${rider.status.replace('_', ' ')}
+            </span></p>
+            <small>Last updated: ${new Date(rider.timestamp).toLocaleTimeString()}</small>
+          </div>
+        `;
 
-        marker.addListener('click', () => {
-          infoWindow.open(mapRef.current, marker);
-        });
-
-        marker.infoWindow = infoWindow;
+        marker.bindPopup(popupContent);
         newMarkers[riderId] = marker;
+        
+        // Only add to map if we're in "see all" mode or this is the selected rider
+        if (viewMode === 'seeAll' || selectedRiderId === riderId) {
+          marker.addTo(mapRef.current);
+        }
       }
     });
 
     // Remove markers for riders that no longer exist
     Object.keys(markersRef.current).forEach(riderId => {
       if (!riderData.find(r => r.riderId === riderId)) {
-        markersRef.current[riderId].setMap(null);
+        mapRef.current.removeLayer(markersRef.current[riderId]);
         delete markersRef.current[riderId];
       }
     });
@@ -355,7 +345,7 @@ const RidersAndMapView = () => {
         }
       }, WS_CONFIG.connectionTimeout);
 
-      stompClient.connect({}, (frame) => {
+      stompClient.connect({}, () => {
         clearTimeout(connectionTimeout);
         if (isUnmountedRef.current) return;
 
@@ -380,19 +370,18 @@ const RidersAndMapView = () => {
                 );
 
                 if (mapRef.current) {
-                  // Update only the marker position without affecting camera
+                  // Update only the marker position
                   const marker = markersRef.current[locationUpdate.riderId];
                   if (marker) {
-                    const newPosition = new google.maps.LatLng(
+                    const newPosition = L.latLng(
                       locationUpdate.latitude,
                       locationUpdate.longitude
                     );
-                    marker.setPosition(newPosition);
+                    marker.setLatLng(newPosition);
 
-                    // Only pan to rider if in focused mode, don't change zoom
+                    // Only pan to rider if in focused mode and this is the selected rider
                     if (selectedRiderId === locationUpdate.riderId && viewMode === 'focused') {
                       mapRef.current.panTo(newPosition);
-                      mapRef.current.setZoom(17); // Maintain the zoom level
                     }
                   }
                 }
@@ -454,21 +443,35 @@ const RidersAndMapView = () => {
     };
   }, [fetchLiveRiderLocations, connectWebSocket, disconnectWebSocket]);
 
+  // Update map markers when riders change
   useEffect(() => {
-    if (mapLoaded && riders.length > 0 && !mapRef.current) {
-      initializeMap();
-    }
-  }, [riders, initializeMap, mapLoaded]);
+    if (mapRef.current && riders.length > 0) {
+      updateMapMarkers(riders);
+      
+      // If in "see all" mode, fit bounds to show all markers
+      if (viewMode === 'seeAll') {
+        setTimeout(() => {
+          if (mapRef.current && riders.length > 0) {
+            const bounds = L.latLngBounds(riders
+              .filter(rider => rider.latitude && rider.longitude)
+              .map(rider => [rider.latitude, rider.longitude])
+            );
 
-  // Update map type when changed
-  useEffect(() => {
-    if (mapRef.current) {
-      mapRef.current.setMapTypeId(mapType);
+            if (bounds.isValid()) {
+              mapRef.current.fitBounds(bounds, {
+                padding: [50, 50],
+                maxZoom: 12
+              });
+            }
+          }
+        }, 100);
+      }
     }
-  }, [mapType]);
+  }, [riders, viewMode]);
 
   const availableRidersCount = riders.filter(r => r.status === 'IDLE').length;
   const busyRidersCount = riders.filter(r => r.status === 'ON_JOB').length;
+  const selectedRider = riders.find(r => r.riderId === selectedRiderId);
 
   return (
     <div className="container-fluid mt-4">
@@ -482,13 +485,18 @@ const RidersAndMapView = () => {
           .rider-popup small { color: #999; font-size: 12px; }
           #map-container { 
             width: 100%; 
-            height: 500px; 
-            min-height: 500px; 
+            height: 100%;
+            min-height: 500px;
+            flex-grow: 1;
             background: #f5f5f5; 
             position: relative;
           }
-          .gm-style .gm-style-iw-c { padding: 0 !important; border-radius: 8px !important; }
-          .gm-style .gm-style-iw-d { padding: 0 !important; overflow: hidden !important; }
+          
+          .map-card-body {
+            display: flex;
+            flex-direction: column;
+            min-height: 500px;
+          }
           
           .map-controls {
             position: absolute;
@@ -532,10 +540,25 @@ const RidersAndMapView = () => {
             border-radius: 0.25rem;
             color: white;
           }
+          
+          /* Leaflet popup styling */
+          .leaflet-popup-content-wrapper {
+            border-radius: 8px;
+          }
+          
+          /* Selected marker styling */
+          .selected-marker {
+            filter: drop-shadow(0 0 8px rgba(33, 150, 243, 0.8));
+          }
+          
+          /* Hide zoom controls */
+          .leaflet-control-zoom {
+            display: none !important;
+          }
         `}
       </style>
 
-      <div className="row">
+      <div className="row h-100">
         <div className="col-lg-3 col-md-5 mb-4">
           <Card className="h-100">
             <Card.Header className="d-flex justify-content-between align-items-center">
@@ -583,9 +606,14 @@ const RidersAndMapView = () => {
         </div>
 
         <div className="col-lg-9 col-md-7 mb-4">
-          <Card className="h-100">
+          <Card className="h-100 d-flex">
             <Card.Header className="d-flex justify-content-between align-items-center">
-              <h5 className="mb-0">Live Tracking</h5>
+              <h5 className="mb-0">
+                {viewMode === 'focused' && selectedRider ? 
+                  `Tracking: ${selectedRider.riderName}` : 
+                  'Live Tracking'
+                }
+              </h5>
               <div>
                 <span className="badge bg-success me-2">Available: {availableRidersCount}</span>
                 <span className="badge bg-warning">On Job: {busyRidersCount}</span>
@@ -596,6 +624,7 @@ const RidersAndMapView = () => {
                   size="sm"
                   onClick={handleSeeAll}
                   disabled={riders.length === 0}
+                  title="See All Riders"
                 >
                   <Users size={16} className="me-1" />
                   See All
@@ -604,17 +633,23 @@ const RidersAndMapView = () => {
                   variant={mapType === 'satellite' ? 'success' : 'success'}
                   size="sm"
                   onClick={toggleMapType}
+                  title="Toggle Map Type"
                 >
                   {mapType === 'satellite' ? <Satellite size={16} /> : <Map size={16} />}
                 </Button>
               </div>
             </Card.Header>
-            <Card.Body className="p-0">
+            <Card.Body className="p-0 map-card-body">
               <div id="map-container"></div>
             </Card.Body>
             <Card.Footer className="text-muted">
               <small>
                 Last refreshed: {new Date().toLocaleTimeString()}
+                {viewMode === 'focused' && selectedRider && (
+                  <span className="ms-2">
+                    • Tracking: {selectedRider.riderName}
+                  </span>
+                )}
               </small>
             </Card.Footer>
           </Card>

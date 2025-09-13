@@ -10,11 +10,8 @@ import {
     FaMoneyBillWave,
     FaArrowUp,
     FaArrowDown,
-    FaExchangeAlt,
     FaChartLine,
     FaChartBar,
-    FaPiggyBank,
-    FaCreditCard,
     FaPlus,
     FaToggleOn,
     FaToggleOff,
@@ -830,7 +827,7 @@ const TransactionsTable = () => {
         <>
             <ToastContainer
                 position="bottom-center"
-                autoClose={5000}
+                autoClose={2000}
                 hideProgressBar={false}
                 newestOnTop={false}
                 closeOnClick
@@ -1677,7 +1674,7 @@ const TransactionsTable = () => {
                                         opacity: 0.9,
                                         marginTop: '16px'
                                     }}>
-                                        This month's income
+                                        This month&apos;s income
                                     </div>
                                 </div>
                             </div>
@@ -1715,7 +1712,7 @@ const TransactionsTable = () => {
                                         opacity: 0.9,
                                         marginTop: '16px'
                                     }}>
-                                        This month's expenses
+                                        This month&apos;s expenses
                                     </div>
                                 </div>
                             </div>

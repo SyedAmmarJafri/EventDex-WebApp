@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { FiCamera, FiUpload } from 'react-icons/fi';
+import { useState, useEffect, useRef } from 'react';
+import { FiCamera } from 'react-icons/fi';
 import { Modal, Button, Form, Spinner } from 'react-bootstrap';
 import axios from 'axios';
 import { toast } from 'react-toastify';
@@ -24,7 +24,8 @@ const TabProfile = () => {
     const [updating, setUpdating] = useState(false);
     const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [profilePicture, setProfilePicture] = useState(null);
-    const [profilePictureUrl, setProfilePictureUrl] = useState('/images/avatar/1.png');
+    const [profilePictureUrl, setProfilePictureUrl] = useState('/images/avatar/undefined-profile.png');
+    const [imageSizeError, setImageSizeError] = useState('');
     const fileInputRef = useRef(null);
 
     // Get auth data from localStorage
@@ -60,6 +61,14 @@ const TabProfile = () => {
                     profilePicture: authData.profilePicture || ''
                 });
 
+                // Check if we have a cached profile picture in localStorage
+                const cachedProfilePicture = localStorage.getItem('profilePicture');
+                if (cachedProfilePicture) {
+                    setProfilePictureUrl(cachedProfilePicture);
+                } else if (authData.profilePicture) {
+                    setProfilePictureUrl(authData.profilePicture);
+                }
+
                 // Then fetch fresh profile picture from API if allowed
                 if (canUploadProfilePicture) {
                     try {
@@ -71,10 +80,14 @@ const TabProfile = () => {
 
                         if (pictureResponse.data?.data) {
                             setProfilePictureUrl(pictureResponse.data.data);
+                            // Store in localStorage for future use
+                            localStorage.setItem('profilePicture', pictureResponse.data.data);
                         }
                     } catch (pictureError) {
-                        console.warn('Failed to fetch profile picture from API, using localStorage data');
-                        if (authData.profilePicture) {
+                        console.warn('Failed to fetch profile picture from API, using cached data');
+                        if (cachedProfilePicture) {
+                            setProfilePictureUrl(cachedProfilePicture);
+                        } else if (authData.profilePicture) {
                             setProfilePictureUrl(authData.profilePicture);
                         }
                     }
@@ -153,12 +166,15 @@ const TabProfile = () => {
                 return;
             }
 
-            // Validate file size
-            if (file.size > 2 * 1024 * 1024) {
-                toast.error('File size should be less than 2MB');
+            // Validate file size (200KB limit)
+            if (file.size > 200 * 1024) {
+                setImageSizeError('File size should be less than 200KB');
+                setProfilePicture(null);
+                setProfilePictureUrl(formData.profilePicture || '/images/avatar/undefined-profile.png');
                 return;
             }
 
+            setImageSizeError('');
             setProfilePicture(file);
             const reader = new FileReader();
             reader.onload = (event) => {
@@ -194,6 +210,11 @@ const TabProfile = () => {
 
             const response = await axios[method](url, formData, config);
 
+            // Store the new profile picture URL in localStorage
+            if (response.data.url) {
+                localStorage.setItem('profilePicture', response.data.url);
+            }
+
             return response.data.url;
 
         } catch (error) {
@@ -205,6 +226,13 @@ const TabProfile = () => {
 
     const handleSubmit = async () => {
         if (!canUpdateProfile) return;
+
+        // Check if there's an image size error
+        if (profilePicture && profilePicture.size > 200 * 1024) {
+            setImageSizeError('File size should be less than 200KB');
+            setShowConfirmModal(false);
+            return;
+        }
 
         setUpdating(true);
         setShowConfirmModal(false);
@@ -258,6 +286,7 @@ const TabProfile = () => {
                 if (newPictureUrl) {
                     setProfilePicture(null);
                     setProfilePictureUrl(newPictureUrl);
+                    setImageSizeError('');
                 }
 
                 toast.success('Profile updated successfully');
@@ -279,7 +308,15 @@ const TabProfile = () => {
         <div className="tab-pane fade show active" id="profileTab" role="tabpanel">
             <div className="card-body personal-info">
                 {canUpdateProfile ? (
-                    <Form onSubmit={(e) => { e.preventDefault(); setShowConfirmModal(true); }}>
+                    <Form onSubmit={(e) => { 
+                        e.preventDefault(); 
+                        // Check for image size error before showing confirmation modal
+                        if (profilePicture && profilePicture.size > 200 * 1024) {
+                            setImageSizeError('File size should be less than 200KB');
+                            return;
+                        }
+                        setShowConfirmModal(true); 
+                    }}>
                         <div className="mb-4 d-flex align-items-center justify-content-between">
                             <h5 className="fw-bold mb-0 me-4">
                                 <span className="d-block mb-2">Business Information:</span>
@@ -334,10 +371,13 @@ const TabProfile = () => {
 
                                         <div className="text-muted ms-3" style={{ fontSize: '0.75rem' }}>
                                             <div>• Logo size 150x150</div>
-                                            <div>• Max upload size 1MB</div>
+                                            <div>• Max upload size 200 KB</div>
                                             <div>• Allowed: PNG, JPG, JPEG</div>
                                         </div>
                                     </div>
+                                    {imageSizeError && (
+                                        <div className="text-danger small mt-2">{imageSizeError}</div>
+                                    )}
                                 </div>
                             </Form.Group>
                         )}
@@ -459,7 +499,7 @@ const TabProfile = () => {
                         {canUpdateProfile && (
                             <div className="row mt-4">
                                 <div className="col-lg-8 offset-lg-4">
-                                    <Button variant="primary" type="submit" disabled={updating}>
+                                    <Button variant="primary" type="submit" disabled={updating || imageSizeError}>
                                         {updating ? (
                                             <>
                                                 <Spinner as="span" animation="border" size="sm" role="status" aria-hidden="true" />
@@ -473,7 +513,7 @@ const TabProfile = () => {
                     </Form>
                 ) : (
                     <div className="alert alert-info">
-                        You don't have permission to update profile information.
+                        You don&apos;t have permission to update profile information.
                     </div>
                 )}
             </div>
@@ -482,7 +522,11 @@ const TabProfile = () => {
             {canUpdateProfile && (
                 <Modal
                     show={showConfirmModal}
-                    onHide={() => !updating && setShowConfirmModal(false)}
+                    onHide={() => {
+                        if (!updating) {
+                            setShowConfirmModal(false);
+                        }
+                    }}
                     centered
                     backdrop={updating ? 'static' : true}
                     keyboard={!updating}

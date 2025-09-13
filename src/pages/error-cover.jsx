@@ -1,4 +1,3 @@
-import React from 'react'
 import { Link } from 'react-router-dom'
 
 const ErrorCover = () => {
@@ -23,7 +22,7 @@ const ErrorCover = () => {
                             />
                         </div>
                         <h4 className="fw-bold mb-2">Page not found</h4>
-                        <p className="fs-12 fw-medium text-muted">Sorry, the page you are looking for can't be found. Please check the URL or try to a different page on our site.</p>
+                        <p className="fs-12 fw-medium text-muted">Sorry, the page you are looking for can&apos;t be found. Please check the URL or try to a different page on our site.</p>
                         <h2 className="fw-bolder mb-4" style={{ fontSize: 120 }}>4<span className="text-danger">0</span>4</h2>
                         <div className="mt-5">
                             <Link to="/" className="btn btn-light-brand w-100">Back Home</Link>

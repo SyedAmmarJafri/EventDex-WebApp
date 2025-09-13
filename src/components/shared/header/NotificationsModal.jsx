@@ -1,9 +1,8 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   FiBell,
   FiCheck,
   FiX,
-  FiChevronRight,
   FiPackage,
   FiTruck,
   FiAlertCircle,

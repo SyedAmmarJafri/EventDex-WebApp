@@ -1,4 +1,3 @@
-import React from 'react'
 import ResetForm from '@/components/authentication/ChangeForm'
 
 const ResetCover = () => {

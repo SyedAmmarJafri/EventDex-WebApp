@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { BASE_URL } from '/src/constants.js';
 
@@ -36,7 +36,7 @@ const ResetForm = ({ path }) => {
             localStorage.setItem('resetEmail', email);
 
             // Redirect to verification page
-            navigate('/authentication/verify/cover');
+            navigate('/verify');
         } catch (err) {
             setError(err.message || 'Failed to send reset request');
         } finally {
@@ -49,7 +49,7 @@ const ResetForm = ({ path }) => {
             <h2 className="fs-20 fw-bolder mb-4">Reset</h2>
             <h4 className="fs-13 fw-bold mb-2">Reset your password</h4>
             <p className="fs-12 fw-medium text-muted">
-                Enter your email and a reset link will be sent to you. Let's access the best recommendations for you.
+                Enter your email and a reset link will be sent to you. Let&apos;s access the best recommendations for you.
             </p>
 
             <form onSubmit={handleSubmit} className="w-100 mt-4 pt-2">
@@ -98,7 +98,7 @@ const ResetForm = ({ path }) => {
             <div className="mt-5 text-muted">
                 <span>Back to login?</span>
                 <Link
-                    to="/authentication/login/cover"
+                    to="/login"
                     className="fw-bold ms-1"
                 >
                     Login

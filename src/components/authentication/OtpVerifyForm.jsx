@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BASE_URL } from '/src/constants.js';
 
@@ -69,7 +69,7 @@ const OtpVerifyForm = () => {
             localStorage.setItem('verifiedOtp', otpCode);
             
             // Redirect to password change page
-            navigate('/authentication/ChangeForm/cover');
+            navigate('/ChangeForm');
         } catch (err) {
             setError(err.message || 'Failed to verify OTP');
         } finally {
@@ -139,8 +139,8 @@ const OtpVerifyForm = () => {
                 </div>
                 
                 <div className="mt-5 text-muted">
-                    <span>Didn't get the code?</span>
-                    <a href="/authentication/reset/cover"> Resend</a>
+                    <span>Didn&apos;t get the code?</span>
+                    <a href="/reset"> Resend</a>
                 </div>
             </form>
         </>

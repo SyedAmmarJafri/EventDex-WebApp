@@ -42,6 +42,9 @@ const TeamTable = () => {
     const [roles, setRoles] = useState([]);
     const skinTheme = localStorage.getItem('skinTheme') || 'light';
     const isDarkMode = skinTheme === 'dark';
+    const [creating, setCreating] = useState(false);
+    const [updating, setUpdating] = useState(false);
+    const [deleting, setDeleting] = useState(false);
 
     // Get user permissions from authData
     const authData = JSON.parse(localStorage.getItem("authData"));
@@ -143,7 +146,7 @@ const TeamTable = () => {
                     </svg>
                 </div>
                 <h5 className="mb-2">No Team Members Found</h5>
-                <p className="text-muted mb-4">You haven't added any team members yet. Start by adding a new team member.</p>
+                <p className="text-muted mb-4">You haven&apos;t added any team members yet. Start by adding a new team member.</p>
                 {canManageStaff && (
                     <Button
                         variant="contained"
@@ -280,6 +283,7 @@ const TeamTable = () => {
         if (!validateForm(newTeam, setFormErrors)) return;
 
         try {
+            setCreating(true);
             const authData = JSON.parse(localStorage.getItem("authData"));
 
             const response = await fetch(`${BASE_URL}/api/client-admin/staff-users`, {
@@ -316,6 +320,8 @@ const TeamTable = () => {
             });
         } catch (err) {
             toast.error(err.message);
+        } finally {
+            setCreating(false);
         }
     };
 
@@ -324,6 +330,7 @@ const TeamTable = () => {
         if (!validateForm(editTeam, setEditFormErrors)) return;
 
         try {
+            setUpdating(true);
             const authData = JSON.parse(localStorage.getItem("authData"));
 
             const requestBody = {
@@ -357,6 +364,8 @@ const TeamTable = () => {
             setIsEditModalOpen(false);
         } catch (err) {
             toast.error(err.message);
+        } finally {
+            setUpdating(false);
         }
     };
 
@@ -387,6 +396,7 @@ const TeamTable = () => {
         if (!teamToDelete) return;
 
         try {
+            setDeleting(true);
             const authData = JSON.parse(localStorage.getItem("authData"));
 
             setTeam(prev => prev.filter(team => team.id !== teamToDelete.id));
@@ -411,6 +421,7 @@ const TeamTable = () => {
             setTeam(prev => [...prev, teamToDelete]);
             toast.error(err.message);
         } finally {
+            setDeleting(false);
             setTeamToDelete(null);
         }
     };
@@ -447,9 +458,9 @@ const TeamTable = () => {
                 header: 'Status',
                 cell: (info) => (
                     <div className="d-flex align-items-center gap-2">
-                        <h8 className={`badge ${info.getValue() ? 'bg-success' : 'bg-danger'}`}>
+                        <p className={`badge ${info.getValue() ? 'bg-success' : 'bg-danger'}`}>
                             {info.getValue() ? 'Active' : 'Inactive'}
-                        </h8>
+                        </p>
                     </div>
                 )
             }
@@ -539,11 +550,13 @@ const TeamTable = () => {
 
             {/* Add Team Member Modal */}
             <Modal show={isModalOpen} onHide={() => {
-                setIsModalOpen(false);
-                setNewTeam({ name: '', email: '', password: '', phone: '', roleId: '', active: true });
-                setFormErrors({});
+                if (!creating) {
+                    setIsModalOpen(false);
+                    setNewTeam({ name: '', email: '', password: '', phone: '', roleId: '', active: true });
+                    setFormErrors({});
+                }
             }} centered size="lg">
-                <Modal.Header closeButton>
+                <Modal.Header closeButton={!creating}>
                     <Modal.Title>Add New Team Member</Modal.Title>
                 </Modal.Header>
                 <Modal.Body>
@@ -558,6 +571,7 @@ const TeamTable = () => {
                                 value={newTeam.name}
                                 onChange={handleInputChange}
                                 placeholder="Enter team member name"
+                                disabled={creating}
                             />
                             {formErrors.name && <div className="invalid-feedback">{formErrors.name}</div>}
                         </div>
@@ -571,6 +585,7 @@ const TeamTable = () => {
                                 value={newTeam.email}
                                 onChange={handleInputChange}
                                 placeholder="Enter team member email"
+                                disabled={creating}
                             />
                             {formErrors.email && <div className="invalid-feedback">{formErrors.email}</div>}
                         </div>
@@ -584,6 +599,7 @@ const TeamTable = () => {
                                 value={newTeam.password}
                                 onChange={handleInputChange}
                                 placeholder="Enter password"
+                                disabled={creating}
                             />
                             {formErrors.password && <div className="invalid-feedback">{formErrors.password}</div>}
                         </div>
@@ -597,6 +613,7 @@ const TeamTable = () => {
                                 value={newTeam.phone}
                                 onChange={handleInputChange}
                                 placeholder="Enter team member phone number"
+                                disabled={creating}
                             />
                             {formErrors.phone && <div className="invalid-feedback">{formErrors.phone}</div>}
                         </div>
@@ -619,6 +636,7 @@ const TeamTable = () => {
                                 style={{
                                     backgroundColor: 'transparent', cursor: 'pointer', paddingRight: '2.5rem', backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'16\' height=\'16\' fill=\'%230092ff\' viewBox=\'0 0 16 16\'%3E%3Cpath d=\'M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z\'/%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.75rem center', backgroundSize: '16px 12px', appearance: 'none',
                                 }}
+                                disabled={creating}
                             >
                                 <option value="" style={{
                                     color: '#6c757d',
@@ -661,10 +679,11 @@ const TeamTable = () => {
                                         checked={newTeam.active}
                                         onChange={handleStatusToggle(true)}
                                         color="primary"
+                                        disabled={creating}
                                     />
-                                    <h8 className="ms-2">
+                                    <p className="text-dark ms-2">
                                         {newTeam.active ? 'Active' : 'Inactive'}
-                                    </h8>
+                                    </p>
                                 </div>
                             </Form.Group>
                         </div>
@@ -675,18 +694,28 @@ const TeamTable = () => {
                         variant="contained"
                         onClick={handleSubmit}
                         style={{ backgroundColor: '#1976d2', color: 'white' }}
+                        disabled={creating}
                     >
-                        Add Team Member
+                        {creating ? (
+                            <>
+                                <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                Creating...
+                            </>
+                        ) : (
+                            'Add Team Member'
+                        )}
                     </Button>
                 </Modal.Footer>
             </Modal>
 
             {/* Edit Team Member Modal */}
             <Modal show={isEditModalOpen} onHide={() => {
-                setIsEditModalOpen(false);
-                setEditFormErrors({});
+                if (!updating) {
+                    setIsEditModalOpen(false);
+                    setEditFormErrors({});
+                }
             }} centered size="lg">
-                <Modal.Header closeButton>
+                <Modal.Header closeButton={!updating}>
                     <Modal.Title>Edit Team Member: {editTeam.name}</Modal.Title>
                 </Modal.Header>
                 <Modal.Body>
@@ -701,6 +730,7 @@ const TeamTable = () => {
                                 value={editTeam.name}
                                 onChange={handleEditInputChange}
                                 placeholder="Enter team member name"
+                                disabled={updating}
                             />
                             {editFormErrors.name && <div className="invalid-feedback">{editFormErrors.name}</div>}
                         </div>
@@ -714,6 +744,7 @@ const TeamTable = () => {
                                 value={editTeam.email}
                                 onChange={handleEditInputChange}
                                 placeholder="Enter team member email"
+                                disabled={updating}
                             />
                             {editFormErrors.email && <div className="invalid-feedback">{editFormErrors.email}</div>}
                         </div>
@@ -727,6 +758,7 @@ const TeamTable = () => {
                                 value={editTeam.password}
                                 onChange={handleEditInputChange}
                                 placeholder="Enter new password"
+                                disabled={updating}
                             />
                             {editFormErrors.password && <div className="invalid-feedback">{editFormErrors.password}</div>}
                         </div>
@@ -740,6 +772,7 @@ const TeamTable = () => {
                                 value={editTeam.phone}
                                 onChange={handleEditInputChange}
                                 placeholder="Enter team member phone number"
+                                disabled={updating}
                             />
                             {editFormErrors.phone && <div className="invalid-feedback">{editFormErrors.phone}</div>}
                         </div>
@@ -762,6 +795,7 @@ const TeamTable = () => {
                                 style={{
                                     backgroundColor: 'transparent', cursor: 'pointer', paddingRight: '2.5rem', backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'16\' height=\'16\' fill=\'%230092ff\' viewBox=\'0 0 16 16\'%3E%3Cpath d=\'M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z\'/%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.75rem center', backgroundSize: '16px 12px', appearance: 'none',
                                 }}
+                                disabled={updating}
                             >
                                 <option value="" style={{
                                     color: '#6c757d',
@@ -804,10 +838,11 @@ const TeamTable = () => {
                                         checked={editTeam.active}
                                         onChange={handleStatusToggle(false)}
                                         color="primary"
+                                        disabled={updating}
                                     />
-                                    <h8 className="ms-2">
+                                    <p className="text-dark ms-2">
                                         {editTeam.active ? 'Active' : 'Inactive'}
-                                    </h8>
+                                    </p>
                                 </div>
                             </Form.Group>
                         </div>
@@ -818,8 +853,16 @@ const TeamTable = () => {
                         variant="contained"
                         onClick={handleEditSubmit}
                         style={{ backgroundColor: '#1976d2', color: 'white' }}
+                        disabled={updating}
                     >
-                        Update Team Member
+                        {updating ? (
+                            <>
+                                <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                Updating...
+                            </>
+                        ) : (
+                            'Update Team Member'
+                        )}
                     </Button>
                 </Modal.Footer>
             </Modal>
@@ -834,27 +877,27 @@ const TeamTable = () => {
                         <div>
                             <div className="mb-4">
                                 <h5>Name</h5>
-                                <h8 className="fs-6">{selectedTeam.name}</h8>
+                                <p className="text-dark fs-6">{selectedTeam.name}</p>
                             </div>
                             <div className="mb-4">
                                 <h5>Email</h5>
-                                <h8 className="fs-6">{selectedTeam.email}</h8>
+                                <p className="text-dark fs-6">{selectedTeam.email}</p>
                             </div>
                             <div className="mb-4">
                                 <h5>Phone</h5>
-                                <h8 className="fs-6">{selectedTeam.phone}</h8>
+                                <p className="text-dark fs-6">{selectedTeam.phone}</p>
                             </div>
                             <div className="mb-4">
                                 <h5>Role</h5>
-                                <h8 className="fs-6">{getRoleName(selectedTeam.roleId)}</h8>
+                                <p className="text-dark fs-6">{getRoleName(selectedTeam.roleId)}</p>
                             </div>
                             <div className="mb-4">
                                 <h5>Status</h5>
-                                <h8 className="fs-6">
+                                <p className="fs-6">
                                     <span className={`badge ${selectedTeam.active ? 'bg-success' : 'bg-danger'}`}>
                                         {selectedTeam.active ? 'Active' : 'Inactive'}
                                     </span>
-                                </h8>
+                                </p>
                             </div>
                         </div>
                     )}
@@ -862,16 +905,20 @@ const TeamTable = () => {
             </Modal>
 
             {/* Delete Confirmation Modal */}
-            <Modal show={isDeleteModalOpen} onHide={() => setIsDeleteModalOpen(false)} centered>
-                <Modal.Header closeButton>
+            <Modal show={isDeleteModalOpen} onHide={() => {
+                if (!deleting) {
+                    setIsDeleteModalOpen(false);
+                }
+            }} centered>
+                <Modal.Header closeButton={!deleting}>
                     <Modal.Title>Confirm Deletion</Modal.Title>
                 </Modal.Header>
                 <Modal.Body>
                     {teamToDelete && (
-                        <>
-                            <h8>Are you sure you want to delete the team member <strong>{teamToDelete.name}</strong>? </h8>
-                            <h8>This action cannot be undone and will remove all associated data.</h8>
-                        </>
+                        <p className="text-dark">
+                            Are you sure you want to delete the team member <strong>{teamToDelete.name}</strong>?
+                            This action cannot be undone and will remove all associated data.
+                        </p>
                     )}
                 </Modal.Body>
                 <Modal.Footer>
@@ -879,8 +926,16 @@ const TeamTable = () => {
                         variant="contained"
                         onClick={handleDeleteTeam}
                         style={{ backgroundColor: '#d32f2f', color: 'white' }}
+                        disabled={deleting}
                     >
-                        Delete Team Member
+                        {deleting ? (
+                            <>
+                                <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                Deleting...
+                            </>
+                        ) : (
+                            'Delete Team Member'
+                        )}
                     </Button>
                 </Modal.Footer>
             </Modal>

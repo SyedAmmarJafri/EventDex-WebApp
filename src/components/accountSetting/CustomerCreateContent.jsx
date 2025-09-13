@@ -91,7 +91,7 @@ const CustomerCreateContent = () => {
                 {tabs.length === 0 && (
                     <div className="card-body">
                         <div className="alert alert-primary mb-0">
-                            You don't have permission to view any tabs.
+                            You don&apos;t have permission to view any tabs.
                         </div>
                     </div>
                 )}

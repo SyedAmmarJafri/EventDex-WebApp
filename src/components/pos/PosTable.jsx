@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { FiShoppingCart, FiUser, FiEdit, FiPlus, FiMinus, FiCamera, FiX, FiSearch, FiMail } from 'react-icons/fi';
 import { BASE_URL } from '/src/constants.js';
 import { ToastContainer, toast } from 'react-toastify';
@@ -1037,11 +1037,11 @@ const SmartPOS = () => {
                         <div key={deal.id} className="product-card">
                           <div className="product-image">
                             <img
-                              src={deal.imageUrl || '/images/avatar/1.png'}
+                              src={deal.imageUrl || '/images/avatar/undefined.png'}
                               alt={deal.name}
                               onError={(e) => {
                                 e.target.onerror = null;
-                                e.target.src = '/images/avatar/1.png';
+                                e.target.src = '/images/avatar/undefined.png';
                               }}
                             />
                             <button
@@ -1076,11 +1076,11 @@ const SmartPOS = () => {
                         <div key={item.id} className="product-card">
                           <div className="product-image">
                             <img
-                              src={item.primaryImageUrl || '/images/avatar/1.png'}
+                              src={item.primaryImageUrl || '/images/avatar/undefined.png'}
                               alt={item.name}
                               onError={(e) => {
                                 e.target.onerror = null;
-                                e.target.src = '/images/avatar/1.png';
+                                e.target.src = '/images/avatar/undefined.png';
                               }}
                             />
                             {item.quantity <= 0 && (
@@ -1144,12 +1144,12 @@ const SmartPOS = () => {
                     <li key={`${item.id}-${JSON.stringify(item.variantOptions)}`} className="order-item">
                       <div className="item-info">
                         <img
-                          src={item.primaryImageUrl || item.imageUrl || '/images/avatar/1.png'}
+                          src={item.primaryImageUrl || item.imageUrl || '/images/avatar/undefined.png'}
                           alt={item.name}
                           className="item-image"
                           onError={(e) => {
                             e.target.onerror = null;
-                            e.target.src = '/images/avatar/1.png';
+                            e.target.src = '/images/avatar/undefined.png';
                           }}
                         />
                         <div>
@@ -2188,11 +2188,11 @@ const SmartPOS1 = () => {
                         <div key={deal.id} className="pos-product-card">
                           <div className="pos-product-image">
                             <img
-                              src={deal.imageUrl || '/images/avatar/1.png'}
+                              src={deal.imageUrl || '/images/avatar/undefined.png'}
                               alt={deal.name}
                               onError={(e) => {
                                 e.target.onerror = null;
-                                e.target.src = '/images/avatar/1.png';
+                                e.target.src = '/images/avatar/undefined.png';
                               }}
                             />
                             <button
@@ -2227,11 +2227,11 @@ const SmartPOS1 = () => {
                         <div key={item.id} className="pos-product-card">
                           <div className="pos-product-image">
                             <img
-                              src={item.primaryImageUrl || '/images/avatar/1.png'}
+                              src={item.primaryImageUrl || '/images/avatar/undefined.png'}
                               alt={item.name}
                               onError={(e) => {
                                 e.target.onerror = null;
-                                e.target.src = '/images/avatar/1.png';
+                                e.target.src = '/images/avatar/undefined.png';
                               }}
                             />
                             {item.quantity <= 0 && (
@@ -2295,12 +2295,12 @@ const SmartPOS1 = () => {
                     <li key={`${item.id}-${JSON.stringify(item.variantOptions)}`} className="pos-order-item">
                       <div className="pos-item-info">
                         <img
-                          src={item.primaryImageUrl || item.imageUrl || '/images/avatar/1.png'}
+                          src={item.primaryImageUrl || item.imageUrl || '/images/avatar/undefined.png'}
                           alt={item.name}
                           className="pos-item-image"
                           onError={(e) => {
                             e.target.onerror = null;
-                            e.target.src = '/images/avatar/1.png';
+                            e.target.src = '/images/avatar/undefined.png';
                           }}
                         />
                         <div>

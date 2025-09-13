@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { BASE_URL } from '/src/constants.js';
 
@@ -89,7 +89,7 @@ const ResetForm = ({ path }) => {
 
             // Redirect to login after 2 seconds
             setTimeout(() => {
-                navigate('/authentication/login/cover');
+                navigate('/login');
             }, 2000);
         } catch (err) {
             setError(err.message || 'Failed to reset password');
@@ -186,7 +186,7 @@ const ResetForm = ({ path }) => {
             <div className="mt-5 text-muted">
                 <span>Failed to change password?</span>
                 <Link 
-                    to="/authentication/reset/cover" 
+                    to="/reset" 
                     className="fw-bold ms-1"
                     onClick={handleTryAgain}
                 >

@@ -53,6 +53,9 @@ const DiscountsTable = () => {
     const [editFormErrors, setEditFormErrors] = useState({});
     const skinTheme = localStorage.getItem('skinTheme') || 'light';
     const isDarkMode = skinTheme === 'dark';
+    const [creating, setCreating] = useState(false);
+    const [updating, setUpdating] = useState(false);
+    const [deleting, setDeleting] = useState(false);
 
     const authData = JSON.parse(localStorage.getItem("authData"));
     const userRole = authData?.role;
@@ -189,7 +192,7 @@ const DiscountsTable = () => {
                     </svg>
                 </div>
                 <h5 className="mb-2">No Discounts Found</h5>
-                <p className="text-muted mb-4">You haven't added any discounts yet. Start by adding a new discount.</p>
+                <p className="text-muted mb-4">You haven&apos;t added any discounts yet. Start by adding a new discount.</p>
                 {canWrite && (
                     <Button
                         variant="contained"
@@ -330,6 +333,7 @@ const DiscountsTable = () => {
         if (!validateForm(newDiscount, setFormErrors)) return;
 
         try {
+            setCreating(true);
             const authData = JSON.parse(localStorage.getItem("authData"));
 
             const discountData = {
@@ -380,6 +384,8 @@ const DiscountsTable = () => {
             });
         } catch (err) {
             toast.error(err.message);
+        } finally {
+            setCreating(false);
         }
     };
 
@@ -388,6 +394,7 @@ const DiscountsTable = () => {
         if (!validateForm(editDiscount, setEditFormErrors)) return;
 
         try {
+            setUpdating(true);
             const authData = JSON.parse(localStorage.getItem("authData"));
 
             const discountData = {
@@ -425,6 +432,8 @@ const DiscountsTable = () => {
             setIsEditModalOpen(false);
         } catch (err) {
             toast.error(err.message);
+        } finally {
+            setUpdating(false);
         }
     };
 
@@ -496,6 +505,7 @@ const DiscountsTable = () => {
 
     const handleDeleteDiscount = async () => {
         try {
+            setDeleting(true);
             const authData = JSON.parse(localStorage.getItem("authData"));
             const response = await fetch(`${BASE_URL}/api/admin/coupons/${discountToDelete.id}`, {
                 method: 'DELETE',
@@ -515,6 +525,8 @@ const DiscountsTable = () => {
             setIsDeleteModalOpen(false);
         } catch (err) {
             toast.error(err.message);
+        } finally {
+            setDeleting(false);
         }
     };
 
@@ -638,7 +650,7 @@ const DiscountsTable = () => {
         return (
             <div className="text-center py-5">
                 <h5>Access Denied</h5>
-                <p>You don't have permission to view discounts.</p>
+                <p>You don&apos;t have permission to view discounts.</p>
             </div>
         );
     }
@@ -908,8 +920,16 @@ const DiscountsTable = () => {
                             variant="contained"
                             onClick={handleSubmit}
                             style={{ backgroundColor: '#1976d2', color: 'white' }}
+                            disabled={creating}
                         >
-                            Create
+                            {creating ? (
+                                <>
+                                    <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                    Creating...
+                                </>
+                            ) : (
+                                'Create'
+                            )}
                         </Button>
                     </Modal.Footer>
                 </Modal>
@@ -1155,8 +1175,16 @@ const DiscountsTable = () => {
                             variant="contained"
                             onClick={handleEditSubmit}
                             style={{ backgroundColor: '#1976d2', color: 'white' }}
+                            disabled={updating}
                         >
-                            Update
+                            {updating ? (
+                                <>
+                                    <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                    Updating...
+                                </>
+                            ) : (
+                                'Update'
+                            )}
                         </Button>
                     </Modal.Footer>
                 </Modal>
@@ -1241,8 +1269,12 @@ const DiscountsTable = () => {
 
             {/* Delete Confirmation Modal */}
             {canDelete && (
-                <Modal show={isDeleteModalOpen} onHide={() => setIsDeleteModalOpen(false)} centered>
-                    <Modal.Header closeButton>
+                <Modal show={isDeleteModalOpen} onHide={() => {
+                    if (!deleting) {
+                        setIsDeleteModalOpen(false);
+                    }
+                }} centered>
+                    <Modal.Header closeButton={!deleting}>
                         <Modal.Title>Delete Discount</Modal.Title>
                     </Modal.Header>
                     <Modal.Body>
@@ -1258,8 +1290,16 @@ const DiscountsTable = () => {
                             variant="contained"
                             onClick={handleDeleteDiscount}
                             style={{ backgroundColor: '#d32f2f', color: 'white' }}
+                            disabled={deleting}
                         >
-                            Delete
+                            {deleting ? (
+                                <>
+                                    <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                    Deleting...
+                                </>
+                            ) : (
+                                'Delete'
+                            )}
                         </Button>
                     </Modal.Footer>
                 </Modal>

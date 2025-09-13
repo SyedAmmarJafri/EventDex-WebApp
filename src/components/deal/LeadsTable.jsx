@@ -44,6 +44,8 @@ const DealsTable = () => {
     const skinTheme = localStorage.getItem('skinTheme') || 'light';
     const isDarkMode = skinTheme === 'dark';
     const [selectedItems, setSelectedItems] = useState([]);
+    const [deleting, setDeleting] = useState(false);
+    const [imageSizeError, setImageSizeError] = useState('');
 
     const authData = JSON.parse(localStorage.getItem("authData"));
     const currencySymbol = authData?.currencySettings?.currencySymbol || '$';
@@ -203,7 +205,7 @@ const DealsTable = () => {
                     </svg>
                 </div>
                 <h5 className="mb-2">No Deals Found</h5>
-                <p className="text-muted mb-4">You haven't added any deals yet. Start by adding a new deal.</p>
+                <p className="text-muted mb-4">You haven&apos;t added any deals yet. Start by adding a new deal.</p>
                 {canWrite && (
                     <Button
                         variant="contained"
@@ -218,7 +220,7 @@ const DealsTable = () => {
         );
     };
 
-    const handleFileChange = (e) => {
+    const handleFileChange = (e, isEditModal = false) => {
         const file = e.target.files[0];
         if (!file) return;
 
@@ -227,11 +229,14 @@ const DealsTable = () => {
             return;
         }
 
-        if (file.size > 5 * 1024 * 1024) {
-            toast.error('File size should be less than 5MB');
+        if (file.size > 250 * 1024) { // 200 KB limit
+            setImageSizeError('File size should be less than 200KB');
+            setSelectedFile(null);
+            setImagePreview('');
             return;
         }
 
+        setImageSizeError('');
         setSelectedFile(file);
 
         const reader = new FileReader();
@@ -359,6 +364,11 @@ const DealsTable = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!validateForm(newDeal, setFormErrors)) return;
+        
+        if (selectedFile && selectedFile.size > 250 * 1024) {
+            setImageSizeError('File size should be less than 200KB');
+            return;
+        }
 
         try {
             setUploadingImage(true);
@@ -415,9 +425,9 @@ const DealsTable = () => {
             setSelectedFile(null);
             setImagePreview('');
             setSelectedItems([]);
+            setImageSizeError('');
         } catch (err) {
             toast.error(err.message);
-            setIsModalOpen(false);
         } finally {
             setUploadingImage(false);
         }
@@ -426,6 +436,11 @@ const DealsTable = () => {
     const handleEditSubmit = async (e) => {
         e.preventDefault();
         if (!validateForm(editDeal, setEditFormErrors)) return;
+        
+        if (selectedFile && selectedFile.size > 250 * 1024) {
+            setImageSizeError('File size should be less than 200KB');
+            return;
+        }
 
         try {
             setUploadingImage(true);
@@ -474,9 +489,9 @@ const DealsTable = () => {
             setIsEditModalOpen(false);
             setSelectedFile(null);
             setImagePreview('');
+            setImageSizeError('');
         } catch (err) {
             toast.error(err.message);
-            setIsModalOpen(false);
         } finally {
             setUploadingImage(false);
         }
@@ -531,6 +546,7 @@ const DealsTable = () => {
         });
         setSelectedFile(null);
         setImagePreview('');
+        setImageSizeError('');
         setIsEditModalOpen(true);
     };
 
@@ -541,6 +557,7 @@ const DealsTable = () => {
 
     const handleDeleteDeal = async () => {
         try {
+            setDeleting(true);
             const authData = JSON.parse(localStorage.getItem("authData"));
             const response = await fetch(`${BASE_URL}/api/client-admin/deals/${dealToDelete.id}`, {
                 method: 'DELETE',
@@ -561,6 +578,8 @@ const DealsTable = () => {
             setIsDeleteModalOpen(false);
         } catch (err) {
             toast.error(err.message);
+        } finally {
+            setDeleting(false);
         }
     };
 
@@ -577,7 +596,7 @@ const DealsTable = () => {
                     />
                 ) : (
                     <img
-                        src="/images/avatar/1.png"
+                        src="/images/avatar/undefined.png"
                         alt="Deal"
                         style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px' }}
                     />
@@ -718,14 +737,17 @@ const DealsTable = () => {
             {/* Add Deal Modal - Only show if user has write permission */}
             {canWrite && (
                 <Modal show={isModalOpen} onHide={() => {
-                    setIsModalOpen(false);
-                    setNewDeal({ name: '', description: '', price: 0, items: [], imageUrl: '' });
-                    setFormErrors({});
-                    setSelectedFile(null);
-                    setImagePreview('');
-                    setSelectedItems([]);
+                    if (!uploadingImage) {
+                        setIsModalOpen(false);
+                        setNewDeal({ name: '', description: '', price: 0, items: [], imageUrl: '' });
+                        setFormErrors({});
+                        setSelectedFile(null);
+                        setImagePreview('');
+                        setSelectedItems([]);
+                        setImageSizeError('');
+                    }
                 }} centered size="lg">
-                    <Modal.Header closeButton>
+                    <Modal.Header closeButton={!uploadingImage}>
                         <Modal.Title>Add Deal</Modal.Title>
                     </Modal.Header>
                     <Modal.Body>
@@ -836,6 +858,7 @@ const DealsTable = () => {
                                                 <>
                                                     <FiUpload size={20} className="mb-1" />
                                                     <h8 className="small">Add Image</h8>
+                                                    <h8 className="small">Max 200 KB</h8>
                                                 </>
                                             )}
                                         </div>
@@ -844,10 +867,13 @@ const DealsTable = () => {
                                             id="add-image-upload"
                                             className="d-none"
                                             accept="image/*"
-                                            onChange={handleFileChange}
+                                            onChange={(e) => handleFileChange(e, false)}
                                         />
                                     </div>
                                 </div>
+                                {imageSizeError && (
+                                    <div className="text-danger small">{imageSizeError}</div>
+                                )}
                             </div>
                         </form>
                     </Modal.Body>
@@ -874,12 +900,15 @@ const DealsTable = () => {
             {/* Edit Deal Modal - Only show if user has update permission */}
             {canUpdate && (
                 <Modal show={isEditModalOpen} onHide={() => {
-                    setIsEditModalOpen(false);
-                    setEditFormErrors({});
-                    setSelectedFile(null);
-                    setImagePreview('');
+                    if (!uploadingImage) {
+                        setIsEditModalOpen(false);
+                        setEditFormErrors({});
+                        setSelectedFile(null);
+                        setImagePreview('');
+                        setImageSizeError('');
+                    }
                 }} centered size="lg">
-                    <Modal.Header closeButton>
+                    <Modal.Header closeButton={!uploadingImage}>
                         <Modal.Title>Edit Deal</Modal.Title>
                     </Modal.Header>
                     <Modal.Body>
@@ -1003,6 +1032,7 @@ const DealsTable = () => {
                                                 <>
                                                     <FiUpload size={20} className="mb-1" />
                                                     <h8 className="small">Change Image</h8>
+                                                    <h8 className="small">Max 200 KB</h8>
                                                 </>
                                             )}
                                         </div>
@@ -1011,10 +1041,13 @@ const DealsTable = () => {
                                             id="edit-image-upload"
                                             className="d-none"
                                             accept="image/*"
-                                            onChange={handleFileChange}
+                                            onChange={(e) => handleFileChange(e, true)}
                                         />
                                     </div>
                                 </div>
+                                {imageSizeError && (
+                                    <div className="text-danger small">{imageSizeError}</div>
+                                )}
                             </div>
                         </form>
                     </Modal.Body>
@@ -1093,7 +1126,7 @@ const DealsTable = () => {
                                     <h5>Image</h5>
                                     <div className="d-flex flex-wrap gap-3">
                                         {selectedDeal.imageUrl ? (
-                                            <div style={{ width: '200px', height: '200px' }}>
+                                            <div style={{ width: '100px', height: '100px' }}>
                                                 <img
                                                     src={selectedDeal.imageUrl}
                                                     alt="Deal"
@@ -1105,9 +1138,9 @@ const DealsTable = () => {
                                                 />
                                             </div>
                                         ) : (
-                                            <div style={{ width: '200px', height: '200px' }}>
+                                            <div style={{ width: '100px', height: '100px' }}>
                                                 <img
-                                                    src="/images/avatar/1.png"
+                                                    src="/images/avatar/undefined.png"
                                                     alt="Deal"
                                                     className="w-100 h-100"
                                                     style={{
@@ -1127,8 +1160,12 @@ const DealsTable = () => {
 
             {/* Delete Confirmation Modal */}
             {canDelete && (
-                <Modal show={isDeleteModalOpen} onHide={() => setIsDeleteModalOpen(false)} centered>
-                    <Modal.Header closeButton>
+                <Modal show={isDeleteModalOpen} onHide={() => {
+                    if (!deleting) {
+                        setIsDeleteModalOpen(false);
+                    }
+                }} centered>
+                    <Modal.Header closeButton={!deleting}>
                         <Modal.Title>Delete Deal</Modal.Title>
                     </Modal.Header>
                     <Modal.Body>
@@ -1144,8 +1181,16 @@ const DealsTable = () => {
                             variant="contained"
                             onClick={handleDeleteDeal}
                             style={{ backgroundColor: '#d32f2f', color: 'white' }}
+                            disabled={deleting}
                         >
-                            Delete
+                            {deleting ? (
+                                <>
+                                    <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                    Deleting...
+                                </>
+                            ) : (
+                                'Delete'
+                            )}
                         </Button>
                     </Modal.Footer>
                 </Modal>
