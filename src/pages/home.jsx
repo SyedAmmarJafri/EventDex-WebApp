@@ -22,7 +22,7 @@ import {
     Cell
 } from 'recharts';
 import axios from 'axios';
-import moment from 'moment';
+import moment from 'moment-timezone';
 import {
     ShoppingCartOutlined,
     DollarOutlined,
@@ -187,8 +187,22 @@ const Dashboard = () => {
     const [dashboardData, setDashboardData] = useState(null);
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [currentTime, setCurrentTime] = useState(moment());
+    const [timezone, setTimezone] = useState('UTC');
 
-    const authData = JSON.parse(localStorage.getItem("authData"));
+    // Get auth data from localStorage
+    const getAuthData = () => {
+        try {
+            const authDataStr = localStorage.getItem("authData");
+            if (authDataStr) {
+                return JSON.parse(authDataStr);
+            }
+        } catch (error) {
+            console.error("Error parsing authData from localStorage:", error);
+        }
+        return null;
+    };
+
+    const authData = getAuthData();
     const currencySymbol = authData?.currencySettings?.currencySymbol || '$';
     const userName = authData?.name || 'Admin';
     const userRole = authData?.role;
@@ -196,6 +210,11 @@ const Dashboard = () => {
     const hasAnalyticsPermission = userRole === 'CLIENT_ADMIN' || userPermissions.includes('ANALYTICS_READ');
 
     useEffect(() => {
+        // Set timezone from auth data
+        if (authData?.timezone) {
+            setTimezone(authData.timezone);
+        }
+
         const loadData = async () => {
             const cachedData = await getCachedData();
             if (cachedData) {
@@ -221,7 +240,7 @@ const Dashboard = () => {
                 setLoading(true);
             }
 
-            const token = localStorage.getItem('authData') ? JSON.parse(localStorage.getItem('authData')).token : null;
+            const token = authData?.token;
 
             if (!token) {
                 message.error('Authentication token not found');
@@ -261,22 +280,27 @@ const Dashboard = () => {
 
     useEffect(() => {
         const interval = setInterval(() => {
-            setCurrentTime(moment());
+            setCurrentTime(moment().tz(timezone));
         }, 1000);
 
         return () => clearInterval(interval);
-    }, []);
+    }, [timezone]);
+
+    // Function to format dates according to the user's timezone
+    const formatDate = (dateString, format = 'MMM D, YYYY h:mm A') => {
+        return moment(dateString).tz(timezone).format(format);
+    };
 
     const orderStatusColors = {
         CREATED: '#000000ff',
-        COMPLETED: 'rgb(0, 198, 13)',
+        COMPLETED: '#21c600ff',
         DELIVERED: '#10b981',
         ACCEPTED: '#0092ff',
         PENDING: '#6a6a6aff',
         REJECTED: '#8B0000',
         DISPATCHED: '#7c3aed',
         ON_THE_WAY: '#c026d3',
-        READY: 'rgb(246, 185, 0);',
+        READY: '#ffd000ff',
         PREPARING: '#f97316'
     };
 
@@ -314,7 +338,7 @@ const Dashboard = () => {
             title: 'Date',
             dataIndex: 'createdAt',
             key: 'createdAt',
-            render: (date) => <Text style={{ color: '#6b7280' }} className="text-dark">{moment(date).format('MMM D, YYYY h:mm A')}</Text>
+            render: (date) => <Text style={{ color: '#6b7280' }} className="text-dark">{formatDate(date)}</Text>
         }
     ];
 
@@ -422,7 +446,25 @@ const Dashboard = () => {
                 )}
             </div>
 
-            <Card className="card bg-white text-light" variant="borderless" styles={{ body: { padding: '24px', background: 'linear-gradient(135deg, #0092ff 0%, #005ece 100%)', color: 'white', borderRadius: '12px', position: 'relative', overflow: 'hidden' } }} style={{ marginBottom: '24px', }} > <div style={{ position: 'absolute', top: '-50px', right: '-50px', width: '200px', height: '200px', borderRadius: '50%', background: 'rgba(255, 255, 255, 0.1)' }} /> <div style={{ position: 'absolute', bottom: '-80px', right: '0', width: '160px', height: '160px', borderRadius: '50%', background: 'rgba(255, 255, 255, 0.1)' }} /> <Row align="middle" gutter={16}> <Col flex="auto"> <Title level={3} style={{ color: 'white', marginBottom: '8px', fontWeight: 600 }}> Welcome {userName}! </Title> <Text style={{ color: 'rgba(255, 255, 255, 0.85)', display: 'block', marginBottom: '16px', fontSize: '16px' }}> Here&apos;s what&apos;s happening with business today. </Text> <Button type="default" icon={<CalendarOutlined />} style={{ background: 'rgba(255, 255, 255, 0.1)', border: '1px solid rgba(255, 255, 255, 0.2)', color: 'white', fontWeight: 500, borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', }} > <span style={{ color: '#ffffff', fontSize: 'clamp(12px, 2vw, 16px)', }} > {currentTime.format('dddd, MMMM D, YYYY · h:mm:ss A')} </span> </Button> </Col> </Row> </Card>
+            <Card className="card bg-white text-light" variant="borderless" styles={{ body: { padding: '24px', background: 'linear-gradient(135deg, #0092ff 0%, #005ece 100%)', color: 'white', borderRadius: '10px', position: 'relative', overflow: 'hidden' } }} style={{ marginBottom: '24px', }} >
+                <div style={{ position: 'absolute', top: '-50px', right: '-50px', width: '200px', height: '200px', borderRadius: '50%', background: 'rgba(255, 255, 255, 0.1)' }} />
+                <div style={{ position: 'absolute', bottom: '-80px', right: '0', width: '160px', height: '160px', borderRadius: '50%', background: 'rgba(255, 255, 255, 0.1)' }} />
+                <Row align="middle" gutter={16}>
+                    <Col flex="auto">
+                        <Title level={3} style={{ color: 'white', marginBottom: '8px', fontWeight: 600 }}>
+                            Welcome {userName}!
+                        </Title>
+                        <Text style={{ color: 'rgba(255, 255, 255, 0.85)', display: 'block', marginBottom: '16px', fontSize: '16px' }}>
+                            Here&apos;s what&apos;s happening with business today.
+                        </Text>
+                        <Button type="default" icon={<CalendarOutlined />} style={{ background: 'rgba(255, 255, 255, 0.1)', border: '1px solid rgba(255, 255, 255, 0.2)', color: 'white', fontWeight: 500, borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', }} >
+                            <span style={{ color: '#ffffff', fontSize: 'clamp(12px, 2vw, 16px)', }} >
+                                {currentTime.format('dddd, MMMM D, YYYY · h:mm:ss A')}
+                            </span>
+                        </Button>
+                    </Col>
+                </Row>
+            </Card>
 
             {!hasAnalyticsPermission && (
                 <Card className="card bg-white text-light" bordered={false} style={{ marginBottom: '24px' }}>

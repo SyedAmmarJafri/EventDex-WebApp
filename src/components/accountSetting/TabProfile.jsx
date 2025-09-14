@@ -6,6 +6,9 @@ import { toast } from 'react-toastify';
 import { BASE_URL } from '/src/constants.js';
 
 const TabProfile = () => {
+    // Get all IANA timezones
+    const timezones = Intl.supportedValuesOf('timeZone').map(tz => ({ value: tz, label: tz }));
+    
     // State for form data
     const [formData, setFormData] = useState({
         name: '',
@@ -14,6 +17,7 @@ const TabProfile = () => {
         country: '',
         state: '',
         city: '',
+        timezone: '',
         businessDetails: {
             businessName: ''
         },
@@ -55,6 +59,7 @@ const TabProfile = () => {
                     country: authData.country || '',
                     state: authData.state || '',
                     city: authData.city || '',
+                    timezone: authData.timezone || '',
                     businessDetails: {
                         businessName: authData.businessDetails?.businessName || ''
                     },
@@ -110,6 +115,7 @@ const TabProfile = () => {
                             country: profileData.country || authData.country || '',
                             state: profileData.state || authData.state || '',
                             city: profileData.city || authData.city || '',
+                            timezone: profileData.timezone || authData.timezone || '',
                             businessDetails: {
                                 businessName: profileData.businessDetails?.businessName || authData.businessDetails?.businessName || ''
                             },
@@ -476,6 +482,27 @@ const TabProfile = () => {
                                     required
                                     readOnly={!canUpdateProfile}
                                 />
+                            </div>
+                        </Form.Group>
+
+                        {/* Timezone */}
+                        <Form.Group className="row mb-3">
+                            <Form.Label column lg={4} className="fw-semibold">Timezone:</Form.Label>
+                            <div className="col-lg-8">
+                                <Form.Select
+                                    name="timezone"
+                                    value={formData.timezone}
+                                    onChange={handleChange}
+                                    required
+                                    disabled={!canUpdateProfile}
+                                >
+                                    <option value="">Select Timezone</option>
+                                    {timezones.map((tz) => (
+                                        <option key={tz.value} value={tz.value}>
+                                            {tz.label}
+                                        </option>
+                                    ))}
+                                </Form.Select>
                             </div>
                         </Form.Group>
 

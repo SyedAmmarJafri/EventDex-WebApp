@@ -109,6 +109,7 @@ const LoginForm = ({ registerPath, resetPath }) => {
                     country: data.country,
                     state: data.state,
                     city: data.city,
+                    timezone: data.timezone,
                     businessDetails: {
                         businessName: data.businessDetails?.businessName
                     },

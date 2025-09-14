@@ -28,8 +28,68 @@ L.Icon.Default.mergeOptions({
     shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
 });
 
+// Default settings structure to prevent undefined errors
+const defaultSettings = {
+    header: {
+        logoUrl: '',
+        showSearchBar: true,
+        showCartIcon: true,
+        primaryColor: '#000000',
+        secondaryColor: '#ffffff',
+        heroBanners: []
+    },
+    footer: {
+        email: '',
+        phone: '',
+        address: '',
+        workingHours: '',
+        socialLinks: [],
+        showNewsletterSignup: true,
+        copyrightText: ''
+    },
+    store: {
+        storeOpen: true,
+        storeName: '',
+        storeDescription: '',
+        allowPickup: true,
+        allowDelivery: true,
+        storeLocationAddress: '',
+        storeLatitude: 40.7128,
+        storeLongitude: -74.0060,
+        schedules: []
+    },
+    policies: {
+        refundPolicy: '',
+        privacyPolicy: '',
+        termsAndConditions: '',
+        shippingPolicy: '',
+        returnPolicy: ''
+    },
+    delivery: {
+        pricingModel: 'FLAT_RATE',
+        minimumOrderAmount: 0,
+        baseDeliveryFee: 0,
+        perKmCharge: 0,
+        freeDeliveryRadius: 0,
+        freeDeliveryAboveAmount: false,
+        freeDeliveryThreshold: 0,
+        deliveryTimeEstimate: '',
+        deliveryAreas: [],
+        pickupLocations: []
+    },
+    appSettings: {
+        maintenanceMode: false,
+        forceUpdate: false,
+        appVersion: '',
+        minimumAppVersion: '',
+        androidAppLink: '',
+        iosAppLink: '',
+        appMessage: ''
+    }
+};
+
 const StoreSettingsForm = () => {
-    const [settings, setSettings] = useState(null);
+    const [settings, setSettings] = useState(defaultSettings);
     const [loading, setLoading] = useState(true);
     const [uploading, setUploading] = useState(false);
     const [updatingHeader, setUpdatingHeader] = useState(false);
@@ -83,11 +143,6 @@ const StoreSettingsForm = () => {
         const platform = socialPlatforms.find(p => p.value === platformValue);
         return platform ? platform.iconClass : '';
     };
-
-    const timezones = Intl.supportedValuesOf('timeZone').map(tz => ({
-        value: tz,
-        label: tz
-    }));
 
     // Configure toast notifications
     const showToast = (message, type = 'success') => {
@@ -265,9 +320,21 @@ const StoreSettingsForm = () => {
             }
 
             const data = await response.json();
-            setSettings(data);
+            // Merge fetched data with default settings to ensure all properties exist
+            setSettings(prev => ({
+                ...defaultSettings,
+                ...data,
+                header: { ...defaultSettings.header, ...data.header },
+                footer: { ...defaultSettings.footer, ...data.footer },
+                store: { ...defaultSettings.store, ...data.store },
+                policies: { ...defaultSettings.policies, ...data.policies },
+                delivery: { ...defaultSettings.delivery, ...data.delivery },
+                appSettings: { ...defaultSettings.appSettings, ...data.appSettings }
+            }));
         } catch (error) {
             showToast(error.message, 'error');
+            // Use default settings if fetch fails
+            setSettings(defaultSettings);
         } finally {
             setLoading(false);
         }
@@ -461,14 +528,14 @@ const StoreSettingsForm = () => {
                 ...prev,
                 header: {
                     ...prev.header,
-                    heroBanners: [...prev.header.heroBanners, {
+                    heroBanners: [...(prev.header?.heroBanners || []), {
                         imageUrl: data.url,
                         title: bannerData.title,
                         subtitle: bannerData.subtitle,
                         buttonText: bannerData.buttonText,
                         buttonLink: bannerData.buttonLink,
                         active: true,
-                        displayOrder: prev.header.heroBanners.length
+                        displayOrder: (prev.header?.heroBanners || []).length
                     }]
                 }
             }));
@@ -555,6 +622,9 @@ const StoreSettingsForm = () => {
             let current = newSettings;
 
             for (let i = 0; i < keys.length - 1; i++) {
+                if (!current[keys[i]]) {
+                    current[keys[i]] = {};
+                }
                 current = current[keys[i]] = { ...current[keys[i]] };
             }
 
@@ -571,10 +641,13 @@ const StoreSettingsForm = () => {
             let current = newSettings;
 
             for (let i = 0; i < keys.length - 1; i++) {
+                if (!current[keys[i]]) {
+                    current[keys[i]] = {};
+                }
                 current = current[keys[i]] = { ...current[keys[i]] };
             }
 
-            const array = [...current[keys[keys.length - 1]]];
+            const array = [...(current[keys[keys.length - 1]] || [])];
             array[index] = { ...array[index], [field]: value };
             current[keys[keys.length - 1]] = array;
 
@@ -590,10 +663,13 @@ const StoreSettingsForm = () => {
             let current = newSettings;
 
             for (let i = 0; i < keys.length - 1; i++) {
+                if (!current[keys[i]]) {
+                    current[keys[i]] = {};
+                }
                 current = current[keys[i]] = { ...current[keys[i]] };
             }
 
-            current[keys[keys.length - 1]] = [...current[keys[keys.length - 1]], template];
+            current[keys[keys.length - 1]] = [...(current[keys[keys.length - 1]] || []), template];
             return newSettings;
         });
     };
@@ -606,10 +682,13 @@ const StoreSettingsForm = () => {
             let current = newSettings;
 
             for (let i = 0; i < keys.length - 1; i++) {
+                if (!current[keys[i]]) {
+                    current[keys[i]] = {};
+                }
                 current = current[keys[i]] = { ...current[keys[i]] };
             }
 
-            const array = [...current[keys[keys.length - 1]]];
+            const array = [...(current[keys[keys.length - 1]] || [])];
             array.splice(index, 1);
             current[keys[keys.length - 1]] = array;
 
@@ -1012,62 +1091,6 @@ const StoreSettingsForm = () => {
         );
     };
 
-    // Custom color picker component using Bootstrap
-    const ColorPicker = ({ label, color, onChange }) => {
-        return (
-            <Form.Group className="mb-3">
-                <Form.Label>{label}</Form.Label>
-                <InputGroup>
-                    <Form.Control
-                        type="color"
-                        value={color}
-                        onChange={(e) => onChange(e.target.value)}
-                        style={{ height: '38px' }}
-                    />
-                    <Form.Control
-                        type="text"
-                        value={color}
-                        onChange={(e) => onChange(e.target.value)}
-                    />
-                </InputGroup>
-            </Form.Group>
-        );
-    };
-
-    // Custom time picker component using Bootstrap
-    const TimePicker = ({ label, value, onChange, disabled }) => {
-        return (
-            <Form.Group className="mb-3">
-                <Form.Label>{label}</Form.Label>
-                <Form.Control
-                    type="time"
-                    value={value}
-                    onChange={(e) => onChange(e.target.value)}
-                    disabled={disabled}
-                />
-            </Form.Group>
-        );
-    };
-
-    // Custom select dropdown component using Bootstrap
-    const SelectDropdown = ({ label, options, value, onChange }) => {
-        return (
-            <Form.Group className="mb-3">
-                <Form.Label>{label}</Form.Label>
-                <Form.Select
-                    value={value}
-                    onChange={(e) => onChange(e.target.value)}
-                >
-                    {options.map((option) => (
-                        <option key={option.value} value={option.value}>
-                            {option.label}
-                        </option>
-                    ))}
-                </Form.Select>
-            </Form.Group>
-        );
-    };
-
     if (loading) {
         return (
             <div className="content-area setting-form">
@@ -1075,27 +1098,6 @@ const StoreSettingsForm = () => {
                     <Spinner animation="border" role="status">
                         <span className="visually-hidden">Loading...</span>
                     </Spinner>
-                </div>
-                <ToastContainer
-                    position="bottom-center"
-                    autoClose={5000}
-                    hideProgressBar={false}
-                    newestOnTop={false}
-                    closeOnClick
-                    rtl={false}
-                    pauseOnFocusLoss
-                    draggable
-                    pauseOnHover
-                />
-            </div>
-        );
-    }
-
-    if (!settings) {
-        return (
-            <div className="content-area setting-form">
-                <div className="text-center py-5">
-                    <p>Failed to load settings</p>
                 </div>
                 <ToastContainer
                     position="bottom-center"
@@ -1312,7 +1314,7 @@ const StoreSettingsForm = () => {
                                     onUpload={handleBannerUploadWithData}
                                 />
 
-                                {settings.header.heroBanners.map((banner, index) => (
+                                {(settings.header.heroBanners || []).map((banner, index) => (
                                     <Card key={index} className="mb-3">
                                         <Card.Body>
                                             <Row>
@@ -1330,7 +1332,7 @@ const StoreSettingsForm = () => {
                                                         <Form.Label>Title</Form.Label>
                                                         <Form.Control
                                                             type="text"
-                                                            value={banner.title}
+                                                            value={banner.title || ''}
                                                             onChange={(e) => handleArrayItemChange('header.heroBanners', index, 'title', e.target.value)}
                                                         />
                                                     </Form.Group>
@@ -1338,7 +1340,7 @@ const StoreSettingsForm = () => {
                                                         <Form.Label>Subtitle</Form.Label>
                                                         <Form.Control
                                                             type="text"
-                                                            value={banner.subtitle}
+                                                            value={banner.subtitle || ''}
                                                             onChange={(e) => handleArrayItemChange('header.heroBanners', index, 'subtitle', e.target.value)}
                                                         />
                                                     </Form.Group>
@@ -1346,7 +1348,7 @@ const StoreSettingsForm = () => {
                                                         <Form.Label>Button Text</Form.Label>
                                                         <Form.Control
                                                             type="text"
-                                                            value={banner.buttonText}
+                                                            value={banner.buttonText || ''}
                                                             onChange={(e) => handleArrayItemChange('header.heroBanners', index, 'buttonText', e.target.value)}
                                                         />
                                                     </Form.Group>
@@ -1354,7 +1356,7 @@ const StoreSettingsForm = () => {
                                                         <Form.Label>Button Link</Form.Label>
                                                         <Form.Control
                                                             type="text"
-                                                            value={banner.buttonLink}
+                                                            value={banner.buttonLink || ''}
                                                             onChange={(e) => handleArrayItemChange('header.heroBanners', index, 'buttonLink', e.target.value)}
                                                         />
                                                     </Form.Group>
@@ -1449,7 +1451,7 @@ const StoreSettingsForm = () => {
 
                             <div className="mb-4">
                                 <h6>Social Links</h6>
-                                {settings.footer.socialLinks.map((link, index) => (
+                                {(settings.footer.socialLinks || []).map((link, index) => (
                                     <Card key={index} className="mb-3">
                                         <Card.Body>
                                             <Row>
@@ -1514,7 +1516,7 @@ const StoreSettingsForm = () => {
                                                         <Form.Label>URL</Form.Label>
                                                         <Form.Control
                                                             type="text"
-                                                            value={link.url}
+                                                            value={link.url || ''}
                                                             onChange={(e) => handleArrayItemChange('footer.socialLinks', index, 'url', e.target.value)}
                                                         />
                                                     </Form.Group>
@@ -1597,67 +1599,6 @@ const StoreSettingsForm = () => {
                                         checked={settings.store.storeOpen}
                                         onChange={handleStoreStatusToggle}
                                     />
-                                </Col>
-                                <Col md={6}>
-                                    <div style={{ marginBottom: '1.5rem' }}>
-                                        <label style={{
-                                            color: '#0092ff',
-                                            fontWeight: '600',
-                                            fontSize: '0.9rem',
-                                            marginBottom: '0.5rem',
-                                            display: 'block'
-                                        }}>
-                                            Timezone
-                                        </label>
-                                        <select
-                                            value={settings.store.timezone}
-                                            onChange={(e) => handleInputChange('store.timezone', e.target.value)}
-                                            style={{
-                                                color: '#0092ff',
-                                                border: '1px solid #0092ff',
-                                                borderRadius: '6px',
-                                                backgroundColor: 'rgba(0, 146, 255, 0.05)',
-                                                cursor: 'pointer',
-                                                padding: '0.75rem 1rem',
-                                                paddingRight: '2.5rem',
-                                                fontSize: '0.9rem',
-                                                lineHeight: '1.5',
-                                                minHeight: '3rem',
-                                                width: '100%',
-                                                backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'16\' height=\'16\' fill=\'%230092ff\' viewBox=\'0 0 16 16\'%3E%3Cpath d=\'M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z\'/%3E%3C/svg%3E")',
-                                                backgroundRepeat: 'no-repeat',
-                                                backgroundPosition: 'right 1rem center',
-                                                backgroundSize: '16px 12px',
-                                                appearance: 'none',
-                                                transition: 'all 0.2s ease-in-out',
-                                                ':hover': {
-                                                    borderColor: '#007acc',
-                                                    backgroundColor: 'rgba(0, 146, 255, 0.08)'
-                                                },
-                                                ':focus': {
-                                                    borderColor: '#0092ff',
-                                                    boxShadow: '0 0 0 0.25rem rgba(0, 146, 255, 0.2)',
-                                                    outline: 'none',
-                                                    backgroundColor: 'rgba(0, 146, 255, 0.05)'
-                                                }
-                                            }}
-                                        >
-                                            {timezones.map((timezone) => (
-                                                <option
-                                                    key={timezone.value}
-                                                    value={timezone.value}
-                                                    style={{
-                                                        color: '#000000ff',
-                                                        backgroundColor: '#fff',
-                                                        fontSize: '0.9rem',
-                                                        padding: '0.5rem 1rem'
-                                                    }}
-                                                >
-                                                    {timezone.label}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
                                 </Col>
                             </Row>
 
@@ -1765,7 +1706,7 @@ const StoreSettingsForm = () => {
                             <div className="mb-4">
                                 <div className="d-flex justify-content-between align-items-center mb-3">
                                     <h6>Store Schedules</h6>
-                                    {settings.store.schedules.length < 7 && (
+                                    {(settings.store.schedules || []).length < 7 && (
                                         <Button
                                             variant="primary"
                                             size="sm"
@@ -1781,10 +1722,10 @@ const StoreSettingsForm = () => {
                                     )}
                                 </div>
 
-                                {settings.store.schedules.map((schedule, index) => {
+                                {(settings.store.schedules || []).map((schedule, index) => {
                                     // Get available days (filter out already selected days except the current one)
                                     const availableDays = days.filter(day =>
-                                        day === schedule.day || !settings.store.schedules.some((s, i) => i !== index && s.day === day)
+                                        day === schedule.day || !(settings.store.schedules || []).some((s, i) => i !== index && s.day === day)
                                     );
 
                                     return (
@@ -1853,20 +1794,26 @@ const StoreSettingsForm = () => {
                                                         </div>
                                                     </Col>
                                                     <Col md={3}>
-                                                        <TimePicker
-                                                            label="Opening Time"
-                                                            value={schedule.openingTime}
-                                                            onChange={(value) => handleArrayItemChange('store.schedules', index, 'openingTime', value)}
-                                                            disabled={!schedule.open}
-                                                        />
+                                                        <Form.Group className="mb-3">
+                                                            <Form.Label>Opening Time</Form.Label>
+                                                            <Form.Control
+                                                                type="time"
+                                                                value={schedule.openingTime || ''}
+                                                                onChange={(e) => handleArrayItemChange('store.schedules', index, 'openingTime', e.target.value)}
+                                                                disabled={!schedule.open}
+                                                            />
+                                                        </Form.Group>
                                                     </Col>
                                                     <Col md={3}>
-                                                        <TimePicker
-                                                            label="Closing Time"
-                                                            value={schedule.closingTime}
-                                                            onChange={(value) => handleArrayItemChange('store.schedules', index, 'closingTime', value)}
-                                                            disabled={!schedule.open}
-                                                        />
+                                                        <Form.Group className="mb-3">
+                                                            <Form.Label>Closing Time</Form.Label>
+                                                            <Form.Control
+                                                                type="time"
+                                                                value={schedule.closingTime || ''}
+                                                                onChange={(e) => handleArrayItemChange('store.schedules', index, 'closingTime', e.target.value)}
+                                                                disabled={!schedule.open}
+                                                            />
+                                                        </Form.Group>
                                                     </Col>
                                                     <Col md={3} className="d-flex align-items-end">
                                                         <div className="d-flex align-items-center justify-content-between w-100">
@@ -1980,6 +1927,37 @@ const StoreSettingsForm = () => {
                             </Button>
                         </Card.Header>
                         <Card.Body>
+                            {/* Pricing Model Selection */}
+                            <Row className="mb-4">
+                                <Col md={12}>
+                                    <Form.Group className="mb-3">
+                                        <Form.Label>Pricing Model</Form.Label>
+                                        <div>
+                                            <Form.Label style={{ paddingRight: '5px' }}>Flat Rate</Form.Label>
+                                            <Form.Check
+                                                inline
+                                                type="radio"
+                                                name="pricingModel"
+                                                id="pricingModelFlatRate"
+                                                value="FLAT_RATE"
+                                                checked={settings.delivery.pricingModel === 'FLAT_RATE'}
+                                                onChange={(e) => handleInputChange('delivery.pricingModel', e.target.value)}
+                                            />
+                                            <Form.Label style={{ paddingRight: '5px' }}>Distance Based</Form.Label>
+                                            <Form.Check
+                                                inline
+                                                type="radio"
+                                                name="pricingModel"
+                                                id="pricingModelDistanceBased"
+                                                value="DISTANCE_BASED"
+                                                checked={settings.delivery.pricingModel === 'DISTANCE_BASED'}
+                                                onChange={(e) => handleInputChange('delivery.pricingModel', e.target.value)}
+                                            />
+                                        </div>
+                                    </Form.Group>
+                                </Col>
+                            </Row>
+
                             <Row className="mb-4">
                                 <Col md={6}>
                                     <Form.Group className="mb-3">
@@ -1996,18 +1974,52 @@ const StoreSettingsForm = () => {
                                 </Col>
                                 <Col md={6}>
                                     <Form.Group className="mb-3">
-                                        <Form.Label>Delivery Fee</Form.Label>
+                                        <Form.Label>Base Delivery Fee</Form.Label>
                                         <InputGroup>
                                             <InputGroup.Text>{currencySymbol}</InputGroup.Text>
                                             <Form.Control
                                                 type="number"
-                                                value={settings.delivery.deliveryFee}
-                                                onChange={(e) => handleInputChange('delivery.deliveryFee', parseFloat(e.target.value))}
+                                                value={settings.delivery.baseDeliveryFee}
+                                                onChange={(e) => handleInputChange('delivery.baseDeliveryFee', parseFloat(e.target.value))}
                                             />
                                         </InputGroup>
                                     </Form.Group>
                                 </Col>
                             </Row>
+
+                            {/* Distance-based pricing fields */}
+                            {settings.delivery.pricingModel === 'DISTANCE_BASED' && (
+                                <Row className="mb-4">
+                                    <Col md={6}>
+                                        <Form.Group className="mb-3">
+                                            <Form.Label>Charge Per Kilometer</Form.Label>
+                                            <InputGroup>
+                                                <InputGroup.Text>{currencySymbol}</InputGroup.Text>
+                                                <Form.Control
+                                                    type="number"
+                                                    step="0.01"
+                                                    value={settings.delivery.perKmCharge}
+                                                    onChange={(e) => handleInputChange('delivery.perKmCharge', parseFloat(e.target.value))}
+                                                />
+                                            </InputGroup>
+                                        </Form.Group>
+                                    </Col>
+                                    <Col md={6}>
+                                        <Form.Group className="mb-3">
+                                            <Form.Label>Free Delivery Radius (km)</Form.Label>
+                                            <InputGroup>
+                                                <Form.Control
+                                                    type="number"
+                                                    step="0.1"
+                                                    value={settings.delivery.freeDeliveryRadius}
+                                                    onChange={(e) => handleInputChange('delivery.freeDeliveryRadius', parseFloat(e.target.value))}
+                                                />
+                                                <InputGroup.Text>km</InputGroup.Text>
+                                            </InputGroup>
+                                        </Form.Group>
+                                    </Col>
+                                </Row>
+                            )}
 
                             <Row className="mb-4">
                                 <Col md={6}>
@@ -2041,169 +2053,6 @@ const StoreSettingsForm = () => {
                                     )}
                                 </Col>
                             </Row>
-
-                            <div className="mb-4">
-                                <h6>Delivery Areas</h6>
-                                {settings.delivery.deliveryAreas.map((area, index) => (
-                                    <Card key={index} className="mb-3">
-                                        <Card.Body>
-                                            <Row>
-                                                <Col md={3}>
-                                                    <Form.Group className="mb-3">
-                                                        <Form.Label>Name</Form.Label>
-                                                        <Form.Control
-                                                            type="text"
-                                                            value={area.name}
-                                                            onChange={(e) => handleArrayItemChange('delivery.deliveryAreas', index, 'name', e.target.value)}
-                                                        />
-                                                    </Form.Group>
-                                                </Col>
-                                                <Col md={2}>
-                                                    <Form.Group className="mb-3">
-                                                        <Form.Label>Zip Code</Form.Label>
-                                                        <Form.Control
-                                                            type="text"
-                                                            value={area.zipCode}
-                                                            onChange={(e) => handleArrayItemChange('delivery.deliveryAreas', index, 'zipCode', e.target.value)}
-                                                        />
-                                                    </Form.Group>
-                                                </Col>
-                                                <Col md={2}>
-                                                    <Form.Group className="mb-3">
-                                                        <Form.Label>Delivery Fee</Form.Label>
-                                                        <InputGroup>
-                                                            <InputGroup.Text>{currencySymbol}</InputGroup.Text>
-                                                            <Form.Control
-                                                                type="number"
-                                                                value={area.deliveryFee}
-                                                                onChange={(e) => handleArrayItemChange('delivery.deliveryAreas', index, 'deliveryFee', parseFloat(e.target.value))}
-                                                            />
-                                                        </InputGroup>
-                                                    </Form.Group>
-                                                </Col>
-                                                <Col md={3}>
-                                                    <Form.Group className="mb-3">
-                                                        <Form.Label>Delivery Time</Form.Label>
-                                                        <Form.Control
-                                                            type="text"
-                                                            value={area.deliveryTime}
-                                                            onChange={(e) => handleArrayItemChange('delivery.deliveryAreas', index, 'deliveryTime', e.target.value)}
-                                                        />
-                                                    </Form.Group>
-                                                </Col>
-                                                <Col md={2} className="d-flex align-items-end">
-                                                    <ToggleSwitch
-                                                        label="Active"
-                                                        checked={area.active}
-                                                        onChange={(checked) => handleArrayItemChange('delivery.deliveryAreas', index, 'active', checked)}
-                                                    />
-                                                </Col>
-                                            </Row>
-                                            <Button
-                                                variant="danger"
-                                                size="sm"
-                                                className="mt-2"
-                                                onClick={() => removeArrayItem('delivery.deliveryAreas', index)}
-                                            >
-                                                Remove Area
-                                            </Button>
-                                        </Card.Body>
-                                    </Card>
-                                ))}
-                                <Button
-                                    variant="primary"
-                                    size="sm"
-                                    onClick={() => addArrayItem('delivery.deliveryAreas', {
-                                        name: '',
-                                        zipCode: '',
-                                        deliveryFee: 0,
-                                        deliveryTime: '',
-                                        active: true
-                                    })}
-                                >
-                                    Add Delivery Area
-                                </Button>
-                            </div>
-
-                            <div className="mb-4">
-                                <h6>Pickup Locations</h6>
-                                {settings.delivery.pickupLocations.map((location, index) => (
-                                    <Card key={index} className="mb-3">
-                                        <Card.Body>
-                                            <Row>
-                                                <Col md={3}>
-                                                    <Form.Group className="mb-3">
-                                                        <Form.Label>Name</Form.Label>
-                                                        <Form.Control
-                                                            type="text"
-                                                            value={location.name}
-                                                            onChange={(e) => handleArrayItemChange('delivery.pickupLocations', index, 'name', e.target.value)}
-                                                        />
-                                                    </Form.Group>
-                                                </Col>
-                                                <Col md={3}>
-                                                    <Form.Group className="mb-3">
-                                                        <Form.Label>Address</Form.Label>
-                                                        <Form.Control
-                                                            type="text"
-                                                            value={location.address}
-                                                            onChange={(e) => handleArrayItemChange('delivery.pickupLocations', index, 'address', e.target.value)}
-                                                        />
-                                                    </Form.Group>
-                                                </Col>
-                                                <Col md={2}>
-                                                    <Form.Group className="mb-3">
-                                                        <Form.Label>Contact Number</Form.Label>
-                                                        <Form.Control
-                                                            type="text"
-                                                            value={location.contactNumber}
-                                                            onChange={(e) => handleArrayItemChange('delivery.pickupLocations', index, 'contactNumber', e.target.value)}
-                                                        />
-                                                    </Form.Group>
-                                                </Col>
-                                                <Col md={2}>
-                                                    <Form.Group className="mb-3">
-                                                        <Form.Label>Instructions</Form.Label>
-                                                        <Form.Control
-                                                            type="text"
-                                                            value={location.instructions}
-                                                            onChange={(e) => handleArrayItemChange('delivery.pickupLocations', index, 'instructions', e.target.value)}
-                                                        />
-                                                    </Form.Group>
-                                                </Col>
-                                                <Col md={1} className="d-flex align-items-end">
-                                                    <ToggleSwitch
-                                                        label="Active"
-                                                        checked={location.active}
-                                                        onChange={(checked) => handleArrayItemChange('delivery.pickupLocations', index, 'active', checked)}
-                                                    />
-                                                </Col>
-                                            </Row>
-                                            <Button
-                                                variant="danger"
-                                                size="sm"
-                                                className="mt-2"
-                                                onClick={() => removeArrayItem('delivery.pickupLocations', index)}
-                                            >
-                                                Remove Location
-                                            </Button>
-                                        </Card.Body>
-                                    </Card>
-                                ))}
-                                <Button
-                                    variant="primary"
-                                    size="sm"
-                                    onClick={() => addArrayItem('delivery.pickupLocations', {
-                                        name: '',
-                                        address: '',
-                                        contactNumber: '',
-                                        instructions: '',
-                                        active: true
-                                    })}
-                                >
-                                    Add Pickup Location
-                                </Button>
-                            </div>
                         </Card.Body>
                     </Card>
 
