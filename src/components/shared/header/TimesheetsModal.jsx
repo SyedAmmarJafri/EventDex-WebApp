@@ -82,12 +82,32 @@ const TimesheetsModal = () => {
 
     // Filter orders to only show pending ones
     const filterPendingOrders = useCallback((orders) => {
-        return orders.filter(order => order.status === 'PENDING');
+        try {
+            if (!Array.isArray(orders)) {
+                errorLog('Orders is not an array', orders);
+                return [];
+            }
+            return orders.filter(order => {
+                if (!order || typeof order !== 'object') {
+                    errorLog('Invalid order object', order);
+                    return false;
+                }
+                return order.status === 'PENDING';
+            });
+        } catch (error) {
+            errorLog('Error filtering pending orders', error);
+            return [];
+        }
     }, []);
 
     // Update pending orders whenever allOrders changes
     useEffect(() => {
-        setPendingOrders(filterPendingOrders(allOrders));
+        try {
+            setPendingOrders(filterPendingOrders(allOrders));
+        } catch (error) {
+            errorLog('Error updating pending orders', error);
+            setPendingOrders([]);
+        }
     }, [allOrders, filterPendingOrders]);
 
     // Component error handler
@@ -127,6 +147,37 @@ const TimesheetsModal = () => {
         return null;
     }, []);
 
+    // Process order data to ensure variants are properly mapped
+    const processOrderData = useCallback((orderData) => {
+        try {
+            if (!orderData || typeof orderData !== 'object') {
+                throw new Error('Invalid order data');
+            }
+
+            return {
+                ...orderData,
+                items: orderData.items?.map(item => {
+                    if (!item || typeof item !== 'object') {
+                        errorLog('Invalid item object', item);
+                        return item;
+                    }
+                    return {
+                        ...item,
+                        selectedVariants: item.selectedVariants || []
+                    };
+                }) || [],
+                deals: orderData.deals || [],
+                status: orderData.status,
+                currentRiderId: orderData.currentRiderId,
+                riderName: orderData.riderName || 'Not Assigned Yet',
+                updatedAt: orderData.updatedAt || new Date().toISOString()
+            };
+        } catch (error) {
+            errorLog('Error processing order data', error);
+            return orderData; // Return original data if processing fails
+        }
+    }, []);
+
     // Fallback API call
     const fetchPendingOrdersAPI = useCallback(async () => {
         try {
@@ -148,14 +199,31 @@ const TimesheetsModal = () => {
                         status: 'PENDING',
                         createdAt: new Date().toISOString(),
                         items: [
-                            { name: 'Demo Item 1', price: 15.99, quantity: 1, itemTotal: 15.99 },
-                            { name: 'Demo Item 2', price: 10.00, quantity: 1, itemTotal: 10.00 }
+                            { 
+                                name: 'Demo Item 1', 
+                                price: 15.99, 
+                                quantity: 1, 
+                                itemTotal: 15.99,
+                                selectedVariants: [
+                                    { variantName: 'Size', selectedOption: 'Large' },
+                                    { variantName: 'Spice Level', selectedOption: 'Medium' }
+                                ]
+                            },
+                            { 
+                                name: 'Demo Item 2', 
+                                price: 10.00, 
+                                quantity: 1, 
+                                itemTotal: 10.00,
+                                selectedVariants: []
+                            }
                         ]
                     }
                 ];
-                setAllOrders(mockOrders);
+                
+                const processedOrders = mockOrders.map(order => processOrderData(order));
+                setAllOrders(processedOrders);
                 setLoading(false);
-                return mockOrders;
+                return processedOrders;
             }
 
             const response = await fetch(`${BASE_URL}/api/client-admin/orders/pending`, {
@@ -166,17 +234,30 @@ const TimesheetsModal = () => {
             });
 
             if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: Failed to fetch pending orders`);
+                const errorText = await response.text();
+                throw new Error(`HTTP ${response.status}: ${errorText || 'Failed to fetch pending orders'}`);
             }
 
             const data = await response.json();
-            const orders = data.data || [];
+            
+            if (!data || typeof data !== 'object') {
+                throw new Error('Invalid response format');
+            }
+
+            const orders = data.data || data || [];
+            
+            if (!Array.isArray(orders)) {
+                throw new Error('Orders data is not an array');
+            }
 
             debugLog('API orders fetched', orders);
 
-            setAllOrders(orders);
+            // Process each order to ensure variants are properly mapped
+            const processedOrders = orders.map(order => processOrderData(order));
+            
+            setAllOrders(processedOrders);
             setError(null);
-            return orders;
+            return processedOrders;
         } catch (err) {
             errorLog('Error fetching pending orders', err);
             setError(err.message);
@@ -185,7 +266,7 @@ const TimesheetsModal = () => {
         } finally {
             setLoading(false);
         }
-    }, [getAuthToken]);
+    }, [getAuthToken, processOrderData]);
 
     // Simplified WebSocket connection with dynamic imports
     const connectWebSocket = useCallback(async () => {
@@ -216,10 +297,8 @@ const TimesheetsModal = () => {
             const socket = new SockJS(`${BASE_URL}/ws`);
             const stompClient = Stomp.over(socket);
 
-            // Enable debug for troubleshooting
-            stompClient.debug = (str) => {
-                debugLog('STOMP Debug', str);
-            };
+            // Disable debug for production
+            stompClient.debug = null;
 
             // Connection timeout
             const connectionTimeout = setTimeout(() => {
@@ -258,24 +337,46 @@ const TimesheetsModal = () => {
                             `/topic/orders/${clientId}`,
                             (message) => {
                                 try {
-                                    const orderData = JSON.parse(message.body);
-                                    debugLog('📥 New order received via WebSocket', orderData);
+                                    if (!message || !message.body) {
+                                        errorLog('Empty WebSocket message received');
+                                        return;
+                                    }
+
+                                    const orderUpdate = JSON.parse(message.body);
+                                    debugLog('📥 New order received via WebSocket', orderUpdate);
+
+                                    // Process the order update with proper variant mapping
+                                    const processedOrder = processOrderData(orderUpdate);
 
                                     setAllOrders(prevOrders => {
-                                        const existingIndex = prevOrders.findIndex(
-                                            order => order.id === orderData.id || order.orderNumber === orderData.orderNumber
-                                        );
+                                        try {
+                                            if (!Array.isArray(prevOrders)) {
+                                                errorLog('Previous orders is not an array', prevOrders);
+                                                return [processedOrder];
+                                            }
 
-                                        if (existingIndex >= 0) {
-                                            // Update existing order
-                                            const updatedOrders = [...prevOrders];
-                                            updatedOrders[existingIndex] = orderData;
-                                            debugLog('Updated existing order', orderData);
-                                            return updatedOrders;
-                                        } else {
-                                            // Add new order at the beginning
-                                            debugLog('Added new order', orderData);
-                                            return [orderData, ...prevOrders];
+                                            const existingIndex = prevOrders.findIndex(
+                                                order => order.id === processedOrder.id || 
+                                                       order.orderNumber === processedOrder.orderNumber
+                                            );
+
+                                            if (existingIndex >= 0) {
+                                                // Update existing order
+                                                const updatedOrders = [...prevOrders];
+                                                updatedOrders[existingIndex] = {
+                                                    ...updatedOrders[existingIndex],
+                                                    ...processedOrder
+                                                };
+                                                debugLog('Updated existing order', processedOrder);
+                                                return updatedOrders;
+                                            } else {
+                                                // Add new order at the beginning
+                                                debugLog('Added new order', processedOrder);
+                                                return [processedOrder, ...prevOrders];
+                                            }
+                                        } catch (updateError) {
+                                            errorLog('Error updating orders state', updateError);
+                                            return prevOrders;
                                         }
                                     });
                                 } catch (parseError) {
@@ -330,7 +431,7 @@ const TimesheetsModal = () => {
             handleComponentError(error, 'WebSocket setup');
             fetchPendingOrdersAPI();
         }
-    }, [getClientId, reconnectAttempts, fetchPendingOrdersAPI, handleComponentError]);
+    }, [getClientId, reconnectAttempts, fetchPendingOrdersAPI, handleComponentError, processOrderData]);
 
     // Disconnect WebSocket
     const disconnectWebSocket = useCallback(() => {
@@ -428,8 +529,16 @@ const TimesheetsModal = () => {
     const handleOrderAction = async (orderId, action) => {
         try {
             debugLog(`Performing ${action} on order ${orderId}`);
-            const token = getAuthToken();
+            
+            if (!orderId) {
+                throw new Error('Order ID is required');
+            }
+            
+            if (!action || typeof action !== 'string') {
+                throw new Error('Valid action is required');
+            }
 
+            const token = getAuthToken();
             if (!token) {
                 throw new Error('No authentication token found');
             }
@@ -443,17 +552,27 @@ const TimesheetsModal = () => {
             });
 
             if (!response.ok) {
-                throw new Error(`Failed to ${action} order: HTTP ${response.status}`);
+                const errorText = await response.text();
+                throw new Error(`Failed to ${action} order: HTTP ${response.status} - ${errorText}`);
             }
 
-            setAllOrders(prevOrders =>
-                prevOrders.filter(order => order.id !== orderId)
-            );
+            setAllOrders(prevOrders => {
+                try {
+                    if (!Array.isArray(prevOrders)) {
+                        errorLog('Previous orders is not an array in action handler', prevOrders);
+                        return [];
+                    }
+                    return prevOrders.filter(order => order.id !== orderId);
+                } catch (filterError) {
+                    errorLog('Error filtering orders after action', filterError);
+                    return prevOrders;
+                }
+            });
 
             debugLog(`Order ${action} successful`);
 
             if (!wsConnected) {
-                fetchPendingOrdersAPI();
+                setTimeout(() => fetchPendingOrdersAPI(), 1000);
             }
 
         } catch (err) {
@@ -464,12 +583,18 @@ const TimesheetsModal = () => {
 
     // Manual refresh
     const handleManualRefresh = () => {
-        debugLog('Manual refresh triggered');
-        if (wsConnected) {
-            disconnectWebSocket();
-            setTimeout(() => connectWebSocket(), 1000);
-        } else {
-            fetchPendingOrdersAPI();
+        try {
+            debugLog('Manual refresh triggered');
+            setError(null);
+            if (wsConnected) {
+                disconnectWebSocket();
+                setTimeout(() => connectWebSocket(), 1000);
+            } else {
+                fetchPendingOrdersAPI();
+            }
+        } catch (error) {
+            errorLog('Error during manual refresh', error);
+            handleComponentError(error, 'Manual refresh');
         }
     };
 
@@ -488,15 +613,28 @@ const TimesheetsModal = () => {
 
     // View order details
     const handleViewDetails = (order) => {
-        debugLog('Viewing order details', order.id);
-        setSelectedOrder(order);
-        setShowOrderModal(true);
+        try {
+            if (!order || !order.id) {
+                errorLog('Invalid order for viewing details', order);
+                return;
+            }
+            debugLog('Viewing order details', order.id);
+            setSelectedOrder(order);
+            setShowOrderModal(true);
+        } catch (error) {
+            errorLog('Error opening order details', error);
+            handleComponentError(error, 'View order details');
+        }
     };
 
     const handleCloseModal = () => {
-        debugLog('Closing order modal');
-        setShowOrderModal(false);
-        setSelectedOrder(null);
+        try {
+            debugLog('Closing order modal');
+            setShowOrderModal(false);
+            setSelectedOrder(null);
+        } catch (error) {
+            errorLog('Error closing modal', error);
+        }
     };
 
     // Component error display
@@ -586,9 +724,15 @@ const TimesheetsModal = () => {
                         </div>
                     )}
 
-                    {componentError && (
+                    {error && (
                         <div className="alert alert-danger alert-sm mx-3 mb-2">
-                            <small>Component error: {componentError}</small>
+                            <small>Error: {error}</small>
+                            <button
+                                className="btn btn-sm btn-link p-0 ms-2"
+                                onClick={() => setError(null)}
+                            >
+                                Dismiss
+                            </button>
                         </div>
                     )}
 
@@ -601,20 +745,6 @@ const TimesheetsModal = () => {
                                 <div className="mt-2">
                                     <small className="text-muted">Loading orders...</small>
                                 </div>
-                            </div>
-                        ) : error ? (
-                            <div className="alert alert-danger mx-3">
-                                <h6>Failed to load orders</h6>
-                                <p className="mb-2">{error}</p>
-                                <button
-                                    className="btn btn-sm btn-primary"
-                                    onClick={() => {
-                                        setError(null);
-                                        fetchPendingOrdersAPI();
-                                    }}
-                                >
-                                    Retry
-                                </button>
                             </div>
                         ) : pendingOrders.length === 0 ? (
                             <div className="text-center py-4">
@@ -793,7 +923,7 @@ const ConnectionStatus = ({ wsConnected, wsError }) => (
     </span>
 );
 
-// Order Details Modal Component
+// Order Details Modal Component with variant display
 const OrderDetailsModal = ({ show, onHide, order, onAccept, onReject }) => {
     if (!order) return null;
 
@@ -870,17 +1000,33 @@ const OrderDetailsModal = ({ show, onHide, order, onAccept, onReject }) => {
                                             <th>Price</th>
                                             <th>Qty</th>
                                             <th>Total</th>
-                                            <th>Discount</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {order.items?.map((item, index) => (
                                             <tr key={index}>
-                                                <td>{item.name}</td>
+                                                <td>
+                                                    <div>
+                                                        <strong>{item.name}</strong>
+                                                        {item.selectedVariants && item.selectedVariants.length > 0 && (
+                                                            <div className="mt-2">
+                                                                {item.selectedVariants.map((variant, vIndex) => (
+                                                                    <div key={vIndex} className="text-muted small mb-1">
+                                                                        <span className="badge bg-light text-dark me-1">
+                                                                            {variant.variantName}:
+                                                                        </span>
+                                                                        <span className="fw-medium">
+                                                                            {variant.selectedOption}
+                                                                        </span>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </td>
                                                 <td>{currencySymbol}{item.price?.toFixed(2) || '0.00'}</td>
                                                 <td>{item.quantity}</td>
                                                 <td>{currencySymbol}{item.itemTotal?.toFixed(2) || '0.00'}</td>
-                                                <td>{item.itemDiscountRate || 0}%</td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -888,6 +1034,38 @@ const OrderDetailsModal = ({ show, onHide, order, onAccept, onReject }) => {
                             </div>
                         </div>
                     </div>
+
+                    {order.deals && order.deals.length > 0 && (
+                        <div className="card mb-4">
+                            <div className="card-header bg-primary">
+                                <h6 className="mb-0" style={{ color: 'white' }}>Deals</h6>
+                            </div>
+                            <div className="card-body p-0">
+                                <div className="table-responsive">
+                                    <table className="table table mb-0">
+                                        <thead className="table-light">
+                                            <tr>
+                                                <th>Deal</th>
+                                                <th>Price</th>
+                                                <th>Qty</th>
+                                                <th>Total</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {order.deals.map((deal, index) => (
+                                                <tr key={`deal-${index}`}>
+                                                    <td>{deal.name}</td>
+                                                    <td>{currencySymbol}{deal.price?.toFixed(2) || '0.00'}</td>
+                                                    <td>{deal.quantity || 0}</td>
+                                                    <td>{currencySymbol}{((deal.price || 0) * (deal.quantity || 0)).toFixed(2)}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     <div className="row">
                         <div className="col-md-6">

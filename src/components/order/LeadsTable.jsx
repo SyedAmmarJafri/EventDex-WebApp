@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import Table from '@/components/shared/table/Table';
-import { FiEye, FiDownload, FiEdit, FiUserPlus, FiMap, FiWifi, FiWifiOff, FiRefreshCw } from 'react-icons/fi';
+import { FiEye, FiDownload, FiEdit, FiUserPlus, FiMap, FiRefreshCw } from 'react-icons/fi';
 import Button from '@mui/material/Button';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -178,7 +178,7 @@ const OrderTable = () => {
 
         const clientId = getClientId();
         if (!clientId) {
-            fetchOrdersAPI();
+            console.warn('No client ID found, WebSocket connection skipped');
             return;
         }
 
@@ -189,7 +189,6 @@ const OrderTable = () => {
 
         try {
             setWsError(null);
-            setLoading(true);
 
             // Dynamically import SockJS and Stomp
             const SockJS = (await import('sockjs-client')).default;
@@ -197,6 +196,9 @@ const OrderTable = () => {
 
             const socket = new SockJS(`${BASE_URL}/ws`);
             const stompClient = Stomp.over(socket);
+
+            // Disable debug logging
+            stompClient.debug = null;
 
             // Connection timeout
             const connectionTimeout = setTimeout(() => {
@@ -207,7 +209,6 @@ const OrderTable = () => {
                         console.error('Error disconnecting on timeout', e);
                     }
                     setWsError('Connection timeout');
-                    fetchOrdersAPI();
                 }
             }, WS_CONFIG.connectionTimeout);
 
@@ -225,7 +226,6 @@ const OrderTable = () => {
                         setWsConnected(true);
                         setWsError(null);
                         setReconnectAttempts(0);
-                        setLoading(false);
 
                         // Subscribe to orders topic for all order updates
                         const subscription = stompClient.subscribe(
@@ -233,26 +233,45 @@ const OrderTable = () => {
                             (message) => {
                                 try {
                                     const orderUpdate = JSON.parse(message.body);
+                                    
+                                    // Process the order update with proper variant mapping
+                                    const processedOrder = {
+                                        ...orderUpdate,
+                                        items: orderUpdate.items?.map(item => ({
+                                            ...item,
+                                            selectedVariants: item.selectedVariants || []
+                                        })) || [],
+                                        deals: orderUpdate.deals || [],
+                                        status: orderUpdate.status,
+                                        currentRiderId: orderUpdate.currentRiderId,
+                                        riderName: orderUpdate.riderName || 'Not Assigned Yet',
+                                        updatedAt: orderUpdate.updatedAt || new Date().toISOString()
+                                    };
+
                                     setOrders(prevOrders => {
                                         const existingIndex = prevOrders.findIndex(
-                                            order => order.id === orderUpdate.id || order.orderNumber === orderUpdate.orderNumber
+                                            order => order.id === processedOrder.id || 
+                                                   order.orderNumber === processedOrder.orderNumber
                                         );
 
                                         if (existingIndex >= 0) {
+                                            // Update existing order
                                             const updatedOrders = [...prevOrders];
                                             updatedOrders[existingIndex] = {
                                                 ...updatedOrders[existingIndex],
-                                                ...orderUpdate,
-                                                status: orderUpdate.status,
-                                                currentRiderId: orderUpdate.currentRiderId,
-                                                riderName: orderUpdate.riderName || 'Not Assigned Yet',
-                                                updatedAt: orderUpdate.updatedAt
+                                                ...processedOrder
                                             };
                                             return updatedOrders;
                                         } else {
-                                            return [orderUpdate, ...prevOrders];
+                                            // Add new order at the beginning
+                                            return [processedOrder, ...prevOrders];
                                         }
                                     });
+
+                                    // Show notification for new orders
+                                    if (orderUpdate.action === 'NEW_ORDER' || orderUpdate.notificationType === 'NEW_ORDER') {
+                                        showSuccessToast(`New order received: #${orderUpdate.orderNumber}`);
+                                    }
 
                                 } catch (parseError) {
                                     console.error('Error parsing WebSocket message', parseError);
@@ -287,6 +306,7 @@ const OrderTable = () => {
                         );
 
                         stompClientRef.current = stompClient;
+                        console.log('WebSocket connected successfully');
                     } catch (connectionError) {
                         handleComponentError(connectionError, 'WebSocket connection handler');
                     }
@@ -298,18 +318,19 @@ const OrderTable = () => {
 
                         setWsConnected(false);
                         setWsError(error?.toString() || 'Connection failed');
-                        setLoading(false);
 
                         if (reconnectAttempts < WS_CONFIG.maxReconnectAttempts) {
                             const newAttempts = reconnectAttempts + 1;
                             setReconnectAttempts(newAttempts);
+                            console.log(`WebSocket reconnection attempt ${newAttempts}/${WS_CONFIG.maxReconnectAttempts}`);
+                            
                             reconnectTimeoutRef.current = setTimeout(() => {
                                 if (!isUnmountedRef.current) {
                                     connectWebSocket();
                                 }
                             }, WS_CONFIG.reconnectDelay);
                         } else {
-                            fetchOrdersAPI();
+                            console.log('WebSocket max reconnection attempts reached, falling back to periodic API calls');
                             setInterval(() => {
                                 if (!isUnmountedRef.current && !wsConnected) {
                                     fetchOrdersAPI();
@@ -319,7 +340,6 @@ const OrderTable = () => {
                     } catch (errorHandlerError) {
                         console.error('Error in error handler', errorHandlerError);
                         handleComponentError(errorHandlerError, 'WebSocket error handler');
-                        fetchOrdersAPI();
                     }
                 }
             );
@@ -328,11 +348,9 @@ const OrderTable = () => {
             console.error('Error creating WebSocket connection', error);
             setWsError(error?.toString() || 'Setup failed');
             setWsConnected(false);
-            setLoading(false);
             handleComponentError(error, 'WebSocket setup');
-            fetchOrdersAPI();
         }
-    }, [getClientId, reconnectAttempts, fetchOrdersAPI, handleComponentError, wsConnected]);
+    }, [getClientId, reconnectAttempts, handleComponentError, wsConnected]);
 
     // Disconnect WebSocket
     const disconnectWebSocket = useCallback(() => {
@@ -363,17 +381,19 @@ const OrderTable = () => {
         }
     };
 
-    // Initialize connection on mount
+    // Initialize connection on mount - API first, then WebSocket
     useEffect(() => {
         isUnmountedRef.current = false;
         setComponentError(null);
 
+        // First fetch data from API
         fetchOrdersAPI().then(() => {
+            // Then connect WebSocket after a short delay to ensure API data is loaded
             setTimeout(() => {
                 if (!isUnmountedRef.current) {
                     connectWebSocket();
                 }
-            }, 1000);
+            }, 2000);
         }).catch((error) => {
             handleComponentError(error, 'Initial API call');
         });
@@ -587,13 +607,13 @@ const OrderTable = () => {
         );
     };
 
-    // Connection Status Component
+    // Connection Status Component (without WiFi icon)
     const ConnectionStatus = ({ wsConnected, wsError }) => (
         <span
-            className={`ms-2 ${wsConnected ? 'text-primary' : 'text-warning'}`}
-            title={wsConnected ? 'Connected' : wsError || 'Disconnected'}
+            className={`ms-2 badge ${wsConnected ? 'bg-success' : 'bg-warning'}`}
+            title={wsConnected ? 'Real-time updates active' : wsError || 'Using periodic refresh'}
         >
-            {wsConnected ? <FiWifi size={14} /> : <FiWifiOff size={14} />}
+            {/* {wsConnected ? 'Live' : 'Offline'} */}
         </span>
     );
 
@@ -802,7 +822,7 @@ const OrderTable = () => {
                 },
                 body: JSON.stringify({
                     status: selectedStatus,
-                    sendNotification: true // Add this flag to indicate this is a manual update
+                    sendNotification: true
                 })
             });
 
@@ -1266,7 +1286,7 @@ const OrderTable = () => {
 
                 {wsError && !wsConnected && (
                     <div className="alert alert-warning alert-dismissible fade show mb-3" role="alert">
-                        <strong>Connection Notice:</strong> WebSocket connection failed ({wsError}). Using API fallback for updates.
+                        <strong>Connection Notice:</strong> Real-time updates are temporarily unavailable ({wsError}). Using periodic refresh mode.
                         <button type="button" className="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                     </div>
                 )}
@@ -1524,30 +1544,13 @@ const OrderTable = () => {
                                         <h5>Notes</h5>
                                         <p>{selectedOrder.notes || 'N/A'}</p>
                                     </div>
+                                    {hasDeliveryLocation(selectedOrder) && (
+                                        <div className="col-md-6">
+                                            <h5>Delivery Address</h5>
+                                            <p>{selectedOrder.deliveryAddress || 'N/A'}</p>
+                                        </div>
+                                    )}
                                 </div>
-
-                                {hasDeliveryLocation(selectedOrder) && (
-                                    <div className="row mb-3">
-                                        <div className="col-md-6">
-                                            <h5>Delivery Location</h5>
-                                            <p>
-                                                <p>{selectedOrder.deliveryAddress || 'N/A'}</p>
-                                            </p>
-                                        </div>
-                                        <div className="col-md-6">
-                                            <h5>View Location</h5>
-                                            <Button
-                                                variant="contained"
-                                                size="small"
-                                                onClick={() => handleViewOnMap(selectedOrder)}
-                                                startIcon={<FiMap />}
-                                                style={{ backgroundColor: '#0092ff', color: 'white' }}
-                                            >
-                                                View on Map
-                                            </Button>
-                                        </div>
-                                    </div>
-                                )}
 
                                 <div className="mb-3">
                                     <h5>Items</h5>
@@ -1566,20 +1569,27 @@ const OrderTable = () => {
                                                     <React.Fragment key={index}>
                                                         <tr>
                                                             <td>
-                                                                {item.name}
-                                                                {item.selectedVariants && item.selectedVariants.length > 0 && (
-                                                                    <div className="mt-1">
-                                                                        {item.selectedVariants.map((variant, vIndex) => (
-                                                                            <div key={vIndex} className="text-muted small">
-                                                                                <strong>{variant.variantName}:</strong> {variant.selectedOption}
-                                                                            </div>
-                                                                        ))}
-                                                                    </div>
-                                                                )}
+                                                                <div>
+                                                                    <strong>{item.name}</strong>
+                                                                    {item.selectedVariants && item.selectedVariants.length > 0 && (
+                                                                        <div className="mt-2">
+                                                                            {item.selectedVariants.map((variant, vIndex) => (
+                                                                                <div key={vIndex} className="text-muted small mb-1">
+                                                                                    <span className="badge bg-light text-dark me-1">
+                                                                                        {variant.variantName}:
+                                                                                    </span>
+                                                                                    <span className="fw-medium">
+                                                                                        {variant.selectedOption}
+                                                                                    </span>
+                                                                                </div>
+                                                                            ))}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
                                                             </td>
-                                                            <td>{currencySymbol}{item.price.toFixed(2)}</td>
-                                                            <td>{item.quantity}</td>
-                                                            <td>{currencySymbol}{item.itemTotal.toFixed(2)}</td>
+                                                            <td>{currencySymbol}{item.price?.toFixed(2) || '0.00'}</td>
+                                                            <td>{item.quantity || 0}</td>
+                                                            <td>{currencySymbol}{item.itemTotal?.toFixed(2) || '0.00'}</td>
                                                         </tr>
                                                     </React.Fragment>
                                                 ))}
@@ -1605,9 +1615,9 @@ const OrderTable = () => {
                                                     {selectedOrder.deals.map((deal, index) => (
                                                         <tr key={`deal-${index}`}>
                                                             <td>{deal.name}</td>
-                                                            <td>{currencySymbol}{deal.price.toFixed(2)}</td>
-                                                            <td>{deal.quantity}</td>
-                                                            <td>{currencySymbol}{(deal.price * deal.quantity).toFixed(2)}</td>
+                                                            <td>{currencySymbol}{deal.price?.toFixed(2) || '0.00'}</td>
+                                                            <td>{deal.quantity || 0}</td>
+                                                            <td>{currencySymbol}{((deal.price || 0) * (deal.quantity || 0)).toFixed(2)}</td>
                                                         </tr>
                                                     ))}
                                                 </tbody>
