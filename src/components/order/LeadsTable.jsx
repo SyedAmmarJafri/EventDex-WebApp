@@ -1575,7 +1575,7 @@ const OrderTable = () => {
                                                                         <div className="mt-2">
                                                                             {item.selectedVariants.map((variant, vIndex) => (
                                                                                 <div key={vIndex} className="text-muted small mb-1">
-                                                                                    <span className="badge bg-light text-dark me-1">
+                                                                                    <span className="badge bg-primary me-1">
                                                                                         {variant.variantName}:
                                                                                     </span>
                                                                                     <span className="fw-medium">
