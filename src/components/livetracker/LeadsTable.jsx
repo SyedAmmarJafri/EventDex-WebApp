@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Card, ListGroup, Badge, Button } from 'react-bootstrap';
-import { Map, Satellite, Users } from 'lucide-react';
+import { Map, Satellite, Users, Navigation, Gauge } from 'lucide-react';
 import { BASE_URL } from '/src/constants.js';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -13,14 +13,19 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
 });
 
-// Custom rider marker
-const createRiderIcon = (size, isSelected = false) => {
-  return L.icon({
-    iconUrl: '/images/rider_marker.png',
+// Custom rider marker with rotation support
+const createRiderIcon = (size, isSelected = false, bearing = 0) => {
+  return L.divIcon({
+    html: `
+      <div class="rider-marker ${isSelected ? 'selected' : ''}" style="transform: rotate(${bearing}deg);">
+        <img src="/images/rider_marker.png" width="${size}" height="${size}" />
+        ${isSelected ? '<div class="pulse-animation"></div>' : ''}
+      </div>
+    `,
     iconSize: [size, size],
-    iconAnchor: [size / 2, size],
-    popupAnchor: [0, -size],
-    className: isSelected ? 'selected-marker' : ''
+    iconAnchor: [size / 2, size / 2],
+    popupAnchor: [0, -size / 2],
+    className: 'custom-rider-marker'
   });
 };
 
@@ -41,6 +46,8 @@ const RidersAndMapView = () => {
   const stompClientRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
   const isUnmountedRef = useRef(false);
+  const animationFrameRef = useRef(null);
+  const markerAnimationsRef = useRef({});
 
   const WS_CONFIG = {
     maxReconnectAttempts: 5,
@@ -53,7 +60,10 @@ const RidersAndMapView = () => {
     if (mapRef.current) return;
 
     const map = L.map('map-container', {
-      zoomControl: false // This removes the zoom buttons
+      zoomControl: false,
+      inertia: true, // Enable smooth panning
+      inertiaDeceleration: 3000, // Adjust for smoother movement
+      easeLinearity: 0.2
     }).setView([24.8607, 67.0011], 10);
     mapRef.current = map;
 
@@ -79,6 +89,9 @@ const RidersAndMapView = () => {
       if (mapRef.current) {
         mapRef.current.remove();
         mapRef.current = null;
+      }
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
       }
     };
   }, []);
@@ -153,30 +166,95 @@ const RidersAndMapView = () => {
     }
   };
 
+  const formatSpeed = (speed) => {
+    if (speed === null || speed === undefined) return 'N/A';
+    // Convert m/s to km/h and format
+    const kmh = speed * 3.6;
+    return `${kmh.toFixed(1)} km/h`;
+  };
+
+  const smoothMoveMarker = useCallback((marker, newLatLng, newBearing, duration = 2000) => {
+    if (!marker) return;
+
+    const currentPos = marker.getLatLng();
+    const currentBearing = marker._currentBearing || 0;
+    
+    // Cancel any existing animation for this marker
+    if (markerAnimationsRef.current[marker._riderId]) {
+      cancelAnimationFrame(markerAnimationsRef.current[marker._riderId]);
+    }
+
+    const startTime = Date.now();
+    const startPos = currentPos;
+    const startBearing = currentBearing;
+
+    const animate = () => {
+      const elapsed = Date.now() - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      
+      // Easing function for smooth animation
+      const ease = (t) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+      const easedProgress = ease(progress);
+
+      // Interpolate position
+      const lat = startPos.lat + (newLatLng.lat - startPos.lat) * easedProgress;
+      const lng = startPos.lng + (newLatLng.lng - startPos.lng) * easedProgress;
+      
+      // Interpolate bearing (handle circular nature of angles)
+      let bearingDiff = newBearing - startBearing;
+      if (bearingDiff > 180) bearingDiff -= 360;
+      if (bearingDiff < -180) bearingDiff += 360;
+      const bearing = startBearing + bearingDiff * easedProgress;
+
+      // Update marker position and rotation
+      marker.setLatLng([lat, lng]);
+      marker.setIcon(createRiderIcon(selectedRiderId === marker._riderId ? 50 : 40, 
+                                    selectedRiderId === marker._riderId, 
+                                    bearing));
+      
+      // Store current bearing for next animation
+      marker._currentBearing = bearing;
+
+      if (progress < 1) {
+        markerAnimationsRef.current[marker._riderId] = requestAnimationFrame(animate);
+      } else {
+        // Ensure final position and bearing are exact
+        marker.setLatLng(newLatLng);
+        marker.setIcon(createRiderIcon(selectedRiderId === marker._riderId ? 50 : 40, 
+                                      selectedRiderId === marker._riderId, 
+                                      newBearing));
+        marker._currentBearing = newBearing;
+        delete markerAnimationsRef.current[marker._riderId];
+      }
+    };
+
+    markerAnimationsRef.current[marker._riderId] = requestAnimationFrame(animate);
+  }, [selectedRiderId]);
+
   const handleSeeAll = useCallback(() => {
     if (!mapRef.current || riders.length === 0) return;
 
     setSelectedRiderId(null);
     setViewMode('seeAll');
 
-    // Show all markers
+    // Show all markers with smooth transition
     Object.keys(markersRef.current).forEach(id => {
       const marker = markersRef.current[id];
-      marker.setIcon(createRiderIcon(40));
       marker.addTo(mapRef.current);
+      marker.setIcon(createRiderIcon(40, false, marker._currentBearing || 0));
     });
 
-    // Fit bounds to show all markers
+    // Fit bounds to show all markers with smooth transition
     const bounds = L.latLngBounds(riders
       .filter(rider => rider.latitude && rider.longitude)
       .map(rider => [rider.latitude, rider.longitude])
     );
 
     if (bounds.isValid()) {
-      const currentZoom = mapRef.current.getZoom();
-      mapRef.current.fitBounds(bounds, {
+      mapRef.current.flyToBounds(bounds, {
         padding: [50, 50],
-        maxZoom: Math.max(currentZoom, 12)
+        duration: 1.5,
+        easeLinearity: 0.25
       });
     }
   }, [riders]);
@@ -187,13 +265,13 @@ const RidersAndMapView = () => {
     setSelectedRiderId(rider.riderId);
     setViewMode('focused');
 
-    // Hide all other markers except the selected one
+    // Hide all other markers except the selected one with smooth transition
     Object.keys(markersRef.current).forEach(id => {
       const marker = markersRef.current[id];
       if (id === rider.riderId) {
         // Show and highlight selected marker
         marker.addTo(mapRef.current);
-        marker.setIcon(createRiderIcon(50, true));
+        marker.setIcon(createRiderIcon(50, true, marker._currentBearing || 0));
         marker.openPopup();
       } else {
         // Remove other markers from map
@@ -201,8 +279,11 @@ const RidersAndMapView = () => {
       }
     });
 
-    // Set center and zoom to selected rider
-    mapRef.current.setView([rider.latitude, rider.longitude], 17);
+    // Smooth fly to selected rider
+    mapRef.current.flyTo([rider.latitude, rider.longitude], 17, {
+      duration: 1.5,
+      easeLinearity: 0.25
+    });
   }, []);
 
   const toggleMapType = useCallback(() => {
@@ -267,30 +348,67 @@ const RidersAndMapView = () => {
       const riderId = rider.riderId;
       const lat = rider.latitude;
       const lng = rider.longitude;
+      const bearing = rider.bearing || 0;
+      const speed = rider.speed || 0;
 
       if (!lat || !lng) return;
 
       if (markersRef.current[riderId]) {
         const marker = markersRef.current[riderId];
         const newPosition = L.latLng(lat, lng);
-        if (!marker.getLatLng().equals(newPosition)) {
+        const currentPosition = marker.getLatLng();
+        
+        // Only animate if the position has changed significantly
+        const distance = currentPosition.distanceTo(newPosition);
+        if (distance > 5) { // Only animate if moved more than 5 meters
+          smoothMoveMarker(marker, newPosition, bearing);
+        } else {
+          // Small movement, just update position and bearing without animation
           marker.setLatLng(newPosition);
+          marker.setIcon(createRiderIcon(
+            selectedRiderId === riderId ? 50 : 40,
+            selectedRiderId === riderId,
+            bearing
+          ));
+          marker._currentBearing = bearing;
+        }
 
-          // Only pan to rider if in focused mode and this is the selected rider
-          if (selectedRiderId === riderId && viewMode === 'focused') {
-            mapRef.current.panTo(newPosition);
-          }
+        // Update popup content with speed information
+        const popupContent = `
+          <div class="rider-popup">
+            <p><b>${rider.riderName}</b></p>
+            <p>Phone: ${rider.riderPhone}</p>
+            <p>Speed: ${formatSpeed(speed)}</p>
+            <p>Status: <span class="status-badge" style="background-color: ${getStatusColor(rider.status)}">
+              ${rider.status.replace('_', ' ')}
+            </span></p>
+            <small>Last updated: ${new Date(rider.timestamp).toLocaleTimeString()}</small>
+          </div>
+        `;
+        marker.setPopupContent(popupContent);
+
+        // Only pan to rider if in focused mode and this is the selected rider
+        if (selectedRiderId === riderId && viewMode === 'focused') {
+          mapRef.current.panTo(newPosition, {
+            animate: true,
+            duration: 1.0
+          });
         }
       } else {
         const marker = L.marker([lat, lng], {
-          icon: createRiderIcon(40),
+          icon: createRiderIcon(40, false, bearing),
           title: rider.riderName
         });
+
+        // Store rider ID and current bearing for animation
+        marker._riderId = riderId;
+        marker._currentBearing = bearing;
 
         const popupContent = `
           <div class="rider-popup">
             <p><b>${rider.riderName}</b></p>
             <p>Phone: ${rider.riderPhone}</p>
+            <p>Speed: ${formatSpeed(speed)}</p>
             <p>Status: <span class="status-badge" style="background-color: ${getStatusColor(rider.status)}">
               ${rider.status.replace('_', ' ')}
             </span></p>
@@ -313,11 +431,16 @@ const RidersAndMapView = () => {
       if (!riderData.find(r => r.riderId === riderId)) {
         mapRef.current.removeLayer(markersRef.current[riderId]);
         delete markersRef.current[riderId];
+        // Also cancel any ongoing animation
+        if (markerAnimationsRef.current[riderId]) {
+          cancelAnimationFrame(markerAnimationsRef.current[riderId]);
+          delete markerAnimationsRef.current[riderId];
+        }
       }
     });
 
     markersRef.current = { ...markersRef.current, ...newMarkers };
-  }, [selectedRiderId, viewMode]);
+  }, [selectedRiderId, viewMode, smoothMoveMarker]);
 
   const connectWebSocket = useCallback(async () => {
     if (isUnmountedRef.current) return;
@@ -364,24 +487,31 @@ const RidersAndMapView = () => {
                     ...rider,
                     latitude: locationUpdate.latitude,
                     longitude: locationUpdate.longitude,
+                    bearing: locationUpdate.bearing || 0,
+                    speed: locationUpdate.speed || 0,
                     timestamp: locationUpdate.timestamp,
                     status: locationUpdate.status
                   } : rider
                 );
 
                 if (mapRef.current) {
-                  // Update only the marker position
+                  // Update marker with smooth animation
                   const marker = markersRef.current[locationUpdate.riderId];
                   if (marker) {
                     const newPosition = L.latLng(
                       locationUpdate.latitude,
                       locationUpdate.longitude
                     );
-                    marker.setLatLng(newPosition);
+                    const bearing = locationUpdate.bearing || 0;
+                    
+                    smoothMoveMarker(marker, newPosition, bearing);
 
                     // Only pan to rider if in focused mode and this is the selected rider
                     if (selectedRiderId === locationUpdate.riderId && viewMode === 'focused') {
-                      mapRef.current.panTo(newPosition);
+                      mapRef.current.panTo(newPosition, {
+                        animate: true,
+                        duration: 1.0
+                      });
                     }
                   }
                 }
@@ -412,7 +542,7 @@ const RidersAndMapView = () => {
       setWsError(error?.toString() || 'Setup failed');
       setWsConnected(false);
     }
-  }, [getClientId, reconnectAttempts, selectedRiderId, viewMode]);
+  }, [getClientId, reconnectAttempts, selectedRiderId, viewMode, smoothMoveMarker]);
 
   const disconnectWebSocket = useCallback(() => {
     if (reconnectTimeoutRef.current) {
@@ -440,6 +570,11 @@ const RidersAndMapView = () => {
     return () => {
       isUnmountedRef.current = true;
       disconnectWebSocket();
+      // Cancel all animations
+      Object.values(markerAnimationsRef.current).forEach(animationId => {
+        cancelAnimationFrame(animationId);
+      });
+      markerAnimationsRef.current = {};
     };
   }, [fetchLiveRiderLocations, connectWebSocket, disconnectWebSocket]);
 
@@ -458,9 +593,10 @@ const RidersAndMapView = () => {
             );
 
             if (bounds.isValid()) {
-              mapRef.current.fitBounds(bounds, {
+              mapRef.current.flyToBounds(bounds, {
                 padding: [50, 50],
-                maxZoom: 12
+                duration: 1.5,
+                easeLinearity: 0.25
               });
             }
           }
@@ -546,14 +682,62 @@ const RidersAndMapView = () => {
             border-radius: 8px;
           }
           
-          /* Selected marker styling */
-          .selected-marker {
-            filter: drop-shadow(0 0 8px rgba(33, 150, 243, 0.8));
+          /* Custom rider marker styling */
+          .custom-rider-marker {
+            background: transparent !important;
+            border: none !important;
+          }
+          
+          .rider-marker {
+            position: relative;
+            transition: transform 0.3s ease;
+            will-change: transform;
+          }
+          
+          .rider-marker.selected {
+            z-index: 1000;
+          }
+          
+          .rider-marker.selected .pulse-animation {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 60px;
+            height: 60px;
+            margin: -30px 0 0 -30px;
+            background: rgba(33, 150, 243, 0.3);
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+            z-index: -1;
+          }
+          
+          @keyframes pulse {
+            0% {
+              transform: scale(0.8);
+              opacity: 0.7;
+            }
+            70% {
+              transform: scale(1.2);
+              opacity: 0;
+            }
+            100% {
+              transform: scale(0.8);
+              opacity: 0;
+            }
           }
           
           /* Hide zoom controls */
           .leaflet-control-zoom {
             display: none !important;
+          }
+          
+          /* Speed indicator in list */
+          .speed-indicator {
+            font-size: 12px;
+            color: #6c757d;
+            display: flex;
+            align-items: center;
+            gap: 4px;
           }
         `}
       </style>
@@ -587,9 +771,13 @@ const RidersAndMapView = () => {
                     >
                       <div>
                         <h6 className="mb-1">{rider.riderName}</h6>
-                        <small className="text-muted">
+                        <small className="text-muted d-block">
                           {rider.vehicle} • {rider.riderPhone}
                         </small>
+                        <div className="speed-indicator">
+                          <Gauge size={12} />
+                          {formatSpeed(rider.speed)}
+                        </div>
                       </div>
                       <Badge
                         className={`${getStatusBadgeClass(rider.status)}`}
@@ -647,7 +835,7 @@ const RidersAndMapView = () => {
                 Last refreshed: {new Date().toLocaleTimeString()}
                 {viewMode === 'focused' && selectedRider && (
                   <span className="ms-2">
-                    • Tracking: {selectedRider.riderName}
+                    • Tracking: {selectedRider.riderName} • Speed: {formatSpeed(selectedRider.speed)}
                   </span>
                 )}
               </small>
