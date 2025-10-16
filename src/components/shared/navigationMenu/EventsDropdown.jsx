@@ -289,8 +289,8 @@ const EventsDropdown = () => {
                     align-items: center;
                     justify-content: space-between;
                     padding: 8px 12px;
-                    background: #007ffeff;
-                    border: 1px solid #007ffeff;
+                    background: #0092ff;
+                    border: 1px solid #0092ff;
                     border-radius: 6px;
                     cursor: pointer;
                     transition: all 0.2s ease;
