@@ -207,7 +207,7 @@ const Dashboard = () => {
     const userName = authData?.name || 'Admin';
     const userRole = authData?.role;
     const userPermissions = authData?.permissions || [];
-    const hasAnalyticsPermission = userRole === 'CLIENT_ADMIN' || userPermissions.includes('ANALYTICS_READ');
+    const hasAnalyticsPermission = userRole === 'PATRON' || userPermissions.includes('ANALYTICS_READ');
 
     useEffect(() => {
         // Set timezone from auth data

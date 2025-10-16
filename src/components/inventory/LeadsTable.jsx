@@ -44,7 +44,7 @@ const InventoryTable = () => {
 
     // Check if user has permission
     const hasPermission = useCallback((permission) => {
-        if (userRole === 'CLIENT_ADMIN') return true;
+        if (userRole === 'PATRON') return true;
         return userPermissions.includes(permission);
     }, [userRole, userPermissions]);
 

@@ -53,11 +53,11 @@ const DealsTable = () => {
     const userPermissions = authData?.permissions || [];
 
     // Permission checks
-    const canRead = userRole === 'CLIENT_ADMIN' || userPermissions.includes('DEAL_READ');
-    const canWrite = userRole === 'CLIENT_ADMIN' || userPermissions.includes('DEAL_WRITE');
-    const canUpdate = userRole === 'CLIENT_ADMIN' || userPermissions.includes('DEAL_UPDATE');
-    const canDelete = userRole === 'CLIENT_ADMIN' || userPermissions.includes('DEAL_DELETE');
-    const canChangeStatus = userRole === 'CLIENT_ADMIN' || userPermissions.includes('DEAL_UPDATE');
+    const canRead = userRole === 'PATRON' || userPermissions.includes('DEAL_READ');
+    const canWrite = userRole === 'PATRON' || userPermissions.includes('DEAL_WRITE');
+    const canUpdate = userRole === 'PATRON' || userPermissions.includes('DEAL_UPDATE');
+    const canDelete = userRole === 'PATRON' || userPermissions.includes('DEAL_DELETE');
+    const canChangeStatus = userRole === 'PATRON' || userPermissions.includes('DEAL_UPDATE');
 
     const fetchItems = useCallback(async () => {
         try {

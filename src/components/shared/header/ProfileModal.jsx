@@ -149,10 +149,10 @@ const ProfileModal = () => {
     }
 
     const authData = JSON.parse(localStorage.getItem('authData')) || {}
-    const { username = '', clientType = '', name = '', role = '', permissions = [] } = authData
+    const { username = '', email = '', name = '', role = '', permissions = [] } = authData
 
     const hasPermission = (permission) => {
-        if (role === 'CLIENT_ADMIN') return true;
+        if (role === 'PATRON') return true;
         return permissions.includes(permission);
     }
 
@@ -194,32 +194,32 @@ const ProfileModal = () => {
                             />
                             <div className="d-flex flex-column">
                                 <div className="d-flex align-items-center gap-2 flex-wrap">
-                                    <h6 className="text-dark mb-0 fw-semibold">{name}</h6>
+                                    <h6 className="text-dark mb-0 fw-semibold">{username}</h6>
                                     <span className="badge bg-primary bg-opacity-10 text-light fs-11 fw-medium">
-                                        {clientType}
+                                        {role}
                                     </span>
                                 </div>
-                                <span className="text-muted fs-12 mt-n1">{username}</span>
+                                <span className="text-muted fs-12 mt-n1">{email}</span>
                             </div>
                         </div>
                     </div>
 
                     {/* Updated to use Link component for hash routing */}
-                    {(role === 'CLIENT_ADMIN' || hasPermission('PROFILE_UPDATE')) && (
+                    {(role === 'PATRON' || hasPermission('PROFILE_UPDATE')) && (
                         <Link to="/account" className="dropdown-item">
                             <i><FiUser /></i>
                             <span>Account Information</span>
                         </Link>
                     )}
 
-                    {role === 'CLIENT_ADMIN' && (
+                    {role === 'PATRON' && (
                         <Link to="/account" className="dropdown-item">
                             <i><FiDollarSign /></i>
                             <span>Subscription & Plan</span>
                         </Link>
                     )}
 
-                    {(role === 'CLIENT_ADMIN' || hasPermission('TAX_READ') || hasPermission('CURRENCY_READ')) && (
+                    {(role === 'PATRON' || hasPermission('TAX_READ') || hasPermission('CURRENCY_READ')) && (
                         <Link to="/account" className="dropdown-item">
                             <i><FiSettings /></i>
                             <span>System Settings</span>

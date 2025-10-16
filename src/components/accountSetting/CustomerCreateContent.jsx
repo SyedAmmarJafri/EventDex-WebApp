@@ -11,7 +11,7 @@ const CustomerCreateContent = () => {
     const userPermissions = authData?.permissions || [];
 
     // Permission checks
-    const isClientAdmin = userRole === 'CLIENT_ADMIN';
+    const isClientAdmin = userRole === 'PATRON';
     const canReadProfile = isClientAdmin || userPermissions.includes('PROFILE_UPDATE');
     const canReadPassword = isClientAdmin;
     const canReadSubscription = isClientAdmin;

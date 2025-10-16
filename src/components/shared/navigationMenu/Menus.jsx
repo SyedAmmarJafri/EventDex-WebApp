@@ -2,6 +2,7 @@ import { Fragment, useEffect, useState } from "react";
 import { FiChevronRight } from "react-icons/fi";
 import { Link, useLocation } from "react-router-dom";
 import getIcon from "@/utils/getIcon";
+import EventsDropdown from "./EventsDropdown"; // Import the dropdown component
 
 const Menus = () => {
     const [openDropdown, setOpenDropdown] = useState(null);
@@ -54,8 +55,8 @@ const Menus = () => {
         // Always show Help Center to everyone
         if (menuName.toLowerCase() === "help center") return true;
 
-        // CLIENT_ADMIN can see all other menus
-        if (authData.role === "CLIENT_ADMIN") return true;
+        // PATRON can see all other menus
+        if (authData.role === "PATRON") return true;
 
         // Check tabPermissions for other menus
         const permissions = authData.tabPermissions || {};
@@ -76,7 +77,7 @@ const Menus = () => {
     // Filter dropdown menu items based on permissions
     const getFilteredDropdownMenu = (dropdownMenu, parentName) => {
         if (!authData) return [];
-        if (authData.role === "CLIENT_ADMIN") return dropdownMenu;
+        if (authData.role === "PATRON") return dropdownMenu;
 
         return dropdownMenu.filter(item => {
             if (item.subdropdownMenu === false) {
@@ -90,6 +91,11 @@ const Menus = () => {
 
     return (
         <>
+            {/* Events Dropdown - Add this before your menu items */}
+            <div className="events-dropdown-wrapper" style={{ padding: '10px 15px' }}>
+                <EventsDropdown />
+            </div>
+
             {menuList.map(({ dropdownMenu, id, name, path, icon }) => {
                 // Skip rendering if menu shouldn't be shown
                 if (!shouldShowMenu(name)) return null;
@@ -194,23 +200,16 @@ export const menuList = [
         icon: 'feather-airplay',
         dropdownMenu: []
     },
-    {
-        id: 1,
-        name: "POS",
-        path: "/pos",
-        icon: 'feather-monitor',
-        dropdownMenu: []
-    },
-    {
-        id: 2,
-        name: "Orders",
-        path: "/orders",
-        icon: 'feather-shopping-bag',
+        {
+        id: 5,
+        name: "Events",
+        path: "/discount",
+        icon: 'feather-clock',
         dropdownMenu: []
     },
     {
         id: 3,
-        name: "Products",
+        name: "Modules",
         path: "#",
         icon: 'feather-grid',
         dropdownMenu: [
@@ -222,16 +221,10 @@ export const menuList = [
             },
             {
                 id: 2,
-                name: "Item",
+                name: "Sub Category",
                 path: "/item",
                 subdropdownMenu: false
-            },
-            {
-                id: 3,
-                name: "Deal",
-                path: "/deal",
-                subdropdownMenu: false
-            },
+            }
         ]
     },
     {
@@ -239,13 +232,6 @@ export const menuList = [
         name: "Customers",
         path: "/customer",
         icon: 'feather-users',
-        dropdownMenu: []
-    },
-    {
-        id: 5,
-        name: "Discounts",
-        path: "/discount",
-        icon: 'feather-send',
         dropdownMenu: []
     },
     {
@@ -267,13 +253,6 @@ export const menuList = [
                 subdropdownMenu: false
             },
         ]
-    },
-    {
-        id: 8,
-        name: "Inventory",
-        path: "/inventory",
-        icon: 'feather-layers',
-        dropdownMenu: []
     },
     {
         id: 9,
@@ -331,13 +310,6 @@ export const menuList = [
                 subdropdownMenu: false
             },
         ]
-    },
-    {
-        id: 11,
-        name: "Live Tracking",
-        path: "/tracker",
-        icon: 'feather-map-pin',
-        dropdownMenu: []
     },
     {
         id: 12,

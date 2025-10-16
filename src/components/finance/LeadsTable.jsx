@@ -111,7 +111,7 @@ const TransactionsTable = () => {
     const isDarkMode = skinTheme === 'dark';
 
     const hasPermission = (permission) => {
-        if (userRole === 'CLIENT_ADMIN') return true;
+        if (userRole === 'PATRON') return true;
         return userPermissions.includes(permission);
     };
 

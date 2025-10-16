@@ -102,7 +102,7 @@ const RolesTable = () => {
     const userPermissions = authData?.permissions || [];
 
     // Check if user is client admin
-    const isClientAdmin = userRole === 'CLIENT_ADMIN';
+    const isClientAdmin = userRole === 'PATRON';
 
     // Check specific permissions
     const canViewRoles = isClientAdmin || userPermissions.includes('ROLE_READ');

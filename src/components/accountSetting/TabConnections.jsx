@@ -46,7 +46,7 @@ const TabConnections = () => {
 
     // Check if user has permission
     const hasPermission = useCallback((permission) => {
-        if (userPermissions.role === 'CLIENT_ADMIN') {
+        if (userPermissions.role === 'PATRON') {
             return true;
         }
         return userPermissions.permissions.includes(permission);
@@ -54,7 +54,7 @@ const TabConnections = () => {
 
     // Check if user can edit
     const canEdit = useCallback((section) => {
-        if (userPermissions.role === 'CLIENT_ADMIN') {
+        if (userPermissions.role === 'PATRON') {
             return true;
         }
 
@@ -71,7 +71,7 @@ const TabConnections = () => {
 
     // Check if user can view
     const canView = useCallback((section) => {
-        if (userPermissions.role === 'CLIENT_ADMIN') {
+        if (userPermissions.role === 'PATRON') {
             return true;
         }
 

@@ -70,11 +70,11 @@ const ItemsTable = () => {
     const userPermissions = authData?.permissions || [];
 
     // Permission checks
-    const canRead = userRole === 'CLIENT_ADMIN' || userPermissions.includes('ITEM_READ');
-    const canWrite = userRole === 'CLIENT_ADMIN' || userPermissions.includes('ITEM_WRITE');
-    const canUpdate = userRole === 'CLIENT_ADMIN' || userPermissions.includes('ITEM_UPDATE');
-    const canDelete = userRole === 'CLIENT_ADMIN' || userPermissions.includes('ITEM_DELETE');
-    const canToggleStatus = userRole === 'CLIENT_ADMIN' || userPermissions.includes('ITEM_UPDATE');
+    const canRead = userRole === 'PATRON' || userPermissions.includes('ITEM_READ');
+    const canWrite = userRole === 'PATRON' || userPermissions.includes('ITEM_WRITE');
+    const canUpdate = userRole === 'PATRON' || userPermissions.includes('ITEM_UPDATE');
+    const canDelete = userRole === 'PATRON' || userPermissions.includes('ITEM_DELETE');
+    const canToggleStatus = userRole === 'PATRON' || userPermissions.includes('ITEM_UPDATE');
 
     // Get currency settings from localStorage
     const currencySymbol = authData?.currencySettings?.currencySymbol || '$';

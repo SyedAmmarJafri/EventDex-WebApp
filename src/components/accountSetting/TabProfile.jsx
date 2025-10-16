@@ -37,8 +37,8 @@ const TabProfile = () => {
     const { role = '', permissions = [] } = authData;
 
     // Check permissions
-    const canUpdateProfile = role === 'CLIENT_ADMIN' || permissions.includes('PROFILE_UPDATE');
-    const canUploadProfilePicture = role === 'CLIENT_ADMIN' ||
+    const canUpdateProfile = role === 'PATRON' || permissions.includes('PROFILE_UPDATE');
+    const canUploadProfilePicture = role === 'PATRON' ||
         (permissions.includes('PROFILE_PICTURE_UPLOAD') &&
         permissions.includes('PROFILE_PICTURE_UPDATE'));
 

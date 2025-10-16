@@ -50,7 +50,7 @@ const TeamTable = () => {
     const authData = JSON.parse(localStorage.getItem("authData"));
     const userRole = authData?.role;
     const userPermissions = authData?.permissions || [];
-    const canManageStaff = userRole === 'CLIENT_ADMIN' || userPermissions.includes('STAFF_MANAGEMENT');
+    const canManageStaff = userRole === 'PATRON' || userPermissions.includes('STAFF_MANAGEMENT');
 
     const SkeletonLoader = () => {
         return (

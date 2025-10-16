@@ -47,11 +47,11 @@ const CategoriesTable = () => {
     const userPermissions = authData?.permissions || [];
 
     // Permission checks
-    const canRead = userRole === 'CLIENT_ADMIN' || userPermissions.includes('CATEGORY_READ');
-    const canWrite = userRole === 'CLIENT_ADMIN' || userPermissions.includes('CATEGORY_WRITE');
-    const canUpdate = userRole === 'CLIENT_ADMIN' || userPermissions.includes('CATEGORY_UPDATE');
-    const canDelete = userRole === 'CLIENT_ADMIN' || userPermissions.includes('CATEGORY_DELETE');
-    const canToggleStatus = userRole === 'CLIENT_ADMIN' || userPermissions.includes('CATEGORY_UPDATE');
+    const canRead = userRole === 'PATRON' || userPermissions.includes('CATEGORY_READ');
+    const canWrite = userRole === 'PATRON' || userPermissions.includes('CATEGORY_WRITE');
+    const canUpdate = userRole === 'PATRON' || userPermissions.includes('CATEGORY_UPDATE');
+    const canDelete = userRole === 'PATRON' || userPermissions.includes('CATEGORY_DELETE');
+    const canToggleStatus = userRole === 'PATRON' || userPermissions.includes('CATEGORY_UPDATE');
 
     const SkeletonLoader = () => {
         return (

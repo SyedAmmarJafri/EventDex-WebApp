@@ -58,7 +58,7 @@ const OrderTable = () => {
 
     // Check permissions
     const hasPermission = (permission) => {
-        return userRole === 'CLIENT_ADMIN' || userPermissions.includes(permission);
+        return userRole === 'PATRON' || userPermissions.includes(permission);
     };
 
     // WebSocket configuration
@@ -1184,8 +1184,8 @@ const OrderTable = () => {
 
                 return (
                     <div className="hstack gap-2 justify-content-end">
-                        {/* Update Status button - visible if user is CLIENT_ADMIN or has ORDER_UPDATE permission */}
-                        {(userRole === 'CLIENT_ADMIN' || hasPermission('ORDER_UPDATE')) && (
+                        {/* Update Status button - visible if user is PATRON or has ORDER_UPDATE permission */}
+                        {(userRole === 'PATRON' || hasPermission('ORDER_UPDATE')) && (
                             <>
                                 {/* Hide edit button for POS orders or completed/delivered/rejected/cancelled orders */}
                                 {!row.original.orderType?.toLowerCase().includes('pos') &&
@@ -1216,8 +1216,8 @@ const OrderTable = () => {
                             </>
                         )}
 
-                        {/* View buttons - visible if user is CLIENT_ADMIN or has ORDER_READ permission */}
-                        {(userRole === 'CLIENT_ADMIN' || hasPermission('ORDER_READ')) && (
+                        {/* View buttons - visible if user is PATRON or has ORDER_READ permission */}
+                        {(userRole === 'PATRON' || hasPermission('ORDER_READ')) && (
                             <>
                                 {/* View on Map button for orders with delivery coordinates */}
                                 {hasDeliveryLocation(row.original) && (

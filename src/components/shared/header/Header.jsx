@@ -3,7 +3,6 @@ import { FiAlignLeft, FiMaximize, FiMinimize, FiMoon, FiSun } from "react-icons/
 import NotificationsModal from './NotificationsModal';
 import ProfileModal from './ProfileModal';
 import Support from './SearchModal';
-import TimesheetsModal from './TimesheetsModal';
 import { NavigationContext } from '../../../contentApi/navigationProvider';
 
 const Header = () => {
@@ -27,14 +26,6 @@ const Header = () => {
             });
         }
     }, []);
-
-    // Check if user has permission to view timesheets
-    const canViewTimesheets = () => {
-        if (userPermissions.role === 'CLIENT_ADMIN') {
-            return true;
-        }
-        return userPermissions.permissions.includes('ORDER_ACCEPT');
-    };
 
     const handleThemeMode = (type) => {
         const isDark = type === "dark";
@@ -194,23 +185,6 @@ const Header = () => {
                             </div>
                         </div>
                     </a>
-
-                    {!isMobile && (
-                        <>
-                            <div
-                                className="nxl-navigation-toggle navigation-up-1600"
-                                style={{ paddingTop: "15px" }}
-                            >
-                                <a
-                                    href="#"
-                                    onClick={(e) => handleNavigationExpendUp(e, navigationExpend ? "hide" : "show")}
-                                    id="menu-toggle-button"
-                                >
-                                    <FiAlignLeft size={25} />
-                                </a>
-                            </div>
-                        </>
-                    )}
                 </div>
                 <div className="header-right ms-auto">
                     <div className="d-flex justify-content-end align-items-center w-100">
@@ -242,7 +216,6 @@ const Header = () => {
                                 <FiSun size={20} />
                             </div>
                         </div>
-                        {canViewTimesheets() && <TimesheetsModal />}
                         <NotificationsModal />
                         <ProfileModal />
                     </div>

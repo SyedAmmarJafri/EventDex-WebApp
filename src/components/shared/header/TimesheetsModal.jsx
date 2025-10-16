@@ -77,7 +77,7 @@ const TimesheetsModal = () => {
     // Check if user has specific permission
     const hasPermission = useCallback((permission) => {
         const { role, permissions } = getUserPermissions();
-        return role === 'CLIENT_ADMIN' || permissions.includes(permission);
+        return role === 'PATRON' || permissions.includes(permission);
     }, [getUserPermissions]);
 
     // Filter orders to only show pending ones
@@ -948,7 +948,7 @@ const OrderDetailsModal = ({ show, onHide, order, onAccept, onReject }) => {
     // Check if user has specific permission
     const hasPermission = (permission) => {
         const { role, permissions } = getUserPermissions();
-        return role === 'CLIENT_ADMIN' || permissions.includes(permission);
+        return role === 'PATRON' || permissions.includes(permission);
     };
 
     return (

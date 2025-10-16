@@ -74,11 +74,7 @@ const LoginForm = ({ registerPath, resetPath }) => {
         setNotification(null);
 
         try {
-            const endpoint = loginType === 'admin'
-                ? `${BASE_URL}/api/auth/client-admin/login`
-                : `${BASE_URL}/api/auth/staff/login`;
-
-            const response = await fetch(endpoint, {
+            const response = await fetch(`${BASE_URL}/api/auth/login`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -95,83 +91,23 @@ const LoginForm = ({ registerPath, resetPath }) => {
                 throw new Error(data.message || 'Login failed');
             }
 
-            if (loginType === 'admin') {
-                const authData = {
-                    token: data.token,
-                    role: data.role,
-                    username: data.username,
-                    clientId: data.clientId,
-                    clientType: data.clientType,
-                    name: data.name,
-                    email: data.email,
-                    contactNumber: data.contactNumber,
-                    address: data.address,
-                    country: data.country,
-                    state: data.state,
-                    city: data.city,
-                    timezone: data.timezone,
-                    businessDetails: {
-                        businessName: data.businessDetails?.businessName
-                    },
-                    profilePicture: data.profilePicture,
-                    subscriptionStartDate: data.subscriptionStartDate,
-                    subscriptionEndDate: data.subscriptionEndDate,
-                    subscriptionPlan: {
-                        id: data.subscriptionPlan?.id,
-                        name: data.subscriptionPlan?.name,
-                        description: data.subscriptionPlan?.description,
-                        monthlyPrice: data.subscriptionPlan?.monthlyPrice,
-                        yearlyPrice: data.subscriptionPlan?.yearlyPrice,
-                        features: data.subscriptionPlan?.features,
-                        clientTypes: data.subscriptionPlan?.clientTypes,
-                        active: data.subscriptionPlan?.active
-                    },
-                    currencySettings: {
-                        currency: data.currencySettings?.currency,
-                        currencySymbol: data.currencySettings?.currencySymbol,
-                        currencyCode: data.currencySettings?.currencyCode
-                    },
-                    taxDetails: {
-                        gstRate: data.taxDetails?.gstRate,
-                        sstRate: data.taxDetails?.sstRate,
-                        gstEnabled: data.taxDetails?.gstEnabled,
-                        sstEnabled: data.taxDetails?.sstEnabled,
-                        discountRate: data.taxDetails?.discountRate,
-                        discountEnabled: data.taxDetails?.discountEnabled
-                    }
-                };
-                localStorage.setItem("authData", JSON.stringify(authData));
-            } else {
-                // Updated Team login - save the specific fields
-                const teamAuthData = {
-                    token: data.token,
-                    role: data.role,
-                    username: data.username,
-                    clientId: data.clientId,
-                    userId: data.userId,
-                    clientType: data.clientType,
-                    name: data.name,
-                    email: data.email,
-                    contactNumber: data.contactNumber,
-                    profilePicture: data.profilePicture,
-                    permissions: data.permissions || [],
-                    tabPermissions: data.tabPermissions || {},
-                    currencySettings: {
-                        currency: data.currencySettings?.currency,
-                        currencySymbol: data.currencySettings?.currencySymbol,
-                        currencyCode: data.currencySettings?.currencyCode
-                    },
-                    taxDetails: {
-                        gstRate: data.taxDetails?.gstRate,
-                        sstRate: data.taxDetails?.sstRate,
-                        gstEnabled: data.taxDetails?.gstEnabled,
-                        sstEnabled: data.taxDetails?.sstEnabled,
-                        discountRate: data.taxDetails?.discountRate,
-                        discountEnabled: data.taxDetails?.discountEnabled
-                    }
-                };
-                localStorage.setItem("authData", JSON.stringify(teamAuthData));
+            if (!data.success) {
+                throw new Error(data.message || 'Login failed');
             }
+
+            // Handle both admin and team logins with the new response structure
+            const authData = {
+                token: data.data.token,
+                role: data.data.role,
+                username: data.data.username,
+                email: data.data.email,
+                id: data.data.id,
+                domainId: data.data.domainId,
+                domainName: data.data.domainName,
+                type: data.data.type
+            };
+
+            localStorage.setItem("authData", JSON.stringify(authData));
 
             // Handle remember me functionality
             if (rememberMe) {
@@ -306,7 +242,8 @@ const LoginForm = ({ registerPath, resetPath }) => {
                         minWidth: '300px',
                         maxWidth: '90%',
                         zIndex: 1000,
-                        backgroundColor: notification.type === 'success' ? '#28a745' : '#dc3545',
+                        backgroundColor: notification.type === 'success' ? '#28a745' : 
+                                       notification.type === 'error' ? '#dc3545' : '#007bff',
                         boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
                         animation: 'slideIn 0.3s ease-out'
                     }}

@@ -20,7 +20,7 @@ const NavigationManu = () => {
         if (authData) {
             try {
                 const parsedAuthData = JSON.parse(authData);
-                if (parsedAuthData.role === 'CLIENT_ADMIN') {
+                if (parsedAuthData.role === 'PATRON') {
                     setShowAppCard(true);
                 }
             } catch (error) {
@@ -36,7 +36,7 @@ const NavigationManu = () => {
             if (updatedAuthData) {
                 try {
                     const parsedAuthData = JSON.parse(updatedAuthData);
-                    setShowAppCard(parsedAuthData.role === 'CLIENT_ADMIN');
+                    setShowAppCard(parsedAuthData.role === 'PATRON');
                 } catch (error) {
                     console.error('Error parsing updated authData:', error);
                 }
@@ -60,8 +60,8 @@ const NavigationManu = () => {
             if (currentAuthData) {
                 try {
                     const parsedAuthData = JSON.parse(currentAuthData);
-                    if (parsedAuthData.role === 'CLIENT_ADMIN' !== showAppCard) {
-                        setShowAppCard(parsedAuthData.role === 'CLIENT_ADMIN');
+                    if (parsedAuthData.role === 'PATRON' !== showAppCard) {
+                        setShowAppCard(parsedAuthData.role === 'PATRON');
                     }
                 } catch (error) {
                     console.error('Error parsing current authData:', error);

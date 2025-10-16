@@ -54,8 +54,8 @@ const checkPermission = (requiredPermission) => {
         
         const authData = JSON.parse(authDataString);
         
-        // CLIENT_ADMIN has all permissions
-        if (authData.role === "CLIENT_ADMIN") return true;
+        // PATRON has all permissions
+        if (authData.role === "PATRON") return true;
         
         // Check if the required permission exists in tabPermissions
         const permissions = authData.tabPermissions || {};

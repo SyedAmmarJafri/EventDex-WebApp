@@ -52,11 +52,11 @@ const TemplatesTable = () => {
     const userPermissions = authData?.permissions || [];
 
     // Permission checks
-    const canRead = userRole === 'CLIENT_ADMIN' || userPermissions.includes('TEMPLATE_READ');
-    const canWrite = userRole === 'CLIENT_ADMIN' || userPermissions.includes('TEMPLATE_WRITE');
-    const canUpdate = userRole === 'CLIENT_ADMIN' || userPermissions.includes('TEMPLATE_UPDATE');
-    const canDelete = userRole === 'CLIENT_ADMIN' || userPermissions.includes('TEMPLATE_DELETE');
-    const canConfigureEmail = userRole === 'CLIENT_ADMIN' || userPermissions.includes('EMAIL_SETTINGS_WRITE');
+    const canRead = userRole === 'PATRON' || userPermissions.includes('TEMPLATE_READ');
+    const canWrite = userRole === 'PATRON' || userPermissions.includes('TEMPLATE_WRITE');
+    const canUpdate = userRole === 'PATRON' || userPermissions.includes('TEMPLATE_UPDATE');
+    const canDelete = userRole === 'PATRON' || userPermissions.includes('TEMPLATE_DELETE');
+    const canConfigureEmail = userRole === 'PATRON' || userPermissions.includes('EMAIL_SETTINGS_WRITE');
 
     // Load initial data from API
     useEffect(() => {
