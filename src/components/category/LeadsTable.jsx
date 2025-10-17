@@ -1,13 +1,12 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import Table from '@/components/shared/table/Table';
-import { FiTrash, FiEdit, FiPlus, FiEye, FiUpload } from 'react-icons/fi';
+import { FiTrash, FiEdit, FiPlus, FiEye } from 'react-icons/fi';
 import Button from '@mui/material/Button';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { BASE_URL } from '/src/constants.js';
 import Skeleton from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
-import Switch from '@mui/material/Switch';
 import Modal from 'react-bootstrap/Modal';
 
 const CategoriesTable = () => {
@@ -22,22 +21,22 @@ const CategoriesTable = () => {
     const [newCategory, setNewCategory] = useState({
         name: '',
         description: '',
-        primaryImageUrl: ''
+        registrationFee: 0,
+        participantLimit: 0,
+        domainHeadId: '',
+        parentDomainId: ''
     });
     const [editCategory, setEditCategory] = useState({
         id: '',
         name: '',
-        description: '',
-        primaryImageUrl: '',
-        imageUrls: []
+        description: ''
     });
     const [formErrors, setFormErrors] = useState({});
     const [editFormErrors, setEditFormErrors] = useState({});
-    const [uploadingImage, setUploadingImage] = useState(false);
+    const [creatingCategory, setCreatingCategory] = useState(false);
+    const [updatingCategory, setUpdatingCategory] = useState(false);
     const [deletingCategory, setDeletingCategory] = useState(false);
-    const [selectedFile, setSelectedFile] = useState(null);
-    const [imagePreview, setImagePreview] = useState('');
-    const [imageSizeError, setImageSizeError] = useState('');
+    const [currentEventId, setCurrentEventId] = useState(null);
     const skinTheme = localStorage.getItem('skinTheme') || 'light';
     const isDarkMode = skinTheme === 'dark';
 
@@ -51,7 +50,28 @@ const CategoriesTable = () => {
     const canWrite = userRole === 'PATRON' || userPermissions.includes('CATEGORY_WRITE');
     const canUpdate = userRole === 'PATRON' || userPermissions.includes('CATEGORY_UPDATE');
     const canDelete = userRole === 'PATRON' || userPermissions.includes('CATEGORY_DELETE');
-    const canToggleStatus = userRole === 'PATRON' || userPermissions.includes('CATEGORY_UPDATE');
+
+    // Get event ID from localStorage or EventsDropdown
+    const getEventId = () => {
+        // First try to get from localStorage (set by EventsDropdown)
+        const savedEventId = localStorage.getItem('eventid');
+        if (savedEventId) {
+            return savedEventId;
+        }
+        
+        // If not in localStorage, try to get from currentEventId state
+        if (currentEventId) {
+            return currentEventId;
+        }
+        
+        // Fallback to checking if there's an event selected in the dropdown
+        const eventData = JSON.parse(localStorage.getItem('selectedEvent'));
+        if (eventData && eventData.id) {
+            return eventData.id;
+        }
+        
+        return null;
+    };
 
     const SkeletonLoader = () => {
         return (
@@ -59,26 +79,15 @@ const CategoriesTable = () => {
                 <table className="table table-hover table-nowrap">
                     <thead>
                         <tr>
-                            <th scope="col">Image</th>
                             <th scope="col">Name</th>
                             <th scope="col">Description</th>
-                            <th scope="col">Status</th>
-                            <th scope="col">Item Count</th>
+                            <th scope="col">Current Participants</th>
                             <th scope="col" className="text-end">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         {[...Array(10)].map((_, index) => (
                             <tr key={index}>
-                                <td>
-                                    <Skeleton
-                                        circle
-                                        width={40}
-                                        height={40}
-                                        baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
-                                        highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
-                                    />
-                                </td>
                                 <td>
                                     <Skeleton
                                         width={150}
@@ -89,13 +98,6 @@ const CategoriesTable = () => {
                                 <td>
                                     <Skeleton
                                         width={200}
-                                        baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
-                                        highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
-                                    />
-                                </td>
-                                <td>
-                                    <Skeleton
-                                        width={80}
                                         baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
                                         highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
                                     />
@@ -154,115 +156,19 @@ const CategoriesTable = () => {
                         </g>
                     </svg>
                 </div>
-                <h5 className="mb-2">No Categories Found</h5>
-                <p className="text-muted mb-4">  You haven&apos;t added any categories yet. Start by adding a new category.</p>
+                <h5 className="mb-2">No Event Domains Found</h5>
+                <p className="text-muted mb-4">No event domains are available for this event.</p>
                 {canWrite && (
-                    <Button
-                        variant="contained"
+                    <Button 
+                        variant="contained" 
+                        startIcon={<FiPlus />}
                         onClick={() => setIsModalOpen(true)}
-                        className="d-flex align-items-center gap-2 mx-auto"
-                        style={{ backgroundColor: '#0092ff', color: 'white' }}
                     >
-                        <FiPlus /> Add Category
+                        Create New Domain
                     </Button>
                 )}
             </div>
         );
-    };
-
-    const handleFileChange = (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-
-        if (!file.type.match('image.*')) {
-            toast.error('Please select an image file', {
-                position: "bottom-center",
-                autoClose: 2000,
-                hideProgressBar: false,
-                closeOnClick: true,
-                pauseOnHover: true,
-                draggable: true,
-                progress: undefined,
-                theme: "colored",
-            });
-            return;
-        }
-
-        if (file.size > 250 * 1024) { // 200 KB limit
-            setImageSizeError('File size should be less than 200KB');
-            setSelectedFile(null);
-            setImagePreview('');
-            return;
-        }
-
-        setImageSizeError('');
-        setSelectedFile(file);
-
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            setImagePreview(reader.result);
-        };
-        reader.readAsDataURL(file);
-    };
-
-    const handleDeleteImage = async (imageUrl) => {
-        try {
-            const authData = JSON.parse(localStorage.getItem("authData"));
-
-            const deleteUrl = new URL(`${BASE_URL}/api/client-admin/categories/${editCategory.id}/images`);
-            deleteUrl.searchParams.append('imageUrl', imageUrl);
-
-            const response = await fetch(deleteUrl, {
-                method: 'DELETE',
-                headers: {
-                    'Authorization': `Bearer ${authData.token}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            const data = await response.json();
-            if (!response.ok) {
-                const errorMessage = data.error || data.message || 'Failed to delete image';
-                throw new Error(errorMessage);
-            }
-
-            toast.success('Image deleted successfully', {
-                position: "bottom-center",
-                autoClose: 2000,
-                hideProgressBar: false,
-                closeOnClick: true,
-                pauseOnHover: true,
-                draggable: true,
-                progress: undefined,
-                theme: "colored",
-            });
-
-            setEditCategory(prev => ({
-                ...prev,
-                imageUrls: prev.imageUrls.filter(url => url !== imageUrl)
-            }));
-
-            if (editCategory.primaryImageUrl === imageUrl) {
-                setEditCategory(prev => ({
-                    ...prev,
-                    primaryImageUrl: prev.imageUrls.length > 1 ?
-                        prev.imageUrls.find(url => url !== imageUrl) : ''
-                }));
-            }
-
-            await fetchCategories();
-        } catch (err) {
-            toast.error(err.message, {
-                position: "bottom-center",
-                autoClose: 2000,
-                hideProgressBar: false,
-                closeOnClick: true,
-                pauseOnHover: true,
-                draggable: true,
-                progress: undefined,
-                theme: "colored",
-            });
-        }
     };
 
     const fetchCategories = useCallback(async () => {
@@ -283,7 +189,24 @@ const CategoriesTable = () => {
                 return;
             }
 
-            const response = await fetch(`${BASE_URL}/api/client-admin/categories`, {
+            // Get event ID dynamically
+            const eventId = getEventId();
+            if (!eventId) {
+                toast.error("Please select an event first", {
+                    position: "bottom-center",
+                    autoClose: 2000,
+                    hideProgressBar: false,
+                    closeOnClick: true,
+                    pauseOnHover: true,
+                    draggable: true,
+                    progress: undefined,
+                    theme: "colored",
+                });
+                setLoading(false);
+                return;
+            }
+
+            const response = await fetch(`${BASE_URL}/api/events/${eventId}/domains`, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${authData.token}`,
@@ -293,19 +216,31 @@ const CategoriesTable = () => {
 
             const data = await response.json();
             if (!response.ok) {
-                const errorMessage = data.error || data.message || 'Failed to fetch categories';
+                const errorMessage = data.error || data.message || 'Failed to fetch event domains';
                 throw new Error(errorMessage);
             }
 
-            if (data.status === 200 && data.data) {
-                const categoriesWithImages = data.data.map(category => ({
-                    ...category,
-                    imageUrls: category.imageUrls || [],
-                    primaryImageUrl: category.primaryImageUrl || ''
+            if (data.success && data.data) {
+                // Transform the API response to match our table structure
+                const transformedDomains = data.data.map(domain => ({
+                    id: domain.id,
+                    name: domain.name,
+                    description: domain.description,
+                    registrationFee: domain.registrationFee,
+                    participantLimit: domain.participantLimit,
+                    currentParticipants: domain.currentParticipants,
+                    domainHeadName: domain.domainHeadName,
+                    eventName: domain.eventName,
+                    domainType: domain.domainType,
+                    parentDomainName: domain.parentDomainName,
+                    subDomains: domain.subDomains,
+                    domainHeadId: domain.domainHeadId,
+                    parentDomainId: domain.parentDomainId,
+                    createdAt: domain.createdAt
                 }));
-                setCategories(categoriesWithImages);
+                setCategories(transformedDomains);
             } else {
-                const errorMessage = data.message || 'Failed to fetch categories';
+                const errorMessage = data.message || 'Failed to fetch event domains';
                 throw new Error(errorMessage);
             }
         } catch (err) {
@@ -326,7 +261,10 @@ const CategoriesTable = () => {
 
     const handleInputChange = (e) => {
         const { name, value } = e.target;
-        setNewCategory(prev => ({ ...prev, [name]: value }));
+        setNewCategory(prev => ({ 
+            ...prev, 
+            [name]: value 
+        }));
         if (formErrors[name]) {
             setFormErrors(prev => ({ ...prev, [name]: '' }));
         }
@@ -334,7 +272,10 @@ const CategoriesTable = () => {
 
     const handleEditInputChange = (e) => {
         const { name, value } = e.target;
-        setEditCategory(prev => ({ ...prev, [name]: value }));
+        setEditCategory(prev => ({ 
+            ...prev, 
+            [name]: value 
+        }));
         if (editFormErrors[name]) {
             setEditFormErrors(prev => ({ ...prev, [name]: '' }));
         }
@@ -343,58 +284,57 @@ const CategoriesTable = () => {
     const validateForm = (formData, setErrors) => {
         const errors = {};
         if (!formData.name.trim()) errors.name = 'Name is required';
+        if (!formData.description.trim()) errors.description = 'Description is required';
         setErrors(errors);
         return Object.keys(errors).length === 0;
     };
 
-    const handleSubmit = async (e) => {
+    const handleCreateDomain = async (e) => {
         e.preventDefault();
         if (!validateForm(newCategory, setFormErrors)) return;
-        
-        if (selectedFile && selectedFile.size > 250 * 1024) {
-            setImageSizeError('File size should be less than 200KB');
-            return;
-        }
 
         try {
-            setUploadingImage(true);
+            setCreatingCategory(true);
             const authData = JSON.parse(localStorage.getItem("authData"));
+            const eventId = getEventId();
 
-            const response = await fetch(`${BASE_URL}/api/client-admin/categories`, {
+            if (!eventId) {
+                toast.error("Please select an event first", {
+                    position: "bottom-center",
+                    autoClose: 2000,
+                    hideProgressBar: false,
+                    closeOnClick: true,
+                    pauseOnHover: true,
+                    draggable: true,
+                    progress: undefined,
+                    theme: "colored",
+                });
+                return;
+            }
+
+            const response = await fetch(`${BASE_URL}/api/events/${eventId}/domains`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${authData.token}`,
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify(newCategory)
+                body: JSON.stringify({
+                    name: newCategory.name,
+                    description: newCategory.description,
+                    registrationFee: 0,
+                    participantLimit: 0,
+                    domainHeadId: null,
+                    parentDomainId: null
+                })
             });
 
             const data = await response.json();
             if (!response.ok) {
-                const errorMessage = data.error || data.message || 'Failed to create category';
+                const errorMessage = data.error || data.message || 'Failed to create domain';
                 throw new Error(errorMessage);
             }
 
-            if (selectedFile) {
-                const formData = new FormData();
-                formData.append('file', selectedFile);
-                formData.append('primary', true);
-
-                const uploadResponse = await fetch(`${BASE_URL}/api/client-admin/categories/${data.data.id}/images`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${authData.token}`,
-                    },
-                    body: formData
-                });
-
-                if (!uploadResponse.ok) {
-                    const uploadError = await uploadResponse.json();
-                    throw new Error(uploadError.message || 'Failed to upload image');
-                }
-            }
-
-            toast.success('Category created successfully', {
+            toast.success('Domain created successfully', {
                 position: "bottom-center",
                 autoClose: 2000,
                 hideProgressBar: false,
@@ -404,16 +344,18 @@ const CategoriesTable = () => {
                 progress: undefined,
                 theme: "colored",
             });
+            
             await fetchCategories();
             setIsModalOpen(false);
             setNewCategory({
                 name: '',
                 description: '',
-                primaryImageUrl: ''
+                registrationFee: 0,
+                participantLimit: 0,
+                domainHeadId: '',
+                parentDomainId: ''
             });
-            setSelectedFile(null);
-            setImagePreview('');
-            setImageSizeError('');
+            setFormErrors({});
         } catch (err) {
             toast.error(err.message, {
                 position: "bottom-center",
@@ -426,46 +368,35 @@ const CategoriesTable = () => {
                 theme: "colored",
             });
         } finally {
-            setUploadingImage(false);
+            setCreatingCategory(false);
         }
     };
 
     const handleEditSubmit = async (e) => {
         e.preventDefault();
         if (!validateForm(editCategory, setEditFormErrors)) return;
-        
-        if (selectedFile && selectedFile.size > 250 * 1024) {
-            setImageSizeError('File size should be less than 200KB');
-            return;
-        }
 
         try {
-            setUploadingImage(true);
+            setUpdatingCategory(true);
             const authData = JSON.parse(localStorage.getItem("authData"));
+            const eventId = getEventId();
 
-            let imageUrl = editCategory.primaryImageUrl;
-            if (selectedFile) {
-                const formData = new FormData();
-                formData.append('file', selectedFile);
-                formData.append('primary', true);
-
-                const uploadResponse = await fetch(`${BASE_URL}/api/client-admin/categories/${editCategory.id}/images`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${authData.token}`,
-                    },
-                    body: formData
+            if (!eventId) {
+                toast.error("Please select an event first", {
+                    position: "bottom-center",
+                    autoClose: 2000,
+                    hideProgressBar: false,
+                    closeOnClick: true,
+                    pauseOnHover: true,
+                    draggable: true,
+                    progress: undefined,
+                    theme: "colored",
                 });
-
-                const uploadData = await uploadResponse.json();
-                if (!uploadResponse.ok) {
-                    throw new Error(uploadData.message || 'Failed to upload image');
-                }
-
-                imageUrl = uploadData.imageUrl;
+                return;
             }
 
-            const response = await fetch(`${BASE_URL}/api/client-admin/categories/${editCategory.id}`, {
+            // Use the update endpoint from your backend
+            const response = await fetch(`${BASE_URL}/api/events/${eventId}/domains/${editCategory.id}`, {
                 method: 'PUT',
                 headers: {
                     'Authorization': `Bearer ${authData.token}`,
@@ -474,17 +405,20 @@ const CategoriesTable = () => {
                 body: JSON.stringify({
                     name: editCategory.name,
                     description: editCategory.description,
-                    primaryImageUrl: imageUrl
+                    registrationFee: 0,
+                    participantLimit: 0,
+                    domainHeadId: null,
+                    parentDomainId: null
                 })
             });
 
             const data = await response.json();
             if (!response.ok) {
-                const errorMessage = data.error || data.message || 'Failed to update category';
+                const errorMessage = data.error || data.message || 'Failed to update domain';
                 throw new Error(errorMessage);
             }
 
-            toast.success('Category updated successfully', {
+            toast.success('Domain updated successfully', {
                 position: "bottom-center",
                 autoClose: 2000,
                 hideProgressBar: false,
@@ -494,11 +428,10 @@ const CategoriesTable = () => {
                 progress: undefined,
                 theme: "colored",
             });
+            
             await fetchCategories();
             setIsEditModalOpen(false);
-            setSelectedFile(null);
-            setImagePreview('');
-            setImageSizeError('');
+            setEditFormErrors({});
         } catch (err) {
             toast.error(err.message, {
                 position: "bottom-center",
@@ -511,63 +444,7 @@ const CategoriesTable = () => {
                 theme: "colored",
             });
         } finally {
-            setUploadingImage(false);
-        }
-    };
-
-    const handleStatusChange = async (category) => {
-        if (!canToggleStatus) return;
-
-        try {
-            const authData = JSON.parse(localStorage.getItem("authData"));
-            const newStatus = !category.active;
-
-            setCategories(prev => prev.map(cat =>
-                cat.id === category.id ? { ...cat, active: newStatus } : cat
-            ));
-
-            const response = await fetch(`${BASE_URL}/api/client-admin/categories/${category.id}/status`, {
-                method: 'PATCH',
-                headers: {
-                    'Authorization': `Bearer ${authData.token}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ active: newStatus })
-            });
-
-            const data = await response.json();
-            if (!response.ok) {
-                const errorMessage = data.error || data.message || 'Failed to update category status';
-                throw new Error(errorMessage);
-            }
-
-            toast.success(`Category ${newStatus ? 'activated' : 'deactivated'} successfully`, {
-                position: "bottom-center",
-                autoClose: 2000,
-                hideProgressBar: false,
-                closeOnClick: true,
-                pauseOnHover: true,
-                draggable: true,
-                progress: undefined,
-                theme: "colored",
-            });
-
-            await fetchCategories();
-        } catch (err) {
-            toast.error(err.message, {
-                position: "bottom-center",
-                autoClose: 2000,
-                hideProgressBar: false,
-                closeOnClick: true,
-                pauseOnHover: true,
-                draggable: true,
-                progress: undefined,
-                theme: "colored",
-            });
-
-            setCategories(prev => prev.map(cat =>
-                cat.id === category.id ? { ...cat, active: category.active } : cat
-            ));
+            setUpdatingCategory(false);
         }
     };
 
@@ -582,13 +459,8 @@ const CategoriesTable = () => {
         setEditCategory({
             id: category.id,
             name: category.name,
-            description: category.description,
-            primaryImageUrl: category.primaryImageUrl || '',
-            imageUrls: category.imageUrls || []
+            description: category.description
         });
-        setSelectedFile(null);
-        setImagePreview('');
-        setImageSizeError('');
         setIsEditModalOpen(true);
     };
 
@@ -602,7 +474,24 @@ const CategoriesTable = () => {
         try {
             setDeletingCategory(true);
             const authData = JSON.parse(localStorage.getItem("authData"));
-            const response = await fetch(`${BASE_URL}/api/client-admin/categories/${categoryToDelete.id}`, {
+            const eventId = getEventId();
+
+            if (!eventId) {
+                toast.error("Please select an event first", {
+                    position: "bottom-center",
+                    autoClose: 2000,
+                    hideProgressBar: false,
+                    closeOnClick: true,
+                    pauseOnHover: true,
+                    draggable: true,
+                    progress: undefined,
+                    theme: "colored",
+                });
+                return;
+            }
+
+            // Use the delete endpoint from your backend
+            const response = await fetch(`${BASE_URL}/api/events/${eventId}/domains/${categoryToDelete.id}`, {
                 method: 'DELETE',
                 headers: {
                     'Authorization': `Bearer ${authData.token}`,
@@ -612,11 +501,11 @@ const CategoriesTable = () => {
 
             const data = await response.json();
             if (!response.ok) {
-                const errorMessage = data.error || data.message || 'Failed to delete category';
+                const errorMessage = data.error || data.message || 'Failed to delete domain';
                 throw new Error(errorMessage);
             }
 
-            toast.success('Category deleted successfully', {
+            toast.success('Domain deleted successfully', {
                 position: "bottom-center",
                 autoClose: 2000,
                 hideProgressBar: false,
@@ -646,26 +535,23 @@ const CategoriesTable = () => {
         }
     };
 
+    const formatDate = (dateString) => {
+        if (!dateString) return 'Not available';
+        try {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        } catch (error) {
+            return 'Invalid date';
+        }
+    };
+
     const columns = React.useMemo(() => [
-        {
-            accessorKey: 'primaryImageUrl',
-            header: 'Image',
-            cell: (info) => (
-                info.getValue() ? (
-                    <img
-                        src={info.getValue()}
-                        alt="Category"
-                        style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px' }}
-                    />
-                ) : (
-                    <img
-                        src="/images/avatar/undefined.png"
-                        alt="Category"
-                        style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px' }}
-                    />
-                )
-            )
-        },
         {
             accessorKey: 'name',
             header: 'Name',
@@ -677,21 +563,9 @@ const CategoriesTable = () => {
             cell: (info) => info.getValue() || '-'
         },
         {
-            accessorKey: 'itemCount',
-            header: 'Item Count',
+            accessorKey: 'currentParticipants',
+            header: 'Current Participants',
             cell: (info) => info.getValue()
-        },
-        {
-            accessorKey: 'active',
-            header: 'Status',
-            cell: (info) => (
-                <Switch
-                    checked={info.getValue()}
-                    onChange={() => handleStatusChange(info.row.original)}
-                    color="primary"
-                    disabled={!canToggleStatus}
-                />
-            )
         },
         {
             accessorKey: 'actions',
@@ -728,8 +602,40 @@ const CategoriesTable = () => {
         },
     ], [canRead, canUpdate, canDelete]);
 
+    // Listen for event selection changes
     useEffect(() => {
-        fetchCategories();
+        const handleEventSelected = (event) => {
+            const eventDetail = event.detail;
+            if (eventDetail && eventDetail.id) {
+                setCurrentEventId(eventDetail.id);
+                localStorage.setItem('eventid', eventDetail.id);
+                localStorage.setItem('selectedEvent', JSON.stringify(eventDetail));
+                
+                // Refresh categories when event changes
+                fetchCategories();
+            }
+        };
+
+        // Add event listener for custom event
+        window.addEventListener('eventSelected', handleEventSelected);
+
+        // Also check for existing event ID on component mount
+        const existingEventId = getEventId();
+        if (existingEventId) {
+            setCurrentEventId(existingEventId);
+        }
+
+        return () => {
+            window.removeEventListener('eventSelected', handleEventSelected);
+        };
+    }, [fetchCategories]);
+
+    // Fetch categories on component mount if event ID is available
+    useEffect(() => {
+        const eventId = getEventId();
+        if (eventId) {
+            fetchCategories();
+        }
     }, [fetchCategories]);
 
     return (
@@ -748,20 +654,35 @@ const CategoriesTable = () => {
             />
 
             <div className="d-flex justify-content-between align-items-center mb-4">
-                <h4>Category</h4>
-                {canWrite && (
-                    <Button
-                        variant="contained"
-                        onClick={() => setIsModalOpen(true)}
-                        className="d-flex align-items-center gap-2"
-                        style={{ backgroundColor: '#0092ff', color: 'white' }}
-                    >
-                        <FiPlus /> Add Category
-                    </Button>
-                )}
+                <h4>Event Domains</h4>
+                <div className="d-flex align-items-center gap-3">
+                    {currentEventId && (
+                        <small className="text-muted">
+                            Showing domains for selected event
+                        </small>
+                    )}
+                    {canWrite && getEventId() && (
+                        <Button 
+                            variant="contained" 
+                            startIcon={<FiPlus />}
+                            onClick={() => setIsModalOpen(true)}
+                            size="small"
+                        >
+                            Create New Domain
+                        </Button>
+                    )}
+                </div>
             </div>
 
-            {loading ? (
+            {!getEventId() ? (
+                <div className="text-center py-5">
+                    <div className="mb-4">
+                        <FiPlus size={48} className="text-muted" />
+                    </div>
+                    <h5>No Event Selected</h5>
+                    <p className="text-muted">Please select an event from the dropdown to view domains.</p>
+                </div>
+            ) : loading ? (
                 <SkeletonLoader />
             ) : categories.length === 0 ? (
                 <EmptyState />
@@ -773,134 +694,82 @@ const CategoriesTable = () => {
                 />
             )}
 
-            {/* Add Category Modal */}
+            {/* Create Domain Modal */}
             {canWrite && (
-                <Modal show={isModalOpen} onHide={() => {
-                    if (!uploadingImage) {
-                        setIsModalOpen(false);
-                        setNewCategory({ name: '', description: '', primaryImageUrl: '' });
-                        setFormErrors({});
-                        setSelectedFile(null);
-                        setImagePreview('');
-                        setImageSizeError('');
-                    }
-                }} centered size="lg">
-                    <Modal.Header closeButton={!uploadingImage}>
-                        <Modal.Title>Add Category</Modal.Title>
+                <Modal show={isModalOpen} onHide={() => setIsModalOpen(false)} centered size="lg">
+                    <Modal.Header closeButton>
+                        <Modal.Title>Create New Domain</Modal.Title>
                     </Modal.Header>
                     <Modal.Body>
-                        <form onSubmit={handleSubmit}>
+                        <form onSubmit={handleCreateDomain}>
                             <div className="mb-3">
-                                <label htmlFor="name" className="form-label">Name</label>
+                                <label className="form-label">Name *</label>
                                 <input
                                     type="text"
                                     className={`form-control ${formErrors.name ? 'is-invalid' : ''}`}
-                                    id="name"
                                     name="name"
                                     value={newCategory.name}
                                     onChange={handleInputChange}
+                                    placeholder="Enter domain name"
                                 />
                                 {formErrors.name && <div className="invalid-feedback">{formErrors.name}</div>}
                             </div>
                             <div className="mb-3">
-                                <label htmlFor="description" className="form-label">Description</label>
+                                <label className="form-label">Description *</label>
                                 <textarea
                                     className={`form-control ${formErrors.description ? 'is-invalid' : ''}`}
-                                    id="description"
                                     name="description"
                                     value={newCategory.description}
                                     onChange={handleInputChange}
+                                    placeholder="Enter domain description"
                                     rows="3"
                                 />
                                 {formErrors.description && <div className="invalid-feedback">{formErrors.description}</div>}
                             </div>
-                            <div className="mb-3">
-                                <label className="form-label">Category Image</label>
-                                <div className="d-flex flex-wrap gap-3 mb-3">
-                                    <div className="position-relative" style={{ width: '100px', height: '100px' }}>
-                                        <div
-                                            className="w-100 h-100 border rounded d-flex flex-column justify-content-center align-items-center cursor-pointer"
-                                            style={{
-                                                borderStyle: imagePreview ? 'solid' : 'dashed',
-                                                backgroundColor: isDarkMode ? '#1e293b' : '#f8f9fa'
-                                            }}
-                                            onClick={() => document.getElementById('add-image-upload').click()}
-                                        >
-                                            {imagePreview ? (
-                                                <img
-                                                    src={imagePreview}
-                                                    alt="Preview"
-                                                    className="w-100 h-100"
-                                                    style={{
-                                                        objectFit: 'cover',
-                                                        borderRadius: '4px'
-                                                    }}
-                                                />
-                                            ) : (
-                                                <>
-                                                    <FiUpload size={20} className="mb-1" />
-                                                    <h8 className="small">Add Image</h8>
-                                                    <h8 className="small">Max 200 KB</h8>
-                                                </>
-                                            )}
-                                        </div>
-                                        <input
-                                            type="file"
-                                            id="add-image-upload"
-                                            className="d-none"
-                                            accept="image/*"
-                                            onChange={handleFileChange}
-                                        />
-                                    </div>
-                                </div>
-                                {imageSizeError && (
-                                    <div className="text-danger small">{imageSizeError}</div>
-                                )}
-                            </div>
                         </form>
                     </Modal.Body>
                     <Modal.Footer>
-                        <Button
-                            variant="contained"
-                            onClick={handleSubmit}
-                            style={{ backgroundColor: '#1976d2', color: 'white' }}
-                            disabled={uploadingImage}
+                        <Button 
+                            variant="outlined" 
+                            onClick={() => {
+                                setIsModalOpen(false);
+                                setFormErrors({});
+                            }}
+                            disabled={creatingCategory}
                         >
-                            {uploadingImage ? (
+                            Cancel
+                        </Button>
+                        <Button 
+                            variant="contained" 
+                            onClick={handleCreateDomain}
+                            disabled={creatingCategory}
+                        >
+                            {creatingCategory ? (
                                 <>
-                                    <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                    <span className="spinner-border spinner-border-sm me-2" role="status"></span>
                                     Creating...
                                 </>
                             ) : (
-                                'Create'
+                                'Create Domain'
                             )}
                         </Button>
                     </Modal.Footer>
                 </Modal>
             )}
 
-            {/* Edit Category Modal */}
+            {/* Edit Domain Modal */}
             {canUpdate && (
-                <Modal show={isEditModalOpen} onHide={() => {
-                    if (!uploadingImage) {
-                        setIsEditModalOpen(false);
-                        setEditFormErrors({});
-                        setSelectedFile(null);
-                        setImagePreview('');
-                        setImageSizeError('');
-                    }
-                }} centered size="lg">
-                    <Modal.Header closeButton={!uploadingImage}>
-                        <Modal.Title>Edit Category</Modal.Title>
+                <Modal show={isEditModalOpen} onHide={() => setIsEditModalOpen(false)} centered size="lg">
+                    <Modal.Header closeButton>
+                        <Modal.Title>Edit Domain</Modal.Title>
                     </Modal.Header>
                     <Modal.Body>
                         <form onSubmit={handleEditSubmit}>
                             <div className="mb-3">
-                                <label htmlFor="edit-name" className="form-label">Name</label>
+                                <label className="form-label">Name *</label>
                                 <input
                                     type="text"
                                     className={`form-control ${editFormErrors.name ? 'is-invalid' : ''}`}
-                                    id="edit-name"
                                     name="name"
                                     value={editCategory.name}
                                     onChange={handleEditInputChange}
@@ -908,10 +777,9 @@ const CategoriesTable = () => {
                                 {editFormErrors.name && <div className="invalid-feedback">{editFormErrors.name}</div>}
                             </div>
                             <div className="mb-3">
-                                <label htmlFor="edit-description" className="form-label">Description</label>
+                                <label className="form-label">Description *</label>
                                 <textarea
                                     className={`form-control ${editFormErrors.description ? 'is-invalid' : ''}`}
-                                    id="edit-description"
                                     name="description"
                                     value={editCategory.description}
                                     onChange={handleEditInputChange}
@@ -919,171 +787,61 @@ const CategoriesTable = () => {
                                 />
                                 {editFormErrors.description && <div className="invalid-feedback">{editFormErrors.description}</div>}
                             </div>
-                            <div className="mb-3">
-                                <label className="form-label">Category Images</label>
-                                <div className="d-flex flex-wrap gap-3 mb-3">
-                                    {editCategory.imageUrls?.map((imageUrl, index) => (
-                                        <div
-                                            key={index}
-                                            className="position-relative"
-                                            style={{ width: '100px', height: '100px' }}
-                                            onClick={() => setEditCategory(prev => ({ ...prev, primaryImageUrl: imageUrl }))}
-                                        >
-                                            <img
-                                                src={imageUrl}
-                                                alt={`Category ${index}`}
-                                                className="w-100 h-100 cursor-pointer"
-                                                style={{
-                                                    objectFit: 'cover',
-                                                    borderRadius: '4px',
-                                                    border: imageUrl === editCategory.primaryImageUrl ? '2px solid #1976d2' : '1px solid #dee2e6'
-                                                }}
-                                            />
-                                            <div className="position-absolute top-0 end-0 p-1">
-                                                <button
-                                                    type="button"
-                                                    className="btn btn-danger btn-sm p-1"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleDeleteImage(imageUrl);
-                                                    }}
-                                                    style={{ width: '24px', height: '24px' }}
-                                                >
-                                                    <FiTrash size={12} />
-                                                </button>
-                                            </div>
-                                            {imageUrl === editCategory.primaryImageUrl && (
-                                                <div className="position-absolute bottom-0 start-0 bg-primary text-white px-2 py-1 small">
-                                                    Primary
-                                                </div>
-                                            )}
-                                        </div>
-                                    ))}
-
-                                    <div className="position-relative" style={{ width: '100px', height: '100px' }}>
-                                        <div
-                                            className="w-100 h-100 border rounded d-flex flex-column justify-content-center align-items-center cursor-pointer"
-                                            style={{
-                                                borderStyle: imagePreview ? 'solid' : 'dashed',
-                                                backgroundColor: isDarkMode ? '#1e293b' : '#f8f9fa'
-                                            }}
-                                            onClick={() => document.getElementById('edit-image-upload').click()}
-                                        >
-                                            {imagePreview ? (
-                                                <img
-                                                    src={imagePreview}
-                                                    alt="Preview"
-                                                    className="w-100 h-100"
-                                                    style={{
-                                                        objectFit: 'cover',
-                                                        borderRadius: '4px'
-                                                    }}
-                                                />
-                                            ) : (
-                                                <>
-                                                    <FiUpload size={20} className="mb-1" />
-                                                    <h8 className="small">Add Image</h8>
-                                                    <h8 className="small">Max 200 KB</h8>
-                                                </>
-                                            )}
-                                        </div>
-                                        <input
-                                            type="file"
-                                            id="edit-image-upload"
-                                            className="d-none"
-                                            accept="image/*"
-                                            onChange={handleFileChange}
-                                        />
-                                    </div>
-                                </div>
-                                {imageSizeError && (
-                                    <div className="text-danger small">{imageSizeError}</div>
-                                )}
-                            </div>
                         </form>
                     </Modal.Body>
                     <Modal.Footer>
-                        <Button
-                            variant="contained"
-                            onClick={handleEditSubmit}
-                            style={{ backgroundColor: '#1976d2', color: 'white' }}
-                            disabled={uploadingImage}
+                        <Button 
+                            variant="outlined" 
+                            onClick={() => {
+                                setIsEditModalOpen(false);
+                                setEditFormErrors({});
+                            }}
+                            disabled={updatingCategory}
                         >
-                            {uploadingImage ? (
+                            Cancel
+                        </Button>
+                        <Button 
+                            variant="contained" 
+                            onClick={handleEditSubmit}
+                            disabled={updatingCategory}
+                        >
+                            {updatingCategory ? (
                                 <>
-                                    <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                    <span className="spinner-border spinner-border-sm me-2" role="status"></span>
                                     Updating...
                                 </>
                             ) : (
-                                'Update'
+                                'Update Domain'
                             )}
                         </Button>
                     </Modal.Footer>
                 </Modal>
             )}
 
-            {/* View Category Modal */}
+            {/* View Domain Modal */}
             {canRead && (
                 <Modal show={isViewModalOpen} onHide={() => setIsViewModalOpen(false)} centered size="lg">
                     <Modal.Header closeButton>
-                        <Modal.Title>Category Details</Modal.Title>
+                        <Modal.Title>Domain Details</Modal.Title>
                     </Modal.Header>
                     <Modal.Body>
                         {selectedCategory && (
                             <div>
                                 <div className="mb-3">
                                     <h5>Name</h5>
-                                    <h8>{selectedCategory.name}</h8>
+                                    <p className="mb-0">{selectedCategory.name}</p>
                                 </div>
                                 <div className="mb-3">
                                     <h5>Description</h5>
-                                    <h8>{selectedCategory.description || '-'}</h8>
+                                    <p className="mb-0">{selectedCategory.description || '-'}</p>
                                 </div>
                                 <div className="mb-3">
-                                    <h5>Status</h5>
-                                    <h8>{selectedCategory.active ? 'Active' : 'Inactive'}</h8>
+                                    <h5>Current Participants</h5>
+                                    <p className="mb-0">{selectedCategory.currentParticipants}</p>
                                 </div>
                                 <div className="mb-3">
-                                    <h5>Item Count</h5>
-                                    <h8>{selectedCategory.itemCount}</h8>
-                                </div>
-                                <div className="mb-3">
-                                    <h5>Images</h5>
-                                    <div className="d-flex flex-wrap gap-3">
-                                        {selectedCategory.imageUrls?.length > 0 ? (
-                                            selectedCategory.imageUrls.map((imageUrl, index) => (
-                                                <div key={index} className="position-relative" style={{ width: '100px', height: '100px' }}>
-                                                    <img
-                                                        src={imageUrl}
-                                                        alt={`Category ${index}`}
-                                                        className="w-100 h-100"
-                                                        style={{
-                                                            objectFit: 'cover',
-                                                            borderRadius: '4px',
-                                                            border: imageUrl === selectedCategory.primaryImageUrl ? '2px solid #1976d2' : '1px solid #dee2e6'
-                                                        }}
-                                                    />
-                                                    {imageUrl === selectedCategory.primaryImageUrl && (
-                                                        <div className="position-absolute bottom-0 start-0 bg-primary text-white px-2 py-1 small">
-                                                            Primary
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            ))
-                                        ) : (
-                                            <div style={{ width: '100px', height: '100px' }}>
-                                                <img
-                                                    src="/images/avatar/undefined.png"
-                                                    alt="Category"
-                                                    className="w-100 h-100"
-                                                    style={{
-                                                        objectFit: 'cover',
-                                                        borderRadius: '4px'
-                                                    }}
-                                                />
-                                            </div>
-                                        )}
-                                    </div>
+                                    <h5>Created At</h5>
+                                    <p className="mb-0">{formatDate(selectedCategory.createdAt)}</p>
                                 </div>
                             </div>
                         )}
@@ -1099,17 +857,24 @@ const CategoriesTable = () => {
                     }
                 }} centered>
                     <Modal.Header closeButton={!deletingCategory}>
-                        <Modal.Title>Delete Category</Modal.Title>
+                        <Modal.Title>Delete Domain</Modal.Title>
                     </Modal.Header>
                     <Modal.Body>
                         {categoryToDelete && (
                             <>
-                                <h8>Are you sure you want to delete the category <strong>{categoryToDelete.name}</strong>? </h8>
-                                <h8>This action cannot be undone.</h8>
+                                <p>Are you sure you want to delete the domain <strong>{categoryToDelete.name}</strong>?</p>
+                                <p className="text-danger">This action cannot be undone.</p>
                             </>
                         )}
                     </Modal.Body>
                     <Modal.Footer>
+                        <Button
+                            variant="outlined"
+                            onClick={() => setIsDeleteModalOpen(false)}
+                            disabled={deletingCategory}
+                        >
+                            Cancel
+                        </Button>
                         <Button
                             variant="contained"
                             onClick={handleDeleteCategory}

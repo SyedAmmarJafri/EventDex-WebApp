@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { FiCamera } from 'react-icons/fi';
+import { FiCamera, FiTrash2 } from 'react-icons/fi';
 import { Modal, Button, Form, Spinner } from 'react-bootstrap';
 import axios from 'axios';
 import { toast } from 'react-toastify';
@@ -27,9 +27,11 @@ const TabProfile = () => {
     // State for UI
     const [updating, setUpdating] = useState(false);
     const [showConfirmModal, setShowConfirmModal] = useState(false);
+    const [showRemovePictureModal, setShowRemovePictureModal] = useState(false);
     const [profilePicture, setProfilePicture] = useState(null);
     const [profilePictureUrl, setProfilePictureUrl] = useState('/images/avatar/undefined-profile.png');
     const [imageSizeError, setImageSizeError] = useState('');
+    const [removingPicture, setRemovingPicture] = useState(false);
     const fileInputRef = useRef(null);
 
     // Get auth data from localStorage
@@ -41,6 +43,7 @@ const TabProfile = () => {
     const canUploadProfilePicture = role === 'PATRON' ||
         (permissions.includes('PROFILE_PICTURE_UPLOAD') &&
         permissions.includes('PROFILE_PICTURE_UPDATE'));
+    const canRemoveProfilePicture = role === 'PATRON' || permissions.includes('PROFILE_PICTURE_DELETE');
 
     // Fetch profile data
     useEffect(() => {
@@ -72,30 +75,6 @@ const TabProfile = () => {
                     setProfilePictureUrl(cachedProfilePicture);
                 } else if (authData.profilePicture) {
                     setProfilePictureUrl(authData.profilePicture);
-                }
-
-                // Then fetch fresh profile picture from API if allowed
-                if (canUploadProfilePicture) {
-                    try {
-                        const pictureResponse = await axios.get(`${BASE_URL}/api/client-admin/profile/picture`, {
-                            headers: {
-                                Authorization: `Bearer ${authData.token}`
-                            }
-                        });
-
-                        if (pictureResponse.data?.data) {
-                            setProfilePictureUrl(pictureResponse.data.data);
-                            // Store in localStorage for future use
-                            localStorage.setItem('profilePicture', pictureResponse.data.data);
-                        }
-                    } catch (pictureError) {
-                        console.warn('Failed to fetch profile picture from API, using cached data');
-                        if (cachedProfilePicture) {
-                            setProfilePictureUrl(cachedProfilePicture);
-                        } else if (authData.profilePicture) {
-                            setProfilePictureUrl(authData.profilePicture);
-                        }
-                    }
                 }
 
                 // Optionally fetch fresh profile data in background if allowed
@@ -230,6 +209,54 @@ const TabProfile = () => {
         }
     };
 
+    const removeProfilePicture = async () => {
+        if (!canRemoveProfilePicture) {
+            toast.error('You do not have permission to remove profile picture');
+            return;
+        }
+
+        setRemovingPicture(true);
+        try {
+            const authData = JSON.parse(localStorage.getItem('authData'));
+            if (!authData?.token) {
+                toast.error('Authentication token not found');
+                return;
+            }
+
+            await axios.delete(`${BASE_URL}/api/client-admin/profile/picture`, {
+                headers: {
+                    Authorization: `Bearer ${authData.token}`
+                }
+            });
+
+            // Update local state
+            const defaultImageUrl = '/images/avatar/undefined-profile.png';
+            setProfilePictureUrl(defaultImageUrl);
+            setProfilePicture(null);
+            setFormData(prev => ({
+                ...prev,
+                profilePicture: ''
+            }));
+
+            // Update localStorage
+            const updatedAuthData = {
+                ...authData,
+                profilePicture: ''
+            };
+            localStorage.setItem('authData', JSON.stringify(updatedAuthData));
+            localStorage.removeItem('profilePicture');
+
+            toast.success('Profile picture removed successfully');
+            setShowRemovePictureModal(false);
+
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'Failed to remove profile picture');
+            console.error('Error:', error);
+        } finally {
+            setRemovingPicture(false);
+        }
+    };
+
     const handleSubmit = async () => {
         if (!canUpdateProfile) return;
 
@@ -310,6 +337,11 @@ const TabProfile = () => {
         }
     };
 
+    // Check if current profile picture is not the default one
+    const hasCustomProfilePicture = profilePictureUrl && 
+        !profilePictureUrl.includes('undefined-profile.png') && 
+        !profilePictureUrl.includes('1.png');
+
     return (
         <div className="tab-pane fade show active" id="profileTab" role="tabpanel">
             <div className="card-body personal-info">
@@ -375,10 +407,26 @@ const TabProfile = () => {
                                             hidden
                                         />
 
-                                        <div className="text-muted ms-3" style={{ fontSize: '0.75rem' }}>
-                                            <div>• Logo size 150x150</div>
-                                            <div>• Max upload size 200 KB</div>
-                                            <div>• Allowed: PNG, JPG, JPEG</div>
+                                        <div className="d-flex flex-column gap-2">
+                                            <div className="text-muted" style={{ fontSize: '0.75rem' }}>
+                                                <div>• Logo size 150x150</div>
+                                                <div>• Max upload size 200 KB</div>
+                                                <div>• Allowed: PNG, JPG, JPEG</div>
+                                            </div>
+                                            
+                                            {/* Remove Picture Button - Only show if user has custom profile picture and permission */}
+                                            {hasCustomProfilePicture && canRemoveProfilePicture && (
+                                                <Button
+                                                    variant="outline-danger"
+                                                    size="sm"
+                                                    onClick={() => setShowRemovePictureModal(true)}
+                                                    className="mt-2"
+                                                    style={{ fontSize: '0.75rem', width: 'fit-content' }}
+                                                >
+                                                    <FiTrash2 className="me-1" />
+                                                    Remove Logo
+                                                </Button>
+                                            )}
                                         </div>
                                     </div>
                                     {imageSizeError && (
@@ -598,6 +646,58 @@ const TabProfile = () => {
                     </Modal.Footer>
                 </Modal>
             )}
+
+            {/* Remove Profile Picture Confirmation Modal */}
+            <Modal
+                show={showRemovePictureModal}
+                onHide={() => {
+                    if (!removingPicture) {
+                        setShowRemovePictureModal(false);
+                    }
+                }}
+                centered
+                backdrop={removingPicture ? 'static' : true}
+                keyboard={!removingPicture}
+            >
+                <Modal.Header closeButton={!removingPicture} className="border-0 pb-0">
+                    <Modal.Title className="w-100 text-center">
+                        <h5 className="fw-bold">Remove Logo</h5>
+                    </Modal.Title>
+                </Modal.Header>
+                <Modal.Body className="text-center py-4">
+                    <h8 className="mb-4">Are you sure you want to remove your logo? This action cannot be undone.</h8>
+                </Modal.Body>
+                <Modal.Footer className="justify-content-center">
+                    <Button
+                        variant="secondary"
+                        onClick={() => setShowRemovePictureModal(false)}
+                        className="px-4"
+                        disabled={removingPicture}
+                    >
+                        Cancel
+                    </Button>
+                    <Button
+                        variant="danger"
+                        onClick={removeProfilePicture}
+                        className="px-4"
+                        disabled={removingPicture}
+                    >
+                        {removingPicture ? (
+                            <>
+                                <Spinner
+                                    as="span"
+                                    animation="border"
+                                    size="sm"
+                                    role="status"
+                                    aria-hidden="true"
+                                    className="me-2"
+                                />
+                                Removing...
+                            </>
+                        ) : 'Remove Logo'}
+                    </Button>
+                </Modal.Footer>
+            </Modal>
         </div>
     );
 };

@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import Table from '@/components/shared/table/Table';
-import { FiTrash, FiEdit, FiPlus, FiEye, FiUpload, FiChevronDown, FiChevronUp, FiX } from 'react-icons/fi';
+import { FiTrash, FiEdit, FiPlus, FiEye } from 'react-icons/fi';
 import Button from '@mui/material/Button';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -8,59 +8,39 @@ import { BASE_URL } from '/src/constants.js';
 import Skeleton from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
 import Modal from 'react-bootstrap/Modal';
-import Switch from '@mui/material/Switch';
 
 const ItemsTable = () => {
-    const [items, setItems] = useState([]);
-    const [categories, setCategories] = useState([]);
+    const [domains, setDomains] = useState([]);
+    const [parentDomains, setParentDomains] = useState([]);
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [deleteLoading, setDeleteLoading] = useState(false);
-    const [selectedItem, setSelectedItem] = useState(null);
-    const [itemToDelete, setItemToDelete] = useState(null);
-    const [newItem, setNewItem] = useState({
+    const [selectedDomain, setSelectedDomain] = useState(null);
+    const [domainToDelete, setDomainToDelete] = useState(null);
+    const [newDomain, setNewDomain] = useState({
         name: '',
         description: '',
-        price: 0,
-        discountedPrice: 0,
-        itemDiscountRate: 0,
-        itemDiscountEnabled: false,
-        quantity: 0,
-        category: '',
-        primaryImageUrl: '',
-        active: true,
-        barcode: '',
-        lowStockThreshold: 0,
-        variants: []
+        registrationFee: '',
+        participantLimit: '',
+        parentDomainId: ''
     });
-    const [editItem, setEditItem] = useState({
+    const [editDomain, setEditDomain] = useState({
         id: '',
         name: '',
         description: '',
-        price: 0,
-        discountedPrice: 0,
-        itemDiscountRate: 0,
-        itemDiscountEnabled: false,
-        quantity: 0,
-        category: '',
-        categoryName: '',
-        primaryImageUrl: '',
-        imageUrls: [],
-        active: true,
-        barcode: '',
-        lowStockThreshold: 0,
-        variants: []
+        registrationFee: '',
+        participantLimit: '',
+        parentDomainId: ''
     });
     const [formErrors, setFormErrors] = useState({});
     const [editFormErrors, setEditFormErrors] = useState({});
-    const [uploadingImage, setUploadingImage] = useState(false);
-    const [selectedFile, setSelectedFile] = useState(null);
-    const [imagePreview, setImagePreview] = useState('');
-    const [expandedVariantIndex, setExpandedVariantIndex] = useState(null);
-    const [imageSizeError, setImageSizeError] = useState('');
+    const [creatingDomain, setCreatingDomain] = useState(false);
+    const [updatingDomain, setUpdatingDomain] = useState(false);
+    const [currentEventId, setCurrentEventId] = useState(null);
+    const [hasFetchedInitialData, setHasFetchedInitialData] = useState(false);
     const skinTheme = localStorage.getItem('skinTheme') || 'light';
     const isDarkMode = skinTheme === 'dark';
 
@@ -70,14 +50,26 @@ const ItemsTable = () => {
     const userPermissions = authData?.permissions || [];
 
     // Permission checks
-    const canRead = userRole === 'PATRON' || userPermissions.includes('ITEM_READ');
-    const canWrite = userRole === 'PATRON' || userPermissions.includes('ITEM_WRITE');
-    const canUpdate = userRole === 'PATRON' || userPermissions.includes('ITEM_UPDATE');
-    const canDelete = userRole === 'PATRON' || userPermissions.includes('ITEM_DELETE');
-    const canToggleStatus = userRole === 'PATRON' || userPermissions.includes('ITEM_UPDATE');
+    const canRead = userRole === 'PATRON' || userPermissions.includes('CATEGORY_READ');
+    const canWrite = userRole === 'PATRON' || userPermissions.includes('CATEGORY_WRITE');
+    const canUpdate = userRole === 'PATRON' || userPermissions.includes('CATEGORY_UPDATE');
+    const canDelete = userRole === 'PATRON' || userPermissions.includes('CATEGORY_DELETE');
 
-    // Get currency settings from localStorage
-    const currencySymbol = authData?.currencySettings?.currencySymbol || '$';
+    // Get event ID from localStorage or EventsDropdown
+    const getEventId = useCallback(() => {
+        const savedEventId = localStorage.getItem('eventid');
+        if (savedEventId) {
+            return savedEventId;
+        }
+        if (currentEventId) {
+            return currentEventId;
+        }
+        const eventData = JSON.parse(localStorage.getItem('selectedEvent'));
+        if (eventData && eventData.id) {
+            return eventData.id;
+        }
+        return null;
+    }, [currentEventId]);
 
     // Toast notification helpers
     const showSuccessToast = (message) => {
@@ -106,142 +98,8 @@ const ItemsTable = () => {
         });
     };
 
-    // Variant management functions
-    const addNewVariant = (isEdit = false) => {
-        if (!canUpdate && isEdit) return;
-        if (!canWrite && !isEdit) return;
-
-        const newVariant = {
-            name: '',
-            description: '',
-            options: [{ name: '', priceModifier: 0 }],
-            required: false
-        };
-
-        if (isEdit) {
-            setEditItem(prev => ({
-                ...prev,
-                variants: [...prev.variants, newVariant]
-            }));
-            setExpandedVariantIndex(editItem.variants.length);
-        } else {
-            setNewItem(prev => ({
-                ...prev,
-                variants: [...prev.variants, newVariant]
-            }));
-        }
-    };
-
-    const removeVariant = (index, isEdit = false) => {
-        if (!canUpdate && isEdit) return;
-        if (!canWrite && !isEdit) return;
-
-        if (isEdit) {
-            setEditItem(prev => {
-                const updatedVariants = [...prev.variants];
-                updatedVariants.splice(index, 1);
-                return { ...prev, variants: updatedVariants };
-            });
-            if (expandedVariantIndex === index) {
-                setExpandedVariantIndex(null);
-            } else if (expandedVariantIndex > index) {
-                setExpandedVariantIndex(expandedVariantIndex - 1);
-            }
-        } else {
-            setNewItem(prev => {
-                const updatedVariants = [...prev.variants];
-                updatedVariants.splice(index, 1);
-                return { ...prev, variants: updatedVariants };
-            });
-        }
-    };
-
-    const updateVariant = (index, field, value, isEdit = false) => {
-        if (!canUpdate && isEdit) return;
-        if (!canWrite && !isEdit) return;
-
-        if (isEdit) {
-            setEditItem(prev => {
-                const updatedVariants = [...prev.variants];
-                updatedVariants[index] = { ...updatedVariants[index], [field]: value };
-                return { ...prev, variants: updatedVariants };
-            });
-        } else {
-            setNewItem(prev => {
-                const updatedVariants = [...prev.variants];
-                updatedVariants[index] = { ...updatedVariants[index], [field]: value };
-                return { ...prev, variants: updatedVariants };
-            });
-        }
-    };
-
-    const addOptionToVariant = (variantIndex, isEdit = false) => {
-        if (!canUpdate && isEdit) return;
-        if (!canWrite && !isEdit) return;
-
-        const newOption = { name: '', priceModifier: 0 };
-        if (isEdit) {
-            setEditItem(prev => {
-                const updatedVariants = [...prev.variants];
-                updatedVariants[variantIndex].options = [...updatedVariants[variantIndex].options, newOption];
-                return { ...prev, variants: updatedVariants };
-            });
-        } else {
-            setNewItem(prev => {
-                const updatedVariants = [...prev.variants];
-                updatedVariants[variantIndex].options = [...updatedVariants[variantIndex].options, newOption];
-                return { ...prev, variants: updatedVariants };
-            });
-        }
-    };
-
-    const removeOptionFromVariant = (variantIndex, optionIndex, isEdit = false) => {
-        if (!canUpdate && isEdit) return;
-        if (!canWrite && !isEdit) return;
-
-        if (isEdit) {
-            setEditItem(prev => {
-                const updatedVariants = [...prev.variants];
-                updatedVariants[variantIndex].options.splice(optionIndex, 1);
-                return { ...prev, variants: updatedVariants };
-            });
-        } else {
-            setNewItem(prev => {
-                const updatedVariants = [...prev.variants];
-                updatedVariants[variantIndex].options.splice(optionIndex, 1);
-                return { ...prev, variants: updatedVariants };
-            });
-        }
-    };
-
-    const updateOption = (variantIndex, optionIndex, field, value, isEdit = false) => {
-        if (!canUpdate && isEdit) return;
-        if (!canWrite && !isEdit) return;
-
-        if (isEdit) {
-            setEditItem(prev => {
-                const updatedVariants = [...prev.variants];
-                updatedVariants[variantIndex].options[optionIndex] = {
-                    ...updatedVariants[variantIndex].options[optionIndex],
-                    [field]: value
-                };
-                return { ...prev, variants: updatedVariants };
-            });
-        } else {
-            setNewItem(prev => {
-                const updatedVariants = [...prev.variants];
-                updatedVariants[variantIndex].options[optionIndex] = {
-                    ...updatedVariants[variantIndex].options[optionIndex],
-                    [field]: value
-                };
-                return { ...prev, variants: updatedVariants };
-            });
-        }
-    };
-
-    const toggleVariantExpansion = (index) => {
-        setExpandedVariantIndex(expandedVariantIndex === index ? null : index);
-    };
+    // Utility function to add delay
+    const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
     const EmptyState = () => {
         return (
@@ -257,50 +115,38 @@ const ItemsTable = () => {
                         </g>
                     </svg>
                 </div>
-                <h5 className="mb-2">No Items Found</h5>
-                <p className="text-muted mb-4">You haven&apos;t added any items yet. Start by adding a new item.</p>
-                {canWrite && (
-                    <Button
-                        variant="contained"
+                <h5 className="mb-2">No Event Subdomains Found</h5>
+                <p className="text-muted mb-4">No event subdomains are available for this event.</p>
+                {canWrite && getEventId() && (
+                    <Button 
+                        variant="contained" 
+                        startIcon={<FiPlus />}
                         onClick={() => setIsModalOpen(true)}
-                        className="d-flex align-items-center gap-2 mx-auto"
-                        style={{ backgroundColor: '#0092ff', color: 'white' }}
                     >
-                        <FiPlus /> Add Item
+                        Create New Subdomain
                     </Button>
                 )}
             </div>
         );
     };
 
-    // Skeleton loader component
     const SkeletonLoader = () => {
         return (
             <div className="table-responsive">
                 <table className="table table-hover table-nowrap">
                     <thead>
                         <tr>
-                            <th scope="col">Image</th>
                             <th scope="col">Name</th>
-                            <th scope="col">Category</th>
-                            <th scope="col">Price</th>
-                            <th scope="col">Discounted Price</th>
-                            <th scope="col">Status</th>
+                            <th scope="col">Description</th>
+                            <th scope="col">Registration Fee</th>
+                            <th scope="col">Participant Limit</th>
+                            <th scope="col">Current Participants</th>
                             <th scope="col" className="text-end">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         {[...Array(10)].map((_, index) => (
                             <tr key={index}>
-                                <td>
-                                    <Skeleton
-                                        circle
-                                        width={40}
-                                        height={40}
-                                        baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
-                                        highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
-                                    />
-                                </td>
                                 <td>
                                     <Skeleton
                                         width={150}
@@ -310,7 +156,7 @@ const ItemsTable = () => {
                                 </td>
                                 <td>
                                     <Skeleton
-                                        width={120}
+                                        width={200}
                                         baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
                                         highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
                                     />
@@ -326,15 +172,14 @@ const ItemsTable = () => {
                                     <Skeleton
                                         width={80}
                                         baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
-                                        highlightColor={isDarkMode ? "#334155" : '#ecebeb'}
+                                        highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
                                     />
                                 </td>
                                 <td>
                                     <Skeleton
-                                        width={60}
-                                        height={24}
+                                        width={80}
                                         baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
-                                        highlightColor={isDarkMode ? "#334155" : '#ecebeb'}
+                                        highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
                                     />
                                 </td>
                                 <td>
@@ -344,21 +189,21 @@ const ItemsTable = () => {
                                             width={24}
                                             height={24}
                                             baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
-                                            highlightColor={isDarkMode ? "#334155" : '#ecebeb'}
+                                            highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
                                         />
                                         <Skeleton
                                             circle
                                             width={24}
                                             height={24}
                                             baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
-                                            highlightColor={isDarkMode ? "#334155" : '#ecebeb'}
+                                            highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
                                         />
                                         <Skeleton
                                             circle
                                             width={24}
                                             height={24}
                                             baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
-                                            highlightColor={isDarkMode ? "#334155" : '#ecebeb'}
+                                            highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
                                         />
                                     </div>
                                 </td>
@@ -370,16 +215,20 @@ const ItemsTable = () => {
         );
     };
 
-    // Fetch items
-    const fetchItems = useCallback(async () => {
+    // Fetch all data with sequential requests to prevent concurrent API calls
+    const fetchAllData = useCallback(async () => {
         try {
             setLoading(true);
             const authData = JSON.parse(localStorage.getItem("authData"));
-            if (!authData?.token) {
-                throw new Error("No authentication token found");
+            const eventId = getEventId();
+
+            if (!eventId) {
+                setLoading(false);
+                return;
             }
 
-            const response = await fetch(`${BASE_URL}/api/client-admin/items`, {
+            // Fetch parent domains first
+            const parentDomainsResponse = await fetch(`${BASE_URL}/api/events/${eventId}/domains`, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${authData.token}`,
@@ -387,398 +236,227 @@ const ItemsTable = () => {
                 }
             });
 
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || 'Failed to fetch items');
+            const parentDomainsData = await parentDomainsResponse.json();
+            if (!parentDomainsResponse.ok) {
+                throw new Error(parentDomainsData.message || 'Failed to fetch parent domains');
             }
 
-            const data = await response.json();
-            if (data.status === 200 && data.data) {
-                setItems(data.data);
+            if (parentDomainsData.success && parentDomainsData.data) {
+                setParentDomains(parentDomainsData.data);
+
+                // Fetch subdomains sequentially instead of in parallel to prevent concurrent requests
+                const allSubDomains = [];
+                for (const parentDomain of parentDomainsData.data) {
+                    try {
+                        // Add a small delay between requests to prevent overwhelming the backend
+                        await delay(50);
+                        
+                        const subDomainsResponse = await fetch(`${BASE_URL}/api/events/${eventId}/domains/${parentDomain.id}/subdomains`, {
+                            method: 'GET',
+                            headers: {
+                                'Authorization': `Bearer ${authData.token}`,
+                                'Content-Type': 'application/json'
+                            }
+                        });
+
+                        const subDomainsData = await subDomainsResponse.json();
+                        if (subDomainsResponse.ok && subDomainsData.success && subDomainsData.data) {
+                            allSubDomains.push(...subDomainsData.data);
+                        }
+                    } catch (error) {
+                        console.error(`Error fetching subdomains for parent ${parentDomain.id}:`, error);
+                        // Continue with other domains even if one fails
+                    }
+                }
+                
+                setDomains(allSubDomains);
             } else {
-                throw new Error(data.message || 'Failed to fetch items');
+                setParentDomains([]);
+                setDomains([]);
             }
         } catch (err) {
+            console.error('Error fetching data:', err);
             showErrorToast(err.message);
+            setParentDomains([]);
+            setDomains([]);
         } finally {
             setLoading(false);
+            setHasFetchedInitialData(true);
         }
-    }, []);
+    }, [getEventId]);
 
-    // Fetch categories
-    const fetchCategories = useCallback(async () => {
-        try {
-            const authData = JSON.parse(localStorage.getItem("authData"));
-            if (!authData?.token) {
-                throw new Error("No authentication token found");
-            }
-
-            const response = await fetch(`${BASE_URL}/api/client-admin/categories`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${authData.token}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || 'Failed to fetch categories');
-            }
-
-            const data = await response.json();
-            if (data.status === 200 && data.data) {
-                setCategories(data.data);
-            } else {
-                throw new Error(data.message || 'Failed to fetch categories');
-            }
-        } catch (err) {
-            showErrorToast(err.message);
-        }
-    }, []);
-
-    // Handle status toggle
-    const handleStatusChange = async (itemId, currentStatus) => {
-        if (!canToggleStatus) return;
-
-        try {
-            const authData = JSON.parse(localStorage.getItem("authData"));
-            const response = await fetch(`${BASE_URL}/api/client-admin/items/${itemId}/status`, {
-                method: 'PATCH',
-                headers: {
-                    'Authorization': `Bearer ${authData.token}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    active: !currentStatus
-                })
-            });
-
-            const data = await response.json();
-            if (!response.ok) {
-                throw new Error(data.message || 'Failed to update item status');
-            }
-
-            showSuccessToast('Item status updated successfully');
-            await fetchItems();
-        } catch (err) {
-            showErrorToast(err.message);
-        }
-    };
-
-    useEffect(() => {
-        fetchItems();
-        fetchCategories();
-    }, [fetchItems, fetchCategories]);
+    // Refresh function for after create/update/delete operations
+    const refreshData = useCallback(async () => {
+        await fetchAllData();
+    }, [fetchAllData]);
 
     const handleInputChange = (e) => {
-        const { name, value, type, checked } = e.target;
-        const val = type === 'checkbox' ? checked : value;
-        setNewItem(prev => ({ ...prev, [name]: val }));
+        const { name, value } = e.target;
+        setNewDomain(prev => ({ 
+            ...prev, 
+            [name]: value 
+        }));
         if (formErrors[name]) {
             setFormErrors(prev => ({ ...prev, [name]: '' }));
         }
     };
 
     const handleEditInputChange = (e) => {
-        const { name, value, type, checked } = e.target;
-        const val = type === 'checkbox' ? checked : value;
-        setEditItem(prev => ({ ...prev, [name]: val }));
-
-        // Calculate discounted price when discount rate changes
-        if (name === 'itemDiscountRate') {
-            const discountRate = parseFloat(val) || 0;
-            const price = parseFloat(editItem.price) || 0;
-            const discountedPrice = price - (price * discountRate / 100);
-            setEditItem(prev => ({
-                ...prev,
-                discountedPrice: !isNaN(discountedPrice) ? parseFloat(discountedPrice.toFixed(2)) : 0
-            }));
-        }
-
+        const { name, value } = e.target;
+        setEditDomain(prev => ({ 
+            ...prev, 
+            [name]: value 
+        }));
         if (editFormErrors[name]) {
             setEditFormErrors(prev => ({ ...prev, [name]: '' }));
-        }
-    };
-
-    // Handle file selection and preview
-    const handleFileChange = (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-
-        if (!file.type.match('image.*')) {
-            showErrorToast('Please select an image file');
-            return;
-        }
-
-        if (file.size > 250 * 1024) { // 200 KB limit
-            setImageSizeError('File size should be less than 200KB');
-            setSelectedFile(null);
-            setImagePreview('');
-            return;
-        }
-
-        setImageSizeError('');
-        setSelectedFile(file);
-
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            setImagePreview(reader.result);
-        };
-        reader.readAsDataURL(file);
-    };
-
-    // Handle image deletion
-    const handleDeleteImage = async (imageUrl) => {
-        if (!canUpdate) return;
-
-        try {
-            const authData = JSON.parse(localStorage.getItem("authData"));
-
-            // Construct the URL with query parameters
-            const deleteUrl = new URL(`${BASE_URL}/api/client-admin/items/${editItem.id}/images`);
-            deleteUrl.searchParams.append('imageUrl', imageUrl);
-
-            const response = await fetch(deleteUrl, {
-                method: 'DELETE',
-                headers: {
-                    'Authorization': `Bearer ${authData.token}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            const data = await response.json();
-            if (!response.ok) {
-                throw new Error(data.message || 'Failed to delete image');
-            }
-
-            showSuccessToast('Image deleted successfully');
-
-            // Update the state to remove the deleted image
-            setEditItem(prev => ({
-                ...prev,
-                imageUrls: prev.imageUrls.filter(url => url !== imageUrl)
-            }));
-
-            // If the deleted image was the primary image, clear the primary image
-            if (editItem.primaryImageUrl === imageUrl) {
-                setEditItem(prev => ({
-                    ...prev,
-                    primaryImageUrl: prev.imageUrls.length > 1 ?
-                        prev.imageUrls.find(url => url !== imageUrl) : ''
-                }));
-            }
-
-            // Refresh the items list
-            await fetchItems();
-        } catch (err) {
-            showErrorToast(err.message);
         }
     };
 
     const validateForm = (formData, setErrors) => {
         const errors = {};
         if (!formData.name.trim()) errors.name = 'Name is required';
-        if (formData.price <= 0) errors.price = 'Price must be greater than 0';
-        if (formData.quantity < 0) errors.quantity = 'Quantity cannot be negative';
-        if (!formData.category) errors.category = 'Category is required';
-        if (formData.itemDiscountEnabled && (formData.itemDiscountRate < 0 || formData.itemDiscountRate > 100)) {
-            errors.itemDiscountRate = 'Discount rate must be between 0 and 100';
+        if (!formData.description.trim()) errors.description = 'Description is required';
+        
+        // Validate registration fee
+        if (formData.registrationFee === '' || formData.registrationFee === null) {
+            errors.registrationFee = 'Registration fee is required';
+        } else {
+            const fee = parseFloat(formData.registrationFee);
+            if (isNaN(fee) || fee < 0) {
+                errors.registrationFee = 'Registration fee must be a valid number and cannot be negative';
+            }
         }
 
-        // Validate variants
-        if (formData.variants && formData.variants.length > 0) {
-            formData.variants.forEach((variant, index) => {
-                if (!variant.name.trim()) {
-                    errors[`variantName_${index}`] = 'Variant name is required';
-                }
+        // Validate participant limit
+        if (formData.participantLimit === '' || formData.participantLimit === null) {
+            errors.participantLimit = 'Participant limit is required';
+        } else {
+            const limit = parseInt(formData.participantLimit);
+            if (isNaN(limit) || limit < 1) {
+                errors.participantLimit = 'Participant limit must be a valid number and at least 1';
+            }
+        }
 
-                if (variant.options && variant.options.length > 0) {
-                    variant.options.forEach((option, optIndex) => {
-                        if (!option.name.trim()) {
-                            errors[`optionName_${index}_${optIndex}`] = 'Option name is required';
-                        }
-                    });
-                } else {
-                    errors[`variantOptions_${index}`] = 'At least one option is required';
-                }
-            });
+        // Validate parent domain selection
+        if (!formData.parentDomainId) {
+            errors.parentDomainId = 'Parent domain is required';
         }
 
         setErrors(errors);
         return Object.keys(errors).length === 0;
     };
 
-    const handleSubmit = async (e) => {
+    const handleCreateDomain = async (e) => {
         e.preventDefault();
-        if (!validateForm(newItem, setFormErrors)) return;
-        
-        if (selectedFile && selectedFile.size > 250 * 1024) {
-            setImageSizeError('File size should be less than 200KB');
-            return;
-        }
+        if (!validateForm(newDomain, setFormErrors)) return;
 
         try {
-            setUploadingImage(true);
+            setCreatingDomain(true);
             const authData = JSON.parse(localStorage.getItem("authData"));
+            const eventId = getEventId();
 
-            // Calculate discounted price if discount is enabled
-            const discountedPrice = newItem.itemDiscountEnabled
-                ? newItem.price - (newItem.price * newItem.itemDiscountRate / 100)
-                : 0;
+            if (!eventId) {
+                showErrorToast("Please select an event first");
+                return;
+            }
 
-            const response = await fetch(`${BASE_URL}/api/client-admin/items`, {
+            const response = await fetch(`${BASE_URL}/api/events/${eventId}/domains`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${authData.token}`,
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    ...newItem,
-                    discountedPrice: parseFloat(discountedPrice.toFixed(2)),
-                    category: newItem.category || null,
-                    variants: newItem.variants.length > 0 ? newItem.variants : null
+                    name: newDomain.name,
+                    description: newDomain.description,
+                    registrationFee: parseFloat(newDomain.registrationFee),
+                    participantLimit: parseInt(newDomain.participantLimit),
+                    domainHeadId: null,
+                    parentDomainId: newDomain.parentDomainId || null
                 })
             });
 
             const data = await response.json();
             if (!response.ok) {
-                throw new Error(data.message || 'Failed to create item');
+                throw new Error(data.message || 'Failed to create domain');
             }
 
-            if (selectedFile) {
-                const formData = new FormData();
-                formData.append('file', selectedFile);
-                formData.append('primary', true);
-
-                const uploadResponse = await fetch(`${BASE_URL}/api/client-admin/items/${data.data.id}/images`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${authData.token}`,
-                    },
-                    body: formData
-                });
-
-                if (!uploadResponse.ok) {
-                    const uploadError = await uploadResponse.json();
-                    throw new Error(uploadError.message || 'Failed to upload image');
-                }
-            }
-
-            showSuccessToast('Item created successfully');
-            await fetchItems();
+            showSuccessToast('Subdomain created successfully');
+            await refreshData();
             setIsModalOpen(false);
-            setNewItem({
+            setNewDomain({
                 name: '',
                 description: '',
-                price: 0,
-                discountedPrice: 0,
-                itemDiscountRate: 0,
-                itemDiscountEnabled: false,
-                quantity: 0,
-                category: '',
-                primaryImageUrl: '',
-                active: true,
-                barcode: '',
-                lowStockThreshold: 0,
-                variants: []
+                registrationFee: '',
+                participantLimit: '',
+                parentDomainId: ''
             });
-            setSelectedFile(null);
-            setImagePreview('');
-            setImageSizeError('');
+            setFormErrors({});
         } catch (err) {
             showErrorToast(err.message);
         } finally {
-            setUploadingImage(false);
+            setCreatingDomain(false);
         }
     };
 
     const handleEditSubmit = async (e) => {
         e.preventDefault();
-        if (!validateForm(editItem, setEditFormErrors)) return;
-        
-        if (selectedFile && selectedFile.size > 250 * 1024) {
-            setImageSizeError('File size should be less than 200KB');
-            return;
-        }
+        if (!validateForm(editDomain, setEditFormErrors)) return;
 
         try {
-            setUploadingImage(true);
+            setUpdatingDomain(true);
             const authData = JSON.parse(localStorage.getItem("authData"));
+            const eventId = getEventId();
 
-            let imageUrl = editItem.primaryImageUrl;
-            if (selectedFile) {
-                const formData = new FormData();
-                formData.append('file', selectedFile);
-                formData.append('primary', true);
-
-                const uploadResponse = await fetch(`${BASE_URL}/api/client-admin/items/${editItem.id}/images`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${authData.token}`,
-                    },
-                    body: formData
-                });
-
-                const uploadData = await uploadResponse.json();
-                if (!uploadResponse.ok) {
-                    throw new Error(uploadData.message || 'Failed to upload image');
-                }
-
-                imageUrl = uploadData.imageUrl;
+            if (!eventId) {
+                showErrorToast("Please select an event first");
+                return;
             }
 
-            // Calculate discounted price if discount is enabled
-            const discountedPrice = editItem.itemDiscountEnabled
-                ? editItem.price - (editItem.price * editItem.itemDiscountRate / 100)
-                : 0;
-
-            const response = await fetch(`${BASE_URL}/api/client-admin/items/${editItem.id}`, {
+            const response = await fetch(`${BASE_URL}/api/events/${eventId}/domains/${editDomain.id}`, {
                 method: 'PUT',
                 headers: {
                     'Authorization': `Bearer ${authData.token}`,
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    name: editItem.name,
-                    description: editItem.description,
-                    price: editItem.price,
-                    discountedPrice: parseFloat(discountedPrice.toFixed(2)),
-                    itemDiscountRate: editItem.itemDiscountRate,
-                    itemDiscountEnabled: editItem.itemDiscountEnabled,
-                    quantity: editItem.quantity,
-                    category: editItem.category || null,
-                    primaryImageUrl: imageUrl,
-                    active: editItem.active,
-                    barcode: editItem.barcode,
-                    lowStockThreshold: editItem.lowStockThreshold,
-                    variants: editItem.variants || null
+                    name: editDomain.name,
+                    description: editDomain.description,
+                    registrationFee: parseFloat(editDomain.registrationFee),
+                    participantLimit: parseInt(editDomain.participantLimit),
+                    domainHeadId: null,
+                    parentDomainId: editDomain.parentDomainId || null
                 })
             });
 
             const data = await response.json();
             if (!response.ok) {
-                throw new Error(data.message || 'Failed to update item');
+                throw new Error(data.message || 'Failed to update domain');
             }
 
-            showSuccessToast('Item updated successfully');
-            await fetchItems();
+            showSuccessToast('Subdomain updated successfully');
+            await refreshData();
             setIsEditModalOpen(false);
-            setSelectedFile(null);
-            setImagePreview('');
-            setImageSizeError('');
+            setEditFormErrors({});
         } catch (err) {
             showErrorToast(err.message);
         } finally {
-            setUploadingImage(false);
+            setUpdatingDomain(false);
         }
     };
 
-    const handleDeleteItem = async () => {
+    const handleDeleteDomain = async () => {
         try {
             setDeleteLoading(true);
             const authData = JSON.parse(localStorage.getItem("authData"));
-            const response = await fetch(`${BASE_URL}/api/client-admin/items/${itemToDelete.id}`, {
+            const eventId = getEventId();
+
+            if (!eventId) {
+                showErrorToast("Please select an event first");
+                return;
+            }
+
+            const response = await fetch(`${BASE_URL}/api/events/${eventId}/domains/${domainToDelete.id}`, {
                 method: 'DELETE',
                 headers: {
                     'Authorization': `Bearer ${authData.token}`,
@@ -788,11 +466,11 @@ const ItemsTable = () => {
 
             const data = await response.json();
             if (!response.ok) {
-                throw new Error(data.message || 'Failed to delete item');
+                throw new Error(data.message || 'Failed to delete domain');
             }
 
-            showSuccessToast('Item deleted successfully');
-            await fetchItems();
+            showSuccessToast('Subdomain deleted successfully');
+            await refreshData();
             setIsDeleteModalOpen(false);
         } catch (err) {
             showErrorToast(err.message);
@@ -801,119 +479,82 @@ const ItemsTable = () => {
         }
     };
 
-    const handleViewItem = (item) => {
+    const handleViewDomain = (domain) => {
         if (!canRead) return;
-        setSelectedItem(item);
+        setSelectedDomain(domain);
         setIsViewModalOpen(true);
     };
 
-    const handleEditItem = (item) => {
+    const handleEditDomain = (domain) => {
         if (!canUpdate) return;
-        setEditItem({
-            id: item.id,
-            name: item.name,
-            description: item.description,
-            price: item.price,
-            discountedPrice: item.discountedPrice || 0,
-            itemDiscountRate: item.itemDiscountRate || 0,
-            itemDiscountEnabled: item.itemDiscountEnabled || false,
-            quantity: item.quantity,
-            category: item.category,
-            categoryName: item.categoryName,
-            primaryImageUrl: item.primaryImageUrl,
-            imageUrls: item.imageUrls || [],
-            active: item.active,
-            barcode: item.barcode || '',
-            lowStockThreshold: item.lowStockThreshold || 0,
-            variants: item.variants || []
+        setEditDomain({
+            id: domain.id,
+            name: domain.name,
+            description: domain.description,
+            registrationFee: domain.registrationFee?.toString() || '',
+            participantLimit: domain.participantLimit?.toString() || '',
+            parentDomainId: domain.parentDomainId || ''
         });
-        setSelectedFile(null);
-        setImagePreview('');
-        setImageSizeError('');
         setIsEditModalOpen(true);
     };
 
-    const handleDeleteClick = (item) => {
+    const handleDeleteClick = (domain) => {
         if (!canDelete) return;
-        setItemToDelete(item);
+        setDomainToDelete(domain);
         setIsDeleteModalOpen(true);
+    };
+
+    const formatDate = (dateString) => {
+        if (!dateString) return 'Not available';
+        try {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        } catch (error) {
+            return 'Invalid date';
+        }
+    };
+
+    const formatCurrency = (amount) => {
+        if (amount === null || amount === undefined) return 'Rs. 0';
+        return `Rs. ${parseFloat(amount).toLocaleString('en-PK')}`;
     };
 
     const columns = React.useMemo(() => [
         {
-            accessorKey: 'primaryImageUrl',
-            header: 'Image',
-            cell: (info) => (
-                info.getValue() ? (
-                    <img
-                        src={info.getValue()}
-                        alt="Item"
-                        style={{ width: '40px', height: '40px', objectFit: 'cover' }}
-                    />
-                ) : (
-                    <img
-                        src="/images/avatar/undefined.png"
-                        alt="Item"
-                        style={{ width: '40px', height: '40px', objectFit: 'cover' }}
-                    />
-                )
-            )
-        },
-        {
             accessorKey: 'name',
             header: 'Name',
-            cell: (info) => (
-                <div>
-                    {info.getValue()}
-                    {info.row.original.variants && info.row.original.variants.length > 0 && (
-                        <span className="badge bg-primary ms-2">Variants</span>
-                    )}
-                </div>
-            )
+            cell: (info) => info.getValue()
         },
         {
-            accessorKey: 'categoryName',
-            header: 'Category',
-            cell: (info) => info.getValue() || 'N/A'
+            accessorKey: 'description',
+            header: 'Description',
+            cell: (info) => info.getValue() || '-'
         },
         {
-            accessorKey: 'price',
-            header: 'Price',
-            cell: (info) => {
-                const value = info.getValue();
-                return value !== null && value !== undefined
-                    ? `${currencySymbol}${Number(value).toFixed(2)}`
-                    : `${currencySymbol}0.00`;
-            }
+            accessorKey: 'registrationFee',
+            header: 'Registration Fee',
+            cell: (info) => formatCurrency(info.getValue())
         },
         {
-            accessorKey: 'discountedPrice',
-            header: 'Discounted Price',
-            cell: (info) => {
-                const item = info.row.original;
-                if (!item.itemDiscountEnabled) return '-';
-
-                const value = item.discountedPrice;
-                return value !== null && value !== undefined
-                    ? `${currencySymbol}${Number(value).toFixed(2)}`
-                    : `${currencySymbol}0.00`;
-            }
+            accessorKey: 'participantLimit',
+            header: 'Participant Limit',
+            cell: (info) => info.getValue()?.toLocaleString() || '0'
         },
         {
-            accessorKey: 'active',
-            header: 'Status',
-            cell: ({ row }) => (
-                <Switch
-                    checked={row.original.active}
-                    onChange={() => handleStatusChange(row.original.id, row.original.active)}
-                    color="primary"
-                    inputProps={{
-                        'aria-label': 'status switch',
-                        'id': `status-switch-${row.original.id}`
-                    }}
-                    disabled={!canToggleStatus}
-                />
-            )
+            accessorKey: 'currentParticipants',
+            header: 'Current Participants',
+            cell: (info) => info.getValue()?.toLocaleString() || '0'
+        },
+        {
+            accessorKey: 'parentDomainName',
+            header: 'Parent Domain',
+            cell: (info) => info.getValue() || '-'
         },
         {
             accessorKey: 'actions',
@@ -923,7 +564,8 @@ const ItemsTable = () => {
                     {canRead && (
                         <button
                             className="avatar-text avatar-md"
-                            onClick={() => handleViewItem(row.original)}
+                            onClick={() => handleViewDomain(row.original)}
+                            title="View Details"
                         >
                             <FiEye />
                         </button>
@@ -931,7 +573,8 @@ const ItemsTable = () => {
                     {canUpdate && (
                         <button
                             className="avatar-text avatar-md"
-                            onClick={() => handleEditItem(row.original)}
+                            onClick={() => handleEditDomain(row.original)}
+                            title="Edit Subdomain"
                         >
                             <FiEdit />
                         </button>
@@ -940,6 +583,7 @@ const ItemsTable = () => {
                         <button
                             className="avatar-text avatar-md"
                             onClick={() => handleDeleteClick(row.original)}
+                            title="Delete Subdomain"
                         >
                             <FiTrash />
                         </button>
@@ -948,7 +592,39 @@ const ItemsTable = () => {
             ),
             meta: { headerClassName: 'text-end' }
         },
-    ], [categories, currencySymbol, canRead, canUpdate, canDelete, canToggleStatus]);
+    ], [canRead, canUpdate, canDelete]);
+
+    // Listen for event selection changes
+    useEffect(() => {
+        const handleEventSelected = (event) => {
+            const eventDetail = event.detail;
+            if (eventDetail && eventDetail.id && eventDetail.id !== currentEventId) {
+                setCurrentEventId(eventDetail.id);
+                localStorage.setItem('eventid', eventDetail.id);
+                localStorage.setItem('selectedEvent', JSON.stringify(eventDetail));
+                
+                // Reset data and refresh when event changes
+                setDomains([]);
+                setParentDomains([]);
+                setHasFetchedInitialData(false);
+                fetchAllData();
+            }
+        };
+
+        window.addEventListener('eventSelected', handleEventSelected);
+
+        return () => {
+            window.removeEventListener('eventSelected', handleEventSelected);
+        };
+    }, [currentEventId, fetchAllData]);
+
+    // Fetch domains on component mount only once if event ID is available
+    useEffect(() => {
+        const eventId = getEventId();
+        if (eventId && !hasFetchedInitialData) {
+            fetchAllData();
+        }
+    }, [getEventId, fetchAllData, hasFetchedInitialData]);
 
     return (
         <>
@@ -966,1018 +642,340 @@ const ItemsTable = () => {
             />
 
             <div className="d-flex justify-content-between align-items-center mb-4">
-                <h4>Item</h4>
-                {canWrite && (
-                    <Button
-                        variant="contained"
-                        onClick={() => setIsModalOpen(true)}
-                        className="d-flex align-items-center gap-2"
-                        style={{ backgroundColor: '#0092ff', color: 'white' }}
-                    >
-                        <FiPlus /> Add Item
-                    </Button>
-                )}
+                <h4>Event Subdomains</h4>
+                <div className="d-flex align-items-center gap-3">
+                    {currentEventId && (
+                        <small className="text-muted">
+                            Showing subdomains for selected event
+                        </small>
+                    )}
+                    {canWrite && getEventId() && (
+                        <Button 
+                            variant="contained" 
+                            startIcon={<FiPlus />}
+                            onClick={() => setIsModalOpen(true)}
+                            size="small"
+                        >
+                            Create New Subdomain
+                        </Button>
+                    )}
+                </div>
             </div>
 
-            {loading ? (
+            {!getEventId() ? (
+                <div className="text-center py-5">
+                    <div className="mb-4">
+                        <FiPlus size={48} className="text-muted" />
+                    </div>
+                    <h5>No Event Selected</h5>
+                    <p className="text-muted">Please select an event from the dropdown to view subdomains.</p>
+                </div>
+            ) : loading ? (
                 <SkeletonLoader />
-            ) : items.length === 0 ? (
+            ) : domains.length === 0 ? (
                 <EmptyState />
             ) : (
                 <Table
-                    data={items}
+                    data={domains}
                     columns={columns}
                     initialState={{ pagination: { pageSize: 10 } }}
                 />
             )}
 
-            {/* Add Item Modal */}
+            {/* Create Domain Modal */}
             {canWrite && (
-                <Modal show={isModalOpen} onHide={() => {
-                    if (!uploadingImage) {
-                        setIsModalOpen(false);
-                        setNewItem({
-                            name: '',
-                            description: '',
-                            price: 0,
-                            discountedPrice: 0,
-                            itemDiscountRate: 0,
-                            itemDiscountEnabled: false,
-                            quantity: 0,
-                            category: '',
-                            primaryImageUrl: '',
-                            active: true,
-                            barcode: '',
-                            lowStockThreshold: 0,
-                            variants: []
-                        });
-                        setFormErrors({});
-                        setSelectedFile(null);
-                        setImagePreview('');
-                        setImageSizeError('');
-                    }
-                }} centered size="lg">
-                    <Modal.Header closeButton={!uploadingImage}>
-                        <Modal.Title>Add Item</Modal.Title>
+                <Modal show={isModalOpen} onHide={() => setIsModalOpen(false)} centered size="lg">
+                    <Modal.Header closeButton>
+                        <Modal.Title>Create New Subdomain</Modal.Title>
                     </Modal.Header>
                     <Modal.Body>
-                        <form onSubmit={handleSubmit}>
+                        <form onSubmit={handleCreateDomain}>
                             <div className="mb-3">
-                                <label htmlFor="name" className="form-label">Name</label>
+                                <label className="form-label">Name *</label>
                                 <input
                                     type="text"
                                     className={`form-control ${formErrors.name ? 'is-invalid' : ''}`}
-                                    id="name"
                                     name="name"
-                                    value={newItem.name}
+                                    value={newDomain.name}
                                     onChange={handleInputChange}
+                                    placeholder="Enter subdomain name"
                                 />
                                 {formErrors.name && <div className="invalid-feedback">{formErrors.name}</div>}
                             </div>
                             <div className="mb-3">
-                                <label htmlFor="description" className="form-label">Description</label>
+                                <label className="form-label">Description *</label>
                                 <textarea
                                     className={`form-control ${formErrors.description ? 'is-invalid' : ''}`}
-                                    id="description"
                                     name="description"
-                                    value={newItem.description}
+                                    value={newDomain.description}
                                     onChange={handleInputChange}
-                                    rows="2"
-                                    style={{ minHeight: '80px' }}
+                                    placeholder="Enter subdomain description"
+                                    rows="3"
                                 />
                                 {formErrors.description && <div className="invalid-feedback">{formErrors.description}</div>}
                             </div>
-                            <div className="row mb-3">
+                            <div className="row">
                                 <div className="col-md-6">
-                                    <label htmlFor="price" className="form-label">Price</label>
-                                    <div className="input-group">
-                                        <span className="input-group-text">{currencySymbol}</span>
-                                        <input
-                                            type="number"
-                                            step="0.01"
-                                            className={`form-control ${formErrors.price ? 'is-invalid' : ''}`}
-                                            id="price"
-                                            name="price"
-                                            value={newItem.price}
-                                            onChange={handleInputChange}
-                                            min="0"
-                                        />
-                                        {formErrors.price && <div className="invalid-feedback">{formErrors.price}</div>}
-                                </div>
-                                </div>
-                                <div className="col-md-6">
-                                    <label htmlFor="category" className="form-label" style={{ color: '#0092ff' }}>
-                                        Category
-                                    </label>
-                                    <select
-                                        className={`form-control ${formErrors.category ? 'is-invalid' : ''}`}
-                                        id="category"
-                                        name="category"
-                                        value={newItem.category}
-                                        onChange={handleInputChange}
-                                        style={{
-                                            backgroundColor: 'transparent',
-                                            cursor: 'pointer',
-                                            paddingRight: '2.5rem',
-                                            backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'16\' height=\'16\' fill=\'%230092ff\' viewBox=\'0 0 16 16\'%3E%3Cpath d=\'M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z\'/%3E%3C/svg%3E")',
-                                            backgroundRepeat: 'no-repeat',
-                                            backgroundPosition: 'right 0.75rem center',
-                                            backgroundSize: '16px 12px',
-                                            appearance: 'none',
-                                        }}
-                                    >
-                                        <option value="" style={{ color: '#000000ff' }}>Select a category</option>
-                                        {categories.map(category => (
-                                            <option
-                                                key={category.id}
-                                                value={category.id}
-                                                style={{
-                                                    color: '#000000ff',
-                                                    backgroundColor: 'white',
-                                                }}
-                                            >
-                                                {category.name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                    {formErrors.category && (
-                                        <div className="invalid-feedback" style={{ color: '#ff0000' }}>
-                                            {formErrors.category}
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                            <div className="row mb-3">
-                                <div className="col-md-6">
-                                    <div className="form-check form-switch mb-3">
-                                        <input
-                                            className="form-check-input"
-                                            type="checkbox"
-                                            role="switch"
-                                            id="itemDiscountEnabled"
-                                            name="itemDiscountEnabled"
-                                            checked={newItem.itemDiscountEnabled}
-                                            onChange={handleInputChange}
-                                        />
-                                        <h8 className="form-check-label" htmlFor="itemDiscountEnabled">
-                                            Enable Discount
-                                        </h8>
-                                    </div>
-                                    {newItem.itemDiscountEnabled && (
-                                        <div className="mb-3">
-                                            <label htmlFor="itemDiscountRate" className="form-label">Discount Rate (%)</label>
+                                    <div className="mb-3">
+                                        <label className="form-label">Registration Fee (PKR) *</label>
+                                        <div className="input-group">
+                                            <span className="input-group-text">Rs.</span>
                                             <input
                                                 type="number"
-                                                step="0.01"
-                                                className={`form-control ${formErrors.itemDiscountRate ? 'is-invalid' : ''}`}
-                                                id="itemDiscountRate"
-                                                name="itemDiscountRate"
-                                                value={newItem.itemDiscountRate}
+                                                className={`form-control ${formErrors.registrationFee ? 'is-invalid' : ''}`}
+                                                name="registrationFee"
+                                                value={newDomain.registrationFee}
                                                 onChange={handleInputChange}
+                                                placeholder="0.00"
                                                 min="0"
-                                                max="100"
+                                                step="0.01"
                                             />
-                                            {formErrors.itemDiscountRate && (
-                                                <div className="invalid-feedback">{formErrors.itemDiscountRate}</div>
-                                            )}
                                         </div>
-                                    )}
+                                        {formErrors.registrationFee && <div className="invalid-feedback">{formErrors.registrationFee}</div>}
+                                    </div>
                                 </div>
                                 <div className="col-md-6">
                                     <div className="mb-3">
-                                        <label htmlFor="quantity" className="form-label">Quantity</label>
+                                        <label className="form-label">Participant Limit *</label>
                                         <input
                                             type="number"
-                                            className={`form-control ${formErrors.quantity ? 'is-invalid' : ''}`}
-                                            id="quantity"
-                                            name="quantity"
-                                            value={newItem.quantity}
+                                            className={`form-control ${formErrors.participantLimit ? 'is-invalid' : ''}`}
+                                            name="participantLimit"
+                                            value={newDomain.participantLimit}
                                             onChange={handleInputChange}
-                                            min="0"
+                                            placeholder="0"
+                                            min="1"
                                         />
-                                        {formErrors.quantity && <div className="invalid-feedback">{formErrors.quantity}</div>}
+                                        {formErrors.participantLimit && <div className="invalid-feedback">{formErrors.participantLimit}</div>}
                                     </div>
                                 </div>
                             </div>
-                            <div className="row mb-3">
-                                <div className="col-md-6">
-                                    <label htmlFor="barcode" className="form-label">Barcode</label>
-                                    <input
-                                        type="text"
-                                        className="form-control"
-                                        id="barcode"
-                                        name="barcode"
-                                        value={newItem.barcode}
-                                        onChange={handleInputChange}
-                                    />
-                                </div>
-                                <div className="col-md-6">
-                                    <label htmlFor="lowStockThreshold" className="form-label">Low Stock Threshold</label>
-                                    <input
-                                        type="number"
-                                        className="form-control"
-                                        id="lowStockThreshold"
-                                        name="lowStockThreshold"
-                                        value={newItem.lowStockThreshold}
-                                        onChange={handleInputChange}
-                                        min="0"
-                                    />
-                                </div>
-                            </div>
-
-                            {/* Variants Section */}
                             <div className="mb-3">
-                                <div className="d-flex justify-content-between align-items-center mb-2">
-                                    <h5>Variants</h5>
-                                    <Button
-                                        variant="outlined"
-                                        size="small"
-                                        onClick={() => addNewVariant()}
-                                    >
-                                        Add Variant
-                                    </Button>
-                                </div>
-
-                                {newItem.variants.length === 0 ? (
-                                    <div className="text-muted mb-3">No variants added</div>
-                                ) : (
-                                    <div className="accordion" id="variantsAccordion">
-                                        {newItem.variants.map((variant, index) => (
-                                            <div className="accordion-item mb-2" key={index}>
-                                                <div className="accordion-header d-flex justify-content-between align-items-center p-2">
-                                                    <div className="d-flex align-items-center">
-                                                        <button
-                                                            className="btn btn-link me-2"
-                                                            type="button"
-                                                            onClick={() => toggleVariantExpansion(index)}
-                                                        >
-                                                            {expandedVariantIndex === index ? <FiChevronUp /> : <FiChevronDown />}
-                                                        </button>
-                                                        <span>
-                                                            {variant.name || `Variant ${index + 1}`}
-                                                            {variant.required && <span className="badge bg-info ms-2">Required</span>}
-                                                        </span>
-                                                    </div>
-                                                    <button
-                                                        type="button"
-                                                        className="btn btn-danger btn-sm"
-                                                        onClick={() => removeVariant(index)}
-                                                    >
-                                                        <FiX />
-                                                    </button>
-                                                </div>
-
-                                                <div className={`accordion-collapse ${expandedVariantIndex === index ? 'show' : 'collapse'}`}>
-                                                    <div className="accordion-body p-3">
-                                                        <div className="mb-3">
-                                                            <label htmlFor={`variantName-${index}`} className="form-label">Variant Name</label>
-                                                            <input
-                                                                type="text"
-                                                                className={`form-control ${formErrors[`variantName_${index}`] ? 'is-invalid' : ''}`}
-                                                                id={`variantName-${index}`}
-                                                                value={variant.name}
-                                                                onChange={(e) => updateVariant(index, 'name', e.target.value)}
-                                                            />
-                                                            {formErrors[`variantName_${index}`] && (
-                                                                <div className="invalid-feedback">{formErrors[`variantName_${index}`]}</div>
-                                                            )}
-                                                        </div>
-
-                                                        <div className="mb-3">
-                                                            <label htmlFor={`variantDesc-${index}`} className="form-label">Description (Optional)</label>
-                                                            <input
-                                                                type="text"
-                                                                className="form-control"
-                                                                id={`variantDesc-${index}`}
-                                                                value={variant.description}
-                                                                onChange={(e) => updateVariant(index, 'description', e.target.value)}
-                                                            />
-                                                        </div>
-
-                                                        <div className="form-check mb-3">
-                                                            <input
-                                                                className="form-check-input"
-                                                                type="checkbox"
-                                                                id={`variantRequired-${index}`}
-                                                                checked={variant.required}
-                                                                onChange={(e) => updateVariant(index, 'required', e.target.checked)}
-                                                            />
-                                                            <label className="form-check-label" htmlFor={`variantRequired-${index}`}>
-                                                                Required Selection
-                                                            </label>
-                                                        </div>
-
-                                                        <div className="mb-3">
-                                                            <div className="d-flex justify-content-between align-items-center mb-2">
-                                                                <h6>Options</h6>
-                                                                <Button
-                                                                    variant="outlined"
-                                                                    size="small"
-                                                                    onClick={() => addOptionToVariant(index)}
-                                                                >
-                                                                    <FiPlus /> Add Option
-                                                                </Button>
-                                                            </div>
-
-                                                            {variant.options.length === 0 ? (
-                                                                <div className="text-muted">No options added</div>
-                                                            ) : (
-                                                                <div className="table-responsive">
-                                                                    <table className="table table-sm">
-                                                                        <thead>
-                                                                            <tr>
-                                                                                <th>Option Name</th>
-                                                                                <th>Price Modifier</th>
-                                                                                <th>Action</th>
-                                                                            </tr>
-                                                                        </thead>
-                                                                        <tbody>
-                                                                            {variant.options.map((option, optIndex) => (
-                                                                                <tr key={optIndex}>
-                                                                                    <td>
-                                                                                        <input
-                                                                                            type="text"
-                                                                                            className={`form-control form-control-sm ${formErrors[`optionName_${index}_${optIndex}`] ? 'is-invalid' : ''}`}
-                                                                                            value={option.name}
-                                                                                            onChange={(e) => updateOption(index, optIndex, 'name', e.target.value)}
-                                                                                        />
-                                                                                        {formErrors[`optionName_${index}_${optIndex}`] && (
-                                                                                            <div className="invalid-feedback">{formErrors[`optionName_${index}_${optIndex}`]}</div>
-                                                                                        )}
-                                                                                    </td>
-                                                                                    <td>
-                                                                                        <div className="input-group input-group-sm">
-                                                                                            <span className="input-group-text">{currencySymbol}</span>
-                                                                                            <input
-                                                                                                type="number"
-                                                                                                step="0.01"
-                                                                                                className="form-control"
-                                                                                                value={option.priceModifier}
-                                                                                                onChange={(e) => updateOption(index, optIndex, 'priceModifier', parseFloat(e.target.value) || 0)}
-                                                                                            />
-                                                                                        </div>
-                                                                                    </td>
-                                                                                    <td>
-                                                                                        <button
-                                                                                            type="button"
-                                                                                            className="btn btn-danger btn-sm"
-                                                                                            onClick={() => removeOptionFromVariant(index, optIndex)}
-                                                                                        >
-                                                                                            <FiX />
-                                                                                        </button>
-                                                                                    </td>
-                                                                                </tr>
-                                                                            ))}
-                                                                        </tbody>
-                                                                    </table>
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className="mb-3">
-                                <label className="form-label">Item Image</label>
-                                <div className="d-flex flex-wrap gap-3 mb-3">
-                                    <div className="position-relative" style={{ width: '100px', height: '100px' }}>
-                                        <div
-                                            className="w-100 h-100 border rounded d-flex flex-column justify-content-center align-items-center cursor-pointer"
-                                            style={{
-                                                borderStyle: imagePreview ? 'solid' : 'dashed',
-                                                backgroundColor: isDarkMode ? '#1e293b' : '#f8f9fa'
-                                            }}
-                                            onClick={() => document.getElementById('add-image-upload').click()}
+                                <label className="form-label">Parent Domain *</label>
+                                <select
+                                    className={`form-control ${formErrors.parentDomainId ? 'is-invalid' : ''}`}
+                                    name="parentDomainId"
+                                    value={newDomain.parentDomainId}
+                                    onChange={handleInputChange}
+                                    style={{
+                                        backgroundColor: 'transparent',
+                                        cursor: 'pointer',
+                                        paddingRight: '2.5rem',
+                                        backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'16\' height=\'16\' fill=\'%230092ff\' viewBox=\'0 0 16 16\'%3E%3Cpath d=\'M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z\'/%3E%3C/svg%3E")',
+                                        backgroundRepeat: 'no-repeat',
+                                        backgroundPosition: 'right 0.75rem center',
+                                        backgroundSize: '16px 12px',
+                                        appearance: 'none',
+                                    }}
+                                >
+                                    <option value="">Select a parent domain</option>
+                                    {parentDomains.map(domain => (
+                                        <option
+                                            key={domain.id}
+                                            value={domain.id}
                                         >
-                                            {imagePreview ? (
-                                                <img
-                                                    src={imagePreview}
-                                                    alt="Preview"
-                                                    className="w-100 h-100"
-                                                    style={{
-                                                        objectFit: 'cover',
-                                                        borderRadius: '4px'
-                                                    }}
-                                                />
-                                            ) : (
-                                                <>
-                                                    <FiUpload size={20} className="mb-1" />
-                                                    <h8 className="small">Add Image</h8>
-                                                    <h8 className="small">Max 200 KB</h8>
-                                                </>
-                                            )}
-                                        </div>
-                                        <input
-                                            type="file"
-                                            id="add-image-upload"
-                                            className="d-none"
-                                            accept="image/*"
-                                            onChange={handleFileChange}
-                                        />
-                                    </div>
-                                </div>
-                                {imageSizeError && (
-                                    <div className="text-danger small">{imageSizeError}</div>
-                                )}
+                                            {domain.name}
+                                        </option>
+                                    ))}
+                                </select>
+                                {formErrors.parentDomainId && <div className="invalid-feedback">{formErrors.parentDomainId}</div>}
                             </div>
                         </form>
                     </Modal.Body>
                     <Modal.Footer>
-                        <Button
-                            variant="contained"
-                            onClick={handleSubmit}
-                            style={{ backgroundColor: '#1976d2', color: 'white' }}
-                            disabled={uploadingImage}
+                        <Button 
+                            variant="outlined" 
+                            onClick={() => {
+                                setIsModalOpen(false);
+                                setFormErrors({});
+                            }}
+                            disabled={creatingDomain}
                         >
-                            {uploadingImage ? (
+                            Cancel
+                        </Button>
+                        <Button 
+                            variant="contained" 
+                            onClick={handleCreateDomain}
+                            disabled={creatingDomain}
+                        >
+                            {creatingDomain ? (
                                 <>
-                                    <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                    <span className="spinner-border spinner-border-sm me-2" role="status"></span>
                                     Creating...
                                 </>
                             ) : (
-                                'Create'
+                                'Create Subdomain'
                             )}
                         </Button>
                     </Modal.Footer>
                 </Modal>
             )}
 
-            {/* Edit Item Modal */}
+            {/* Edit Domain Modal */}
             {canUpdate && (
-                <Modal show={isEditModalOpen} onHide={() => {
-                    if (!uploadingImage) {
-                        setIsEditModalOpen(false);
-                        setEditFormErrors({});
-                        setSelectedFile(null);
-                        setImagePreview('');
-                        setExpandedVariantIndex(null);
-                        setImageSizeError('');
-                    }
-                }} centered size="lg">
-                    <Modal.Header closeButton={!uploadingImage}>
-                        <Modal.Title>Edit Item</Modal.Title>
+                <Modal show={isEditModalOpen} onHide={() => setIsEditModalOpen(false)} centered size="lg">
+                    <Modal.Header closeButton>
+                        <Modal.Title>Edit Subdomain</Modal.Title>
                     </Modal.Header>
                     <Modal.Body>
                         <form onSubmit={handleEditSubmit}>
                             <div className="mb-3">
-                                <label htmlFor="edit-name" className="form-label">Name</label>
+                                <label className="form-label">Name *</label>
                                 <input
                                     type="text"
                                     className={`form-control ${editFormErrors.name ? 'is-invalid' : ''}`}
-                                    id="edit-name"
                                     name="name"
-                                    value={editItem.name}
+                                    value={editDomain.name}
                                     onChange={handleEditInputChange}
                                 />
                                 {editFormErrors.name && <div className="invalid-feedback">{editFormErrors.name}</div>}
                             </div>
                             <div className="mb-3">
-                                <label htmlFor="edit-description" className="form-label">Description</label>
+                                <label className="form-label">Description *</label>
                                 <textarea
                                     className={`form-control ${editFormErrors.description ? 'is-invalid' : ''}`}
-                                    id="edit-description"
                                     name="description"
-                                    value={editItem.description}
+                                    value={editDomain.description}
                                     onChange={handleEditInputChange}
-                                    rows="2"
-                                    style={{ minHeight: '80px' }}
+                                    rows="3"
                                 />
                                 {editFormErrors.description && <div className="invalid-feedback">{editFormErrors.description}</div>}
                             </div>
-                            <div className="row mb-3">
+                            <div className="row">
                                 <div className="col-md-6">
-                                    <label htmlFor="edit-price" className="form-label">Price</label>
-                                    <div className="input-group">
-                                        <span className="input-group-text">{currencySymbol}</span>
-                                        <input
-                                            type="number"
-                                            step="0.01"
-                                            className={`form-control ${editFormErrors.price ? 'is-invalid' : ''}`}
-                                            id="edit-price"
-                                            name="price"
-                                            value={editItem.price}
-                                            onChange={handleEditInputChange}
-                                            min="0"
-                                        />
-                                        {editFormErrors.price && <div className="invalid-feedback">{editFormErrors.price}</div>}
-                                    </div>
-                                </div>
-                                <div className="col-md-6">
-                                    <label htmlFor="edit-category" className="form-label" style={{ color: '#0092ff' }}>
-                                        Category
-                                    </label>
-                                    <select
-                                        className={`form-control ${editFormErrors.category ? 'is-invalid' : ''}`}
-                                        id="edit-category"
-                                        name="category"
-                                        value={editItem.category}
-                                        onChange={handleEditInputChange}
-                                        style={{
-                                            backgroundColor: 'transparent',
-                                            cursor: 'pointer',
-                                            paddingRight: '2.5rem',
-                                            backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'16\' height=\'16\' fill=\'%230092ff\' viewBox=\'0 0 16 16\'%3E%3Cpath d=\'M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z\'/%3E%3C/svg%3E")',
-                                            backgroundRepeat: 'no-repeat',
-                                            backgroundPosition: 'right 0.75rem center',
-                                            backgroundSize: '16px 12px',
-                                            appearance: 'none',
-                                        }}
-                                    >
-                                        <option value="" style={{ color: '#000000ff' }}>Select a category</option>
-                                        {categories.map(category => (
-                                            <option
-                                                key={category.id}
-                                                value={category.id}
-                                                style={{
-                                                    color: '#000000ff',
-                                                    backgroundColor: 'white',
-                                                }}
-                                            >
-                                                {category.name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                    {editFormErrors.category && (
-                                        <div className="invalid-feedback" style={{ color: '#ff0000' }}>
-                                            {editFormErrors.category}
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                            <div className="row mb-3">
-                                <div className="col-md-6">
-                                    <div className="form-check form-switch mb-3">
-                                        <input
-                                            className="form-check-input"
-                                            type="checkbox"
-                                            role="switch"
-                                            id="edit-itemDiscountEnabled"
-                                            name="itemDiscountEnabled"
-                                            checked={editItem.itemDiscountEnabled}
-                                            onChange={handleEditInputChange}
-                                        />
-                                        <h8 className="form-check-label" htmlFor="edit-itemDiscountEnabled">
-                                            Enable Discount
-                                        </h8>
-                                    </div>
-                                    {editItem.itemDiscountEnabled && (
-                                        <div className="mb-3">
-                                            <label htmlFor="edit-itemDiscountRate" className="form-label">Discount Rate (%)</label>
+                                    <div className="mb-3">
+                                        <label className="form-label">Registration Fee (PKR) *</label>
+                                        <div className="input-group">
+                                            <span className="input-group-text">Rs.</span>
                                             <input
                                                 type="number"
-                                                step="0.01"
-                                                className={`form-control ${editFormErrors.itemDiscountRate ? 'is-invalid' : ''}`}
-                                                id="edit-itemDiscountRate"
-                                                name="itemDiscountRate"
-                                                value={editItem.itemDiscountRate}
+                                                className={`form-control ${editFormErrors.registrationFee ? 'is-invalid' : ''}`}
+                                                name="registrationFee"
+                                                value={editDomain.registrationFee}
                                                 onChange={handleEditInputChange}
                                                 min="0"
-                                                max="100"
+                                                step="0.01"
                                             />
-                                            {editFormErrors.itemDiscountRate && (
-                                                <div className="invalid-feedback">{editFormErrors.itemDiscountRate}</div>
-                                            )}
-                                            <div className="mt-2">
-                                                <strong>Discounted Price:</strong> {currencySymbol}{
-                                                    editItem.discountedPrice !== null && editItem.discountedPrice !== undefined
-                                                        ? editItem.discountedPrice.toFixed(2)
-                                                        : '0.00'
-                                                }
-                                            </div>
                                         </div>
-                                    )}
+                                        {editFormErrors.registrationFee && <div className="invalid-feedback">{editFormErrors.registrationFee}</div>}
+                                    </div>
+                                </div>
+                                <div className="col-md-6">
                                     <div className="mb-3">
-                                        <label htmlFor="edit-barcode" className="form-label">Barcode</label>
+                                        <label className="form-label">Participant Limit *</label>
                                         <input
-                                            type="text"
-                                            className="form-control"
-                                            id="edit-barcode"
-                                            name="barcode"
-                                            value={editItem.barcode}
+                                            type="number"
+                                            className={`form-control ${editFormErrors.participantLimit ? 'is-invalid' : ''}`}
+                                            name="participantLimit"
+                                            value={editDomain.participantLimit}
                                             onChange={handleEditInputChange}
+                                            min="1"
                                         />
+                                        {editFormErrors.participantLimit && <div className="invalid-feedback">{editFormErrors.participantLimit}</div>}
                                     </div>
                                 </div>
                             </div>
-
-                            {/* Variants Section */}
                             <div className="mb-3">
-                                <div className="d-flex justify-content-between align-items-center mb-2">
-                                    <h5>Variants</h5>
-                                    <Button
-                                        variant="outlined"
-                                        size="small"
-                                        onClick={() => addNewVariant(true)}
-                                    >
-                                        Add Variant
-                                    </Button>
-                                </div>
-
-                                {editItem.variants.length === 0 ? (
-                                    <div className="text-muted mb-3">No variants added</div>
-                                ) : (
-                                    <div className="accordion" id="editVariantsAccordion">
-                                        {editItem.variants.map((variant, index) => (
-                                            <div className="accordion-item mb-2" key={index}>
-                                                <div className="accordion-header d-flex justify-content-between align-items-center p-2">
-                                                    <div className="d-flex align-items-center">
-                                                        <button
-                                                            className="btn btn-link me-2"
-                                                            type="button"
-                                                            onClick={() => toggleVariantExpansion(index)}
-                                                        >
-                                                            {expandedVariantIndex === index ? <FiChevronUp /> : <FiChevronDown />}
-                                                        </button>
-                                                        <h8>
-                                                            {variant.name || `Variant ${index + 1}`}
-                                                            {variant.required && <span className="badge bg-info ms-2">Required</span>}
-                                                        </h8>
-                                                    </div>
-                                                    <button
-                                                        type="button"
-                                                        className="btn btn-danger btn-sm"
-                                                        onClick={() => removeVariant(index, true)}
-                                                    >
-                                                        <FiX />
-                                                    </button>
-                                                </div>
-
-                                                <div className={`accordion-collapse ${expandedVariantIndex === index ? 'show' : 'collapse'}`}>
-                                                    <div className="accordion-body p-3">
-                                                        <div className="mb-3">
-                                                            <label htmlFor={`editVariantName-${index}`} className="form-label">Variant Name</label>
-                                                            <input
-                                                                type="text"
-                                                                className={`form-control ${editFormErrors[`variantName_${index}`] ? 'is-invalid' : ''}`}
-                                                                id={`editVariantName-${index}`}
-                                                                value={variant.name}
-                                                                onChange={(e) => updateVariant(index, 'name', e.target.value, true)}
-                                                            />
-                                                            {editFormErrors[`variantName_${index}`] && (
-                                                                <div className="invalid-feedback">{editFormErrors[`variantName_${index}`]}</div>
-                                                            )}
-                                                        </div>
-
-                                                        <div className="mb-3">
-                                                            <label htmlFor={`editVariantDesc-${index}`} className="form-label">Description (Optional)</label>
-                                                            <input
-                                                                type="text"
-                                                                className="form-control"
-                                                                id={`editVariantDesc-${index}`}
-                                                                value={variant.description}
-                                                                onChange={(e) => updateVariant(index, 'description', e.target.value, true)}
-                                                            />
-                                                        </div>
-
-                                                        <div className="form-check mb-3">
-                                                            <input
-                                                                className="form-check-input"
-                                                                type="checkbox"
-                                                                id={`editVariantRequired-${index}`}
-                                                                checked={variant.required}
-                                                                onChange={(e) => updateVariant(index, 'required', e.target.checked, true)}
-                                                            />
-                                                            <label className="form-check-label" htmlFor={`editVariantRequired-${index}`}>
-                                                                Required Selection
-                                                            </label>
-                                                        </div>
-
-                                                        <div className="mb-3">
-                                                            <div className="d-flex justify-content-between align-items-center mb-2">
-                                                                <h6>Options</h6>
-                                                                <Button
-                                                                    variant="outlined"
-                                                                    size="small"
-                                                                    onClick={() => addOptionToVariant(index, true)}
-                                                                >
-                                                                    Add Option
-                                                                </Button>
-                                                            </div>
-
-                                                            {variant.options.length === 0 ? (
-                                                                <div className="text-muted">No options added</div>
-                                                            ) : (
-                                                                <div className="table-responsive">
-                                                                    <table className="table table-sm">
-                                                                        <thead>
-                                                                            <tr>
-                                                                                <th>Option Name</th>
-                                                                                <th>Price Modifier</th>
-                                                                                <th>Action</th>
-                                                                            </tr>
-                                                                        </thead>
-                                                                        <tbody>
-                                                                            {variant.options.map((option, optIndex) => (
-                                                                                <tr key={optIndex}>
-                                                                                    <td>
-                                                                                        <input
-                                                                                            type="text"
-                                                                                            className={`form-control form-control-sm ${editFormErrors[`optionName_${index}_${optIndex}`] ? 'is-invalid' : ''}`}
-                                                                                            value={option.name}
-                                                                                            onChange={(e) => updateOption(index, optIndex, 'name', e.target.value, true)}
-                                                                                        />
-                                                                                        {editFormErrors[`optionName_${index}_${optIndex}`] && (
-                                                                                            <div className="invalid-feedback">{editFormErrors[`optionName_${index}_${optIndex}`]}</div>
-                                                                                        )}
-                                                                                    </td>
-                                                                                    <td>
-                                                                                        <div className="input-group input-group-sm">
-                                                                                            <span className="input-group-text">{currencySymbol}</span>
-                                                                                            <input
-                                                                                                type="number"
-                                                                                                step="0.01"
-                                                                                                className="form-control"
-                                                                                                value={option.priceModifier}
-                                                                                                onChange={(e) => updateOption(index, optIndex, 'priceModifier', parseFloat(e.target.value) || 0, true)}
-                                                                                            />
-                                                                                        </div>
-                                                                                    </td>
-                                                                                    <td>
-                                                                                        <button
-                                                                                            type="button"
-                                                                                            className="btn btn-danger btn-sm"
-                                                                                            onClick={() => removeOptionFromVariant(index, optIndex, true)}
-                                                                                        >
-                                                                                            <FiX />
-                                                                                        </button>
-                                                                                    </td>
-                                                                                </tr>
-                                                                            ))}
-                                                                        </tbody>
-                                                                    </table>
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className="mb-3">
-                                <label className="form-label">Item Images</label>
-                                <div className="d-flex flex-wrap gap-3 mb-3">
-                                    {editItem.imageUrls?.map((imageUrl, index) => (
-                                        <div
-                                            key={index}
-                                            className="position-relative"
-                                            style={{ width: '100px', height: '100px' }}
-                                            onClick={() => setEditItem(prev => ({ ...prev, primaryImageUrl: imageUrl }))}
+                                <label className="form-label">Parent Domain *</label>
+                                <select
+                                    className={`form-control ${editFormErrors.parentDomainId ? 'is-invalid' : ''}`}
+                                    name="parentDomainId"
+                                    value={editDomain.parentDomainId}
+                                    onChange={handleEditInputChange}
+                                    style={{
+                                        backgroundColor: 'transparent',
+                                        cursor: 'pointer',
+                                        paddingRight: '2.5rem',
+                                        backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'16\' height=\'16\' fill=\'%230092ff\' viewBox=\'0 0 16 16\'%3E%3Cpath d=\'M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z\'/%3E%3C/svg%3E")',
+                                        backgroundRepeat: 'no-repeat',
+                                        backgroundPosition: 'right 0.75rem center',
+                                        backgroundSize: '16px 12px',
+                                        appearance: 'none',
+                                    }}
+                                >
+                                    <option value="">Select a parent domain</option>
+                                    {parentDomains.map(domain => (
+                                        <option
+                                            key={domain.id}
+                                            value={domain.id}
                                         >
-                                            <img
-                                                src={imageUrl}
-                                                alt={`Item ${index}`}
-                                                className="w-100 h-100 cursor-pointer"
-                                                style={{
-                                                    objectFit: 'cover',
-                                                    borderRadius: '4px',
-                                                    border: imageUrl === editItem.primaryImageUrl ? '2px solid #1976d2' : '1px solid #dee2e6'
-                                                }}
-                                            />
-                                            <div className="position-absolute top-0 end-0 p-1">
-                                                <button
-                                                    type="button"
-                                                    className="btn btn-danger btn-sm p-1"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleDeleteImage(imageUrl);
-                                                    }}
-                                                    style={{ width: '24px', height: '24px' }}
-                                                >
-                                                    <FiTrash size={12} />
-                                                </button>
-                                            </div>
-                                            {imageUrl === editItem.primaryImageUrl && (
-                                                <div className="position-absolute bottom-0 start-0 bg-primary text-white px-2 py-1 small">
-                                                    Primary
-                                                </div>
-                                            )}
-                                        </div>
+                                            {domain.name}
+                                        </option>
                                     ))}
-
-                                    <div className="position-relative" style={{ width: '100px', height: '100px' }}>
-                                        <div
-                                            className="w-100 h-100 border rounded d-flex flex-column justify-content-center align-items-center cursor-pointer"
-                                            style={{
-                                                borderStyle: imagePreview ? 'solid' : 'dashed',
-                                                backgroundColor: isDarkMode ? '#1e293b' : '#f8f9fa'
-                                            }}
-                                            onClick={() => document.getElementById('edit-image-upload').click()}
-                                        >
-                                            {imagePreview ? (
-                                                <img
-                                                    src={imagePreview}
-                                                    alt="Preview"
-                                                    className="w-100 h-100"
-                                                    style={{
-                                                        objectFit: 'cover',
-                                                        borderRadius: '4px'
-                                                    }}
-                                                />
-                                            ) : (
-                                                <>
-                                                    <FiUpload size={20} className="mb-1" />
-                                                    <h8 className="small">Add Image</h8>
-                                                    <h8 className="small">Max 200 KB</h8>
-                                                </>
-                                            )}
-                                        </div>
-                                        <input
-                                            type="file"
-                                            id="edit-image-upload"
-                                            className="d-none"
-                                            accept="image/*"
-                                            onChange={handleFileChange}
-                                        />
-                                    </div>
-                                </div>
-                                {imageSizeError && (
-                                    <div className="text-danger small">{imageSizeError}</div>
-                                )}
+                                </select>
+                                {editFormErrors.parentDomainId && <div className="invalid-feedback">{editFormErrors.parentDomainId}</div>}
                             </div>
                         </form>
                     </Modal.Body>
                     <Modal.Footer>
-                        <Button
-                            variant="contained"
-                            onClick={handleEditSubmit}
-                            style={{ backgroundColor: '#1976d2', color: 'white' }}
-                            disabled={uploadingImage}
+                        <Button 
+                            variant="outlined" 
+                            onClick={() => {
+                                setIsEditModalOpen(false);
+                                setEditFormErrors({});
+                            }}
+                            disabled={updatingDomain}
                         >
-                            {uploadingImage ? (
+                            Cancel
+                        </Button>
+                        <Button 
+                            variant="contained" 
+                            onClick={handleEditSubmit}
+                            disabled={updatingDomain}
+                        >
+                            {updatingDomain ? (
                                 <>
-                                    <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                    <span className="spinner-border spinner-border-sm me-2" role="status"></span>
                                     Updating...
                                 </>
                             ) : (
-                                'Update'
+                                'Update Subdomain'
                             )}
                         </Button>
                     </Modal.Footer>
                 </Modal>
             )}
 
-            {/* View Item Modal */}
+            {/* View Domain Modal */}
             {canRead && (
                 <Modal show={isViewModalOpen} onHide={() => setIsViewModalOpen(false)} centered size="lg">
                     <Modal.Header closeButton>
-                        <Modal.Title>Item Details</Modal.Title>
+                        <Modal.Title>Subdomain Details</Modal.Title>
                     </Modal.Header>
                     <Modal.Body>
-                        {selectedItem && (
+                        {selectedDomain && (
                             <div>
-                                <div className="row mb-3">
-                                    <div className="col-md-6">
-                                        <h5>Name</h5>
-                                        <h8>{selectedItem.name}</h8>
-                                    </div>
-                                    <div className="col-md-6">
-                                        <h5>Status</h5>
-                                        <h8>{selectedItem.active ? 'Active' : 'Inactive'}</h8>
-                                    </div>
-                                </div>
-                                <div className="row mb-3">
-                                    <div className="col-md-6">
-                                        <h5>Price</h5>
-                                        <h8>{currencySymbol}{selectedItem.price !== null && selectedItem.price !== undefined ? selectedItem.price.toFixed(2) : '0.00'}</h8>
-                                    </div>
-                                    <div className="col-md-6">
-                                        <h5>Category</h5>
-                                        <h8>{selectedItem.categoryName || 'N/A'}</h8>
-                                    </div>
-                                </div>
-                                <div className="row mb-3">
-                                    <div className="col-md-6">
-                                        <h5>Discount</h5>
-                                        <h8>
-                                            {selectedItem.itemDiscountEnabled ?
-                                                `${selectedItem.itemDiscountRate}% (${currencySymbol}${selectedItem.discountedPrice !== null && selectedItem.discountedPrice !== undefined
-                                                    ? selectedItem.discountedPrice.toFixed(2)
-                                                    : '0.00'
-                                                })` :
-                                                'No discount'}
-                                        </h8>
-                                    </div>
-                                    <div className="col-md-6">
-                                        <h5>Quantity</h5>
-                                        <h8>{selectedItem.quantity}</h8>
-                                    </div>
-                                </div>
-                                <div className="row mb-3">
-                                    <div className="col-md-6">
-                                        <h5>Barcode</h5>
-                                        <h8>{selectedItem.barcode || 'N/A'}</h8>
-                                    </div>
-                                    <div className="col-md-6">
-                                        <h5>Low Stock Threshold</h5>
-                                        <h8>{selectedItem.lowStockThreshold || '0'}</h8>
-                                    </div>
+                                <div className="mb-3">
+                                    <h5>Name</h5>
+                                    <p className="mb-0">{selectedDomain.name}</p>
                                 </div>
                                 <div className="mb-3">
                                     <h5>Description</h5>
-                                    <h8>{selectedItem.description || 'N/A'}</h8>
+                                    <p className="mb-0">{selectedDomain.description || '-'}</p>
                                 </div>
-
-                                {/* Variants Section */}
-                                {selectedItem.variants && selectedItem.variants.length > 0 && (
-                                    <div className="mb-3">
-                                        <h5>Variants</h5>
-                                        <div className="accordion" id="viewVariantsAccordion">
-                                            {selectedItem.variants.map((variant, index) => (
-                                                <div className="accordion-item mb-2" key={index}>
-                                                    <div className="accordion-header d-flex justify-content-between align-items-center p-2">
-                                                        <div className="d-flex align-items-center">
-                                                            <button
-                                                                className="btn btn-link me-2"
-                                                                type="button"
-                                                                data-bs-toggle="collapse"
-                                                                data-bs-target={`#viewVariantCollapse-${index}`}
-                                                            >
-                                                                <FiChevronDown />
-                                                            </button>
-                                                            <h8>
-                                                                {variant.name}
-                                                                {variant.required && <span className="badge bg-info ms-2">Required</span>}
-                                                            </h8>
-                                                        </div>
-                                                    </div>
-
-                                                    <div id={`viewVariantCollapse-${index}`} className="accordion-collapse collapse show">
-                                                        <div className="accordion-body p-3">
-                                                            {variant.description && (
-                                                                <div className="mb-2">
-                                                                    <strong>Description:</strong> {variant.description}
-                                                                </div>
-                                                            )}
-
-                                                            <div className="mb-2">
-                                                                <strong>Options:</strong>
-                                                                <ul className="list-group mt-2">
-                                                                    {variant.options.map((option, optIndex) => (
-                                                                        <li key={optIndex} className="list-group-item d-flex justify-content-between align-items-center">
-                                                                            <span>
-                                                                                {option.name}
-                                                                                {option.priceModifier !== 0 && (
-                                                                                    <span className="ms-2">
-                                                                                        ({option.priceModifier > 0 ? '+' : ''}{currencySymbol}{Math.abs(option.priceModifier).toFixed(2)})
-                                                                                    </span>
-                                                                                )}
-                                                                            </span>
-                                                                        </li>
-                                                                    ))}
-                                                                </ul>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-
                                 <div className="mb-3">
-                                    <h5>Images</h5>
-                                    <div className="d-flex flex-wrap gap-3">
-                                        {selectedItem.imageUrls?.length > 0 ? (
-                                            selectedItem.imageUrls.map((imageUrl, index) => (
-                                                <div key={index} className="position-relative" style={{ width: '100px', height: '100px' }}>
-                                                    <img
-                                                        src={imageUrl}
-                                                        alt={`Item ${index}`}
-                                                        className="w-100 h-100"
-                                                        style={{
-                                                            objectFit: 'cover',
-                                                            borderRadius: '4px',
-                                                            border: imageUrl === selectedItem.primaryImageUrl ? '2px solid #1976d2' : '1px solid #dee2e6'
-                                                        }}
-                                                    />
-                                                    {imageUrl === selectedItem.primaryImageUrl && (
-                                                        <div className="position-absolute bottom-0 start-0 bg-primary text-white px-2 py-1 small">
-                                                            Primary
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            ))
-                                        ) : (
-                                            <div style={{ width: '100px', height: '100px' }}>
-                                                <img
-                                                    src="/images/avatar/undefined.png"
-                                                    alt="Item"
-                                                    className="w-100 h-100"
-                                                    style={{
-                                                        objectFit: 'cover',
-                                                        borderRadius: '4px'
-                                                    }}
-                                                />
-                                            </div>
-                                        )}
-                                    </div>
+                                    <h5>Current Participants</h5>
+                                    <p className="mb-0">{selectedDomain.currentParticipants?.toLocaleString() || '0'}</p>
+                                </div>
+                                <div className="mb-3">
+                                    <h5>Registration Fee</h5>
+                                    <p className="mb-0">{formatCurrency(selectedDomain.registrationFee)}</p>
+                                </div>
+                                <div className="mb-3">
+                                    <h5>Participant Limit</h5>
+                                    <p className="mb-0">{selectedDomain.participantLimit?.toLocaleString() || '0'}</p>
+                                </div>
+                                <div className="mb-3">
+                                    <h5>Domain Type</h5>
+                                    <p className="mb-0">{selectedDomain.domainType}</p>
+                                </div>
+                                <div className="mb-3">
+                                    <h5>Parent Domain</h5>
+                                    <p className="mb-0">{selectedDomain.parentDomainName || 'N/A'}</p>
+                                </div>
+                                <div className="mb-3">
+                                    <h5>Created At</h5>
+                                    <p className="mb-0">{formatDate(selectedDomain.createdAt)}</p>
                                 </div>
                             </div>
                         )}
@@ -1993,20 +991,27 @@ const ItemsTable = () => {
                     }
                 }} centered>
                     <Modal.Header closeButton={!deleteLoading}>
-                        <Modal.Title>Delete Item</Modal.Title>
+                        <Modal.Title>Delete Subdomain</Modal.Title>
                     </Modal.Header>
                     <Modal.Body>
-                        {itemToDelete && (
+                        {domainToDelete && (
                             <>
-                                <h8>Are you sure you want to delete the item <strong>{itemToDelete.name}</strong>? </h8>
-                                <h8>This action cannot be undone.</h8>
+                                <p>Are you sure you want to delete the subdomain <strong>{domainToDelete.name}</strong>?</p>
+                                <p className="text-danger">This action cannot be undone.</p>
                             </>
                         )}
                     </Modal.Body>
                     <Modal.Footer>
                         <Button
+                            variant="outlined"
+                            onClick={() => setIsDeleteModalOpen(false)}
+                            disabled={deleteLoading}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
                             variant="contained"
-                            onClick={handleDeleteItem}
+                            onClick={handleDeleteDomain}
                             style={{ backgroundColor: '#d32f2f', color: 'white' }}
                             disabled={deleteLoading}
                         >

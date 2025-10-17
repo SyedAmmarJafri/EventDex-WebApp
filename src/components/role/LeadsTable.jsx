@@ -7,12 +7,12 @@ import 'react-toastify/dist/ReactToastify.css';
 import { BASE_URL } from '/src/constants.js';
 import Skeleton from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
-import Switch from '@mui/material/Switch';
 import Modal from 'react-bootstrap/Modal';
 import Form from 'react-bootstrap/Form';
 
-// Common role options
-const COMMON_ROLES = [
+// Common system roles (non-editable)
+const SYSTEM_ROLES = [
+    'PATRON',
     'ADMIN',
     'MANAGER',
     'CASHIER',
@@ -21,39 +21,7 @@ const COMMON_ROLES = [
     'SUPPORT',
     'MARKETING',
     'ACCOUNTANT',
-    'KITCHEN_STAFF',
-    'OTHER'
-];
-
-// Tab permissions based on the dashboard image
-const TAB_PERMISSIONS = [
-    'DASHBOARD',
-    'POS',
-    'ORDERS',
-    'PRODUCTS',
-    'CATEGORY',
-    'ITEM',
-    'DEAL',
-    'CUSTOMERS',
-    'DISCOUNTS',
-    'MARKETING',
-    'EMAIL_MARKETING',
-    'MARKETING_TEMPLATE',
-    'INVENTORY',
-    'FINANCE',
-    'ANALYTICS',
-    'SALES_ANALYTICS',
-    'PRODUCT_ANALYTICS',
-    'CUSTOMER_ANALYTICS',
-    'FINANCIAL_ANALYTICS',
-    'TEAM_ANALYTICS',
-    'COMPARISON_ANALYTICS',
-    'REPORTS',
-    'LIVE_TRACKER',
-    'USERS',
-    'TEAM',
-    'ROLE',
-    'ONLINE_STORE'
+    'KITCHEN_STAFF'
 ];
 
 const RolesTable = () => {
@@ -68,25 +36,13 @@ const RolesTable = () => {
     const [newRole, setNewRole] = useState({
         name: '',
         description: '',
-        permissions: [],
-        tabPermissions: TAB_PERMISSIONS.reduce((acc, tab) => {
-            acc[tab.toLowerCase()] = tab === 'DASHBOARD' ? true : false;
-            return acc;
-        }, {}),
-        active: true,
-        isCustomRole: false
+        permissions: []
     });
     const [editRole, setEditRole] = useState({
         id: '',
         name: '',
         description: '',
-        permissions: [],
-        tabPermissions: TAB_PERMISSIONS.reduce((acc, tab) => {
-            acc[tab.toLowerCase()] = tab === 'DASHBOARD' ? true : false;
-            return acc;
-        }, {}),
-        active: true,
-        isCustomRole: false
+        permissions: []
     });
     const [formErrors, setFormErrors] = useState({});
     const [editFormErrors, setEditFormErrors] = useState({});
@@ -96,104 +52,111 @@ const RolesTable = () => {
     const [updating, setUpdating] = useState(false);
     const [deleting, setDeleting] = useState(false);
 
-    // Get user role and permissions from authData
+    // Get user role from authData
     const authData = JSON.parse(localStorage.getItem("authData"));
     const userRole = authData?.role;
-    const userPermissions = authData?.permissions || [];
+    
+    // Only PATRON can access role management
+    const isPatron = userRole === 'PATRON';
 
-    // Check if user is client admin
-    const isClientAdmin = userRole === 'PATRON';
-
-    // Check specific permissions
-    const canViewRoles = isClientAdmin || userPermissions.includes('ROLE_READ');
-    const canCreateRoles = isClientAdmin || userPermissions.includes('ROLE_WRITE');
-    const canEditRoles = isClientAdmin || userPermissions.includes('ROLE_UPDATE');
-    const canDeleteRoles = isClientAdmin || userPermissions.includes('ROLE_DELETE');
-
-    // Complete permissions list
+    // Complete permissions list for event management system
     const availablePermissions = [
-        'CATEGORY_READ',
-        'CATEGORY_UPDATE',
-        'CATEGORY_WRITE',
-        'CATEGORY_DELETE',
-        'ITEM_READ',
-        'ITEM_WRITE',
-        'ITEM_UPDATE',
-        'ITEM_DELETE',
-        'DEAL_READ',
-        'DEAL_WRITE',
-        'DEAL_UPDATE',
-        'DEAL_DELETE',
-        'COUPON_READ',
-        'COUPON_WRITE',
-        'COUPON_UPDATE',
-        'COUPON_DELETE',
-        'TEMPLATE_READ',
-        'TEMPLATE_WRITE',
-        'TEMPLATE_UPDATE',
-        'TEMPLATE_DELETE',
-        'EMAIL_SETTINGS_READ',
-        'EMAIL_SETTINGS_WRITE',
-        'EMAIL_SETTINGS_DELETE',
-        'ORDER_READ',
-        'ORDER_WRITE',
-        'ORDER_UPDATE',
-        'ORDER_ACCEPT',
-        'ORDER_REJECT',
-        'TAX_READ',
-        'TAX_UPDATE',
+        // Event Permissions
+        'EVENT_READ',
+        'EVENT_WRITE',
+        'EVENT_UPDATE',
+        'EVENT_DELETE',
+        
+        // Domain Permissions
+        'DOMAIN_READ',
+        'DOMAIN_WRITE',
+        'DOMAIN_UPDATE',
+        'DOMAIN_DELETE',
+        
+        // Participant Permissions
+        'PARTICIPANT_READ',
+        'PARTICIPANT_WRITE',
+        'PARTICIPANT_UPDATE',
+        'PARTICIPANT_DELETE',
+        
+        // Registration Permissions
+        'REGISTRATION_READ',
+        'REGISTRATION_WRITE',
+        'REGISTRATION_UPDATE',
+        'REGISTRATION_DELETE',
+        
+        // Payment Permissions
+        'PAYMENT_READ',
+        'PAYMENT_WRITE',
+        'PAYMENT_UPDATE',
+        'PAYMENT_DELETE',
+        
+        // User Management Permissions
+        'USER_READ',
+        'USER_WRITE',
+        'USER_UPDATE',
+        'USER_DELETE',
+        
+        // Role Permissions
+        'ROLE_READ',
+        'ROLE_WRITE',
+        'ROLE_UPDATE',
+        'ROLE_DELETE',
+        
+        // Analytics Permissions
         'ANALYTICS_READ',
+        'ANALYTICS_EXPORT',
+        
+        // Report Permissions
+        'REPORT_READ',
+        'REPORT_WRITE',
+        'REPORT_EXPORT',
+        
+        // Settings Permissions
+        'SETTINGS_READ',
+        'SETTINGS_WRITE',
+        'SETTINGS_UPDATE',
+        
+        // Financial Permissions
         'FINANCE_READ',
         'FINANCE_WRITE',
         'FINANCE_UPDATE',
-        'FINANCE_DELETE',
-        'CURRENCY_READ',
-        'CURRENCY_UPDATE',
-        'RIDER_LOCATION',
-        'PROFILE_READ',
-        'PROFILE_UPDATE',
-        'PROFILE_PICTURE_UPLOAD',
-        'PROFILE_PICTURE_UPDATE',
-        'SETTINGS_MANAGE',
-        'CUSTOMER_READ',
-        'STAFF_MANAGEMENT',
-        'ROLE_READ'
+        
+        // Notification Permissions
+        'NOTIFICATION_READ',
+        'NOTIFICATION_WRITE',
+        'NOTIFICATION_SEND'
     ];
 
     // Group permissions by resource
     const groupedPermissions = {
-        'Category': availablePermissions.filter(p => p.startsWith('CATEGORY_')),
-        'Item': availablePermissions.filter(p => p.startsWith('ITEM_')),
-        'Deal': availablePermissions.filter(p => p.startsWith('DEAL_')),
-        'Order': availablePermissions.filter(p => p.startsWith('ORDER_')),
-        'Discount': availablePermissions.filter(p => p.startsWith('COUPON_')),
-        'Template': availablePermissions.filter(p => p.startsWith('TEMPLATE_')),
-        'Email Settings': availablePermissions.filter(p => p.startsWith('EMAIL_SETTINGS_')),
-        'Finance': availablePermissions.filter(p => p.startsWith('FINANCE_')),
-        'Settings': [
-            'SETTINGS_MANAGE',
-            'STAFF_MANAGEMENT',
-            'ROLE_READ',
-            'CUSTOMER_READ',
-            'RIDER_LOCATION'
-        ],
-        'Profile': availablePermissions.filter(p => p.startsWith('PROFILE_')),
+        'Event Management': availablePermissions.filter(p => p.startsWith('EVENT_')),
+        'Domain Management': availablePermissions.filter(p => p.startsWith('DOMAIN_')),
+        'Participant Management': availablePermissions.filter(p => p.startsWith('PARTICIPANT_')),
+        'Registration Management': availablePermissions.filter(p => p.startsWith('REGISTRATION_')),
+        'Payment Management': availablePermissions.filter(p => p.startsWith('PAYMENT_')),
+        'User Management': availablePermissions.filter(p => p.startsWith('USER_')),
+        'Role Management': availablePermissions.filter(p => p.startsWith('ROLE_')),
         'Analytics': availablePermissions.filter(p => p.startsWith('ANALYTICS_')),
-        'Tax': availablePermissions.filter(p => p.startsWith('TAX_')),
-        'Currency': availablePermissions.filter(p => p.startsWith('CURRENCY_')),
+        'Reports': availablePermissions.filter(p => p.startsWith('REPORT_')),
+        'Settings': availablePermissions.filter(p => p.startsWith('SETTINGS_')),
+        'Finance': availablePermissions.filter(p => p.startsWith('FINANCE_')),
+        'Notifications': availablePermissions.filter(p => p.startsWith('NOTIFICATION_'))
     };
 
-    const fetchRolesFromAPI = async () => {
+    // Fetch custom roles only
+    const fetchCustomRoles = async () => {
         try {
             setLoading(true);
             const authData = JSON.parse(localStorage.getItem("authData"));
+            
             if (!authData?.token) {
                 toast.error("Authentication token not found");
                 setLoading(false);
                 return;
             }
 
-            const response = await fetch(`${BASE_URL}/api/client-admin/roles`, {
+            const response = await fetch(`${BASE_URL}/api/admin/roles/custom`, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${authData.token}`,
@@ -204,37 +167,17 @@ const RolesTable = () => {
             const data = await response.json();
 
             if (!response.ok) {
-                throw new Error(data.message || 'Failed to fetch roles');
+                throw new Error(data.message || 'Failed to fetch custom roles');
             }
 
-            let rolesData = [];
-            if (Array.isArray(data)) {
-                rolesData = data;
-            } else if (data.data && Array.isArray(data.data)) {
-                rolesData = data.data;
-            } else if (data.status === 200 && data.data) {
-                rolesData = data.data;
+            if (data.success && Array.isArray(data.data)) {
+                setRoles(data.data);
             } else {
-                throw new Error('Invalid roles data format received');
+                throw new Error('Invalid custom roles data format received');
             }
-
-            // Ensure all roles have tabPermissions with all required fields
-            const processedRoles = rolesData.map(role => {
-                const defaultTabPermissions = TAB_PERMISSIONS.reduce((acc, tab) => {
-                    acc[tab.toLowerCase()] = role.tabPermissions?.[tab.toLowerCase()] || (tab === 'DASHBOARD' ? true : false);
-                    return acc;
-                }, {});
-
-                return {
-                    ...role,
-                    tabPermissions: role.tabPermissions ? { ...defaultTabPermissions, ...role.tabPermissions } : defaultTabPermissions
-                };
-            });
-
-            setRoles(processedRoles);
         } catch (err) {
-            console.error('Error fetching roles:', err);
-            toast.error(err.message || 'Failed to load roles');
+            console.error('Error fetching custom roles:', err);
+            toast.error(err.message || 'Failed to load custom roles');
         } finally {
             setLoading(false);
         }
@@ -249,8 +192,7 @@ const RolesTable = () => {
                             <th scope="col">Name</th>
                             <th scope="col">Description</th>
                             <th scope="col">Permissions</th>
-                            <th scope="col">Status</th>
-                            {canViewRoles && <th scope="col" className="text-end">Actions</th>}
+                            <th scope="col" className="text-end">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -278,45 +220,30 @@ const RolesTable = () => {
                                     />
                                 </td>
                                 <td>
-                                    <Skeleton
-                                        width={80}
-                                        baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
-                                        highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
-                                    />
+                                    <div className="hstack gap-2 justify-content-end">
+                                        <Skeleton
+                                            circle
+                                            width={24}
+                                            height={24}
+                                            baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
+                                            highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
+                                        />
+                                        <Skeleton
+                                            circle
+                                            width={24}
+                                            height={24}
+                                            baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
+                                            highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
+                                        />
+                                        <Skeleton
+                                            circle
+                                            width={24}
+                                            height={24}
+                                            baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
+                                            highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
+                                        />
+                                    </div>
                                 </td>
-                                {canViewRoles && (
-                                    <td>
-                                        <div className="hstack gap-2 justify-content-end">
-                                            {canViewRoles && (
-                                                <Skeleton
-                                                    circle
-                                                    width={24}
-                                                    height={24}
-                                                    baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
-                                                    highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
-                                                />
-                                            )}
-                                            {canEditRoles && (
-                                                <Skeleton
-                                                    circle
-                                                    width={24}
-                                                    height={24}
-                                                    baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
-                                                    highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
-                                                />
-                                            )}
-                                            {canDeleteRoles && (
-                                                <Skeleton
-                                                    circle
-                                                    width={24}
-                                                    height={24}
-                                                    baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
-                                                    highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
-                                                />
-                                            )}
-                                        </div>
-                                    </td>
-                                )}
                             </tr>
                         ))}
                     </tbody>
@@ -339,43 +266,20 @@ const RolesTable = () => {
                         </g>
                     </svg>
                 </div>
-                <h5 className="mb-2">No Roles Found</h5>
-                <p className="text-muted mb-4">You haven&apos;t added any roles yet. Start by adding a new role.</p>
-                {canCreateRoles && (
+                <h5 className="mb-2">No Custom Roles Found</h5>
+                <p className="text-muted mb-4">You haven&apos;t created any custom roles yet.</p>
+                {isPatron && (
                     <Button
                         variant="contained"
                         onClick={() => setIsModalOpen(true)}
                         className="d-flex align-items-center gap-2 mx-auto"
                         style={{ backgroundColor: '#0092ff', color: 'white' }}
                     >
-                        <FiPlus /> Add Role
+                        <FiPlus /> Create Custom Role
                     </Button>
                 )}
             </div>
         );
-    };
-
-    const handleRoleTypeChange = (e) => {
-        const selectedValue = e.target.value;
-        const isCustom = selectedValue === 'OTHER';
-
-        setNewRole(prev => ({
-            ...prev,
-            name: isCustom ? '' : selectedValue,
-            isCustomRole: isCustom
-        }));
-
-        if (formErrors.name) {
-            setFormErrors(prev => ({ ...prev, name: '' }));
-        }
-    };
-
-    const handleCustomRoleNameChange = (e) => {
-        const value = e.target.value.toUpperCase();
-        setNewRole(prev => ({ ...prev, name: value }));
-        if (formErrors.name) {
-            setFormErrors(prev => ({ ...prev, name: '' }));
-        }
     };
 
     const handleInputChange = (e) => {
@@ -391,15 +295,6 @@ const RolesTable = () => {
         setEditRole(prev => ({ ...prev, [name]: value }));
         if (editFormErrors[name]) {
             setEditFormErrors(prev => ({ ...prev, [name]: '' }));
-        }
-    };
-
-    const handleStatusToggle = (isNewRole) => (e) => {
-        const checked = e.target.checked;
-        if (isNewRole) {
-            setNewRole(prev => ({ ...prev, active: checked }));
-        } else {
-            setEditRole(prev => ({ ...prev, active: checked }));
         }
     };
 
@@ -435,47 +330,22 @@ const RolesTable = () => {
         });
     };
 
-    const handleTabPermissionChange = (tab, isChecked) => {
-        if (tab === 'dashboard') return;
-
-        setNewRole(prev => ({
-            ...prev,
-            tabPermissions: {
-                ...prev.tabPermissions,
-                [tab]: isChecked
-            }
-        }));
-    };
-
-    const handleEditTabPermissionChange = (tab, isChecked) => {
-        if (tab === 'dashboard') return;
-
-        setEditRole(prev => ({
-            ...prev,
-            tabPermissions: {
-                ...prev.tabPermissions,
-                [tab]: isChecked
-            }
-        }));
-    };
-
     const validateForm = (formData, setErrors) => {
         const errors = {};
-        if (!formData.name.trim()) errors.name = 'Name is required';
+        if (!formData.name.trim()) errors.name = 'Role name is required';
         if (!formData.description.trim()) errors.description = 'Description is required';
         if (formData.permissions.length === 0) errors.permissions = 'At least one permission is required';
 
-        const hasTabPermission = Object.entries(formData.tabPermissions)
-            .filter(([tab]) => tab !== 'dashboard')
-            .some(([_, val]) => val);
-
-        if (!hasTabPermission) errors.tabPermissions = 'At least one tab access (other than Dashboard) must be selected';
+        // Check if role name is a system role
+        if (SYSTEM_ROLES.includes(formData.name.toUpperCase())) {
+            errors.name = 'This role name is reserved for system roles';
+        }
 
         setErrors(errors);
         return Object.keys(errors).length === 0;
     };
 
-    const handleSubmit = async (e) => {
+    const handleCreateRole = async (e) => {
         e.preventDefault();
         if (!validateForm(newRole, setFormErrors)) return;
 
@@ -483,18 +353,16 @@ const RolesTable = () => {
             setCreating(true);
             const authData = JSON.parse(localStorage.getItem("authData"));
 
-            const response = await fetch(`${BASE_URL}/api/client-admin/roles`, {
+            const response = await fetch(`${BASE_URL}/api/admin/roles`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${authData.token}`,
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    name: newRole.name,
+                    name: newRole.name.toUpperCase(),
                     description: newRole.description,
-                    permissions: newRole.permissions,
-                    tabPermissions: newRole.tabPermissions,
-                    active: newRole.active
+                    permissions: newRole.permissions
                 })
             });
 
@@ -503,20 +371,15 @@ const RolesTable = () => {
                 throw new Error(data.message || 'Failed to create role');
             }
 
-            toast.success('Role created successfully');
-            setRoles(prev => [...prev, data]);
+            toast.success('Custom role created successfully');
+            await fetchCustomRoles(); // Refresh the list with custom roles only
             setIsModalOpen(false);
             setNewRole({
                 name: '',
                 description: '',
-                permissions: [],
-                tabPermissions: TAB_PERMISSIONS.reduce((acc, tab) => {
-                    acc[tab.toLowerCase()] = tab === 'DASHBOARD' ? true : false;
-                    return acc;
-                }, {}),
-                active: true,
-                isCustomRole: false
+                permissions: []
             });
+            setFormErrors({});
         } catch (err) {
             toast.error(err.message);
         } finally {
@@ -524,7 +387,7 @@ const RolesTable = () => {
         }
     };
 
-    const handleEditSubmit = async (e) => {
+    const handleUpdateRole = async (e) => {
         e.preventDefault();
         if (!validateForm(editRole, setEditFormErrors)) return;
 
@@ -532,18 +395,16 @@ const RolesTable = () => {
             setUpdating(true);
             const authData = JSON.parse(localStorage.getItem("authData"));
 
-            const response = await fetch(`${BASE_URL}/api/client-admin/roles/${editRole.id}`, {
+            const response = await fetch(`${BASE_URL}/api/admin/roles/${editRole.id}`, {
                 method: 'PUT',
                 headers: {
                     'Authorization': `Bearer ${authData.token}`,
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    name: editRole.name,
+                    name: editRole.name.toUpperCase(),
                     description: editRole.description,
-                    permissions: editRole.permissions,
-                    tabPermissions: editRole.tabPermissions,
-                    active: editRole.active
+                    permissions: editRole.permissions
                 })
             });
 
@@ -552,9 +413,10 @@ const RolesTable = () => {
                 throw new Error(data.message || 'Failed to update role');
             }
 
-            toast.success('Role updated successfully');
-            setRoles(prev => prev.map(r => r.id === editRole.id ? data : r));
+            toast.success('Custom role updated successfully');
+            await fetchCustomRoles(); // Refresh the list
             setIsEditModalOpen(false);
+            setEditFormErrors({});
         } catch (err) {
             toast.error(err.message);
         } finally {
@@ -572,17 +434,7 @@ const RolesTable = () => {
             id: role.id,
             name: role.name,
             description: role.description,
-            permissions: role.permissions || [],
-            tabPermissions: {
-                ...TAB_PERMISSIONS.reduce((acc, tab) => {
-                    acc[tab.toLowerCase()] = tab === 'DASHBOARD' ? true : false;
-                    return acc;
-                }, {}),
-                ...role.tabPermissions,
-                dashboard: true
-            },
-            active: role.active,
-            isCustomRole: !COMMON_ROLES.includes(role.name)
+            permissions: role.permissions || []
         });
         setIsEditModalOpen(true);
     };
@@ -599,11 +451,7 @@ const RolesTable = () => {
             setDeleting(true);
             const authData = JSON.parse(localStorage.getItem("authData"));
 
-            // Optimistic update
-            setRoles(prev => prev.filter(role => role.id !== roleToDelete.id));
-            setIsDeleteModalOpen(false);
-
-            const response = await fetch(`${BASE_URL}/api/client-admin/roles/${roleToDelete.id}`, {
+            const response = await fetch(`${BASE_URL}/api/admin/roles/${roleToDelete.id}`, {
                 method: 'DELETE',
                 headers: {
                     'Authorization': `Bearer ${authData.token}`,
@@ -611,18 +459,18 @@ const RolesTable = () => {
                 }
             });
 
+            const data = await response.json();
             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || 'Failed to delete role');
+                throw new Error(data.message || 'Failed to delete role');
             }
 
-            toast.success('Role deleted successfully');
+            toast.success('Custom role deleted successfully');
+            await fetchCustomRoles(); // Refresh the list
+            setIsDeleteModalOpen(false);
+            setRoleToDelete(null);
         } catch (err) {
-            // Revert on error
-            setRoles(prev => [...prev, roleToDelete]);
             toast.error(err.message);
         } finally {
-            setRoleToDelete(null);
             setDeleting(false);
         }
     };
@@ -636,7 +484,7 @@ const RolesTable = () => {
         {
             accessorKey: 'description',
             header: 'Description',
-            cell: (info) => info.getValue()
+            cell: (info) => info.getValue() || '-'
         },
         {
             accessorKey: 'permissions',
@@ -657,59 +505,46 @@ const RolesTable = () => {
             )
         },
         {
-            accessorKey: 'active',
-            header: 'Status',
-            cell: (info) => (
-                <div className="d-flex align-items-center gap-2">
-                    <span className={`badge ${info.getValue() ? 'bg-success' : 'bg-danger'}`}>
-                        {info.getValue() ? 'Active' : 'Inactive'}
-                    </span>
-                </div>
-            )
-        },
-        {
             accessorKey: 'actions',
             header: "Actions",
             cell: ({ row }) => (
                 <div className="hstack gap-2 justify-content-end">
-                    {canViewRoles && (
-                        <button
-                            className="avatar-text avatar-md"
-                            onClick={() => handleViewRole(row.original)}
-                            title="View"
-                        >
-                            <FiEye />
-                        </button>
-                    )}
-                    {canEditRoles && (
-                        <button
-                            className="avatar-text avatar-md"
-                            onClick={() => handleEditRole(row.original)}
-                            title="Edit"
-                        >
-                            <FiEdit />
-                        </button>
-                    )}
-                    {canDeleteRoles && (
-                        <button
-                            className="avatar-text avatar-md"
-                            onClick={() => handleDeleteClick(row.original)}
-                            title="Delete"
-                        >
-                            <FiTrash />
-                        </button>
+                    <button
+                        className="avatar-text avatar-md"
+                        onClick={() => handleViewRole(row.original)}
+                        title="View Details"
+                    >
+                        <FiEye />
+                    </button>
+                    {isPatron && (
+                        <>
+                            <button
+                                className="avatar-text avatar-md"
+                                onClick={() => handleEditRole(row.original)}
+                                title="Edit Role"
+                            >
+                                <FiEdit />
+                            </button>
+                            <button
+                                className="avatar-text avatar-md"
+                                onClick={() => handleDeleteClick(row.original)}
+                                title="Delete Role"
+                            >
+                                <FiTrash />
+                            </button>
+                        </>
                     )}
                 </div>
             ),
             meta: { headerClassName: 'text-end' }
         },
-    ], [canViewRoles, canEditRoles, canDeleteRoles]);
+    ], [isPatron]);
 
     useEffect(() => {
-        fetchRolesFromAPI();
+        fetchCustomRoles(); // Load only custom roles
     }, []);
 
-    if (!canViewRoles) {
+    if (!isPatron) {
         return (
             <div className="text-center py-5" style={{ minHeight: '460px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
                 <div className="mb-4">
@@ -724,7 +559,7 @@ const RolesTable = () => {
                     </svg>
                 </div>
                 <h5 className="mb-2">Access Denied</h5>
-                <p className="text-muted mb-4">You don&apos;t have permission to view roles.</p>
+                <p className="text-muted mb-4">Only PATRON users can manage custom roles.</p>
             </div>
         );
     }
@@ -745,15 +580,18 @@ const RolesTable = () => {
             />
 
             <div className="d-flex justify-content-between align-items-center mb-4">
-                <h4>Roles Management</h4>
-                {canCreateRoles && (
+                <div>
+                    <h4>Custom Roles Management</h4>
+                    <p className="text-muted mb-0">Create and manage custom roles with specific permissions</p>
+                </div>
+                {isPatron && (
                     <Button
                         variant="contained"
                         onClick={() => setIsModalOpen(true)}
                         className="d-flex align-items-center gap-2"
                         style={{ backgroundColor: '#0092ff', color: 'white' }}
                     >
-                        <FiPlus /> Add Role
+                        <FiPlus /> Create Custom Role
                     </Button>
                 )}
             </div>
@@ -770,90 +608,37 @@ const RolesTable = () => {
                 />
             )}
 
-            {/* Add Role Modal */}
+            {/* Create Role Modal */}
             <Modal show={isModalOpen} onHide={() => {
                 setIsModalOpen(false);
                 setNewRole({
                     name: '',
                     description: '',
-                    permissions: [],
-                    tabPermissions: TAB_PERMISSIONS.reduce((acc, tab) => {
-                        acc[tab.toLowerCase()] = tab === 'DASHBOARD' ? true : false;
-                        return acc;
-                    }, {}),
-                    active: true,
-                    isCustomRole: false
+                    permissions: []
                 });
                 setFormErrors({});
             }} centered size="lg">
                 <Modal.Header closeButton>
-                    <Modal.Title>Create New Role</Modal.Title>
+                    <Modal.Title>Create Custom Role</Modal.Title>
                 </Modal.Header>
                 <Modal.Body>
-                    <form onSubmit={handleSubmit}>
+                    <form onSubmit={handleCreateRole}>
                         <div className="mb-3">
-                            <label htmlFor="roleType" className="form-label">Role Type*</label>
-                            <select
-                                className={`form-select ${formErrors.name ? 'is-invalid' : ''}`}
-                                id="roleType"
-                                onChange={handleRoleTypeChange}
-                                value={newRole.isCustomRole ? 'OTHER' : newRole.name || ''}
-                                style={{
-                                    backgroundColor: 'transparent',
-                                    cursor: 'pointer',
-                                    paddingRight: '2.5rem',
-                                    backgroundImage:
-                                        'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'16\' height=\'16\' fill=\'%230092ff\' viewBox=\'0 0 16 16\'%3E%3Cpath d=\'M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z\'/%3E%3C/svg%3E")',
-                                    backgroundRepeat: 'no-repeat',
-                                    backgroundPosition: 'right 0.75rem center',
-                                    backgroundSize: '16px 12px',
-                                    appearance: 'none',
-                                }}
-                            >
-                                <option
-                                    value=""
-                                    style={{
-                                        color: '#6c757d',
-                                        backgroundColor: '#fff',
-                                        fontSize: '0.9rem',
-                                        padding: '0.5rem 1rem',
-                                    }}
-                                >
-                                    Select a role type
-                                </option>
-                                {COMMON_ROLES.map(role => (
-                                    <option
-                                        key={role}
-                                        value={role}
-                                        style={{
-                                            color: '#000000ff',
-                                            backgroundColor: '#fff',
-                                            fontSize: '0.9rem',
-                                            padding: '0.5rem 1rem',
-                                        }}
-                                    >
-                                        {role.replace(/_/g, ' ')}
-                                    </option>
-                                ))}
-                            </select>
+                            <label htmlFor="roleName" className="form-label">Role Name*</label>
+                            <input
+                                type="text"
+                                className={`form-control ${formErrors.name ? 'is-invalid' : ''}`}
+                                id="roleName"
+                                name="name"
+                                value={newRole.name}
+                                onChange={handleInputChange}
+                                placeholder="Enter role name (will be converted to uppercase)"
+                            />
                             {formErrors.name && <div className="invalid-feedback">{formErrors.name}</div>}
-                        </div>
-
-                        {newRole.isCustomRole && (
-                            <div className="mb-3">
-                                <label htmlFor="customRoleName" className="form-label">Custom Role Name*</label>
-                                <input
-                                    type="text"
-                                    className={`form-control ${formErrors.name ? 'is-invalid' : ''}`}
-                                    id="customRoleName"
-                                    name="name"
-                                    value={newRole.name}
-                                    onChange={handleCustomRoleNameChange}
-                                    placeholder="Enter custom role name"
-                                />
-                                {formErrors.name && <div className="invalid-feedback">{formErrors.name}</div>}
+                            <div className="form-text">
+                                System roles ({SYSTEM_ROLES.join(', ')}) cannot be created as custom roles.
                             </div>
-                        )}
+                        </div>
 
                         <div className="mb-3">
                             <label htmlFor="description" className="form-label">Description*</label>
@@ -870,70 +655,28 @@ const RolesTable = () => {
                         </div>
 
                         <div className="mb-3">
-                            <label className="form-label">Tab Access*</label>
-                            {formErrors.tabPermissions && <div className="text-danger small mb-2">{formErrors.tabPermissions}</div>}
-
-                            <div className="border rounded p-3">
-                                <div className="row">
-                                    {TAB_PERMISSIONS.map(tab => (
-                                        <div key={tab} className="col-md-4 mb-3">
-                                            <div className="form-check form-switch">
-                                                <input
-                                                    className="form-check-input"
-                                                    type="checkbox"
-                                                    id={`tab-${tab}`}
-                                                    checked={newRole.tabPermissions[tab.toLowerCase()] || false}
-                                                    onChange={(e) => handleTabPermissionChange(tab.toLowerCase(), e.target.checked)}
-                                                    disabled={tab === 'DASHBOARD'}
-                                                />
-                                                <h8 className="form-check-label" htmlFor={`tab-${tab}`}>
-                                                    {tab.replace(/_/g, ' ')}
-                                                    {tab === 'DASHBOARD' && <span className="text-muted small ms-1">(required)</span>}
-                                                </h8>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="mb-3">
-                            <Form.Group controlId="formActiveStatus">
-                                <Form.Label>Status</Form.Label>
-                                <div className="d-flex align-items-center">
-                                    <Switch
-                                        checked={newRole.active}
-                                        onChange={handleStatusToggle(true)}
-                                        color="primary"
-                                    />
-                                    <h8 className="ms-2">
-                                        {newRole.active ? 'Active' : 'Inactive'}
-                                    </h8>
-                                </div>
-                            </Form.Group>
-                        </div>
-
-                        <div className="mb-3">
                             <label className="form-label">Permissions*</label>
                             {formErrors.permissions && <div className="text-danger small mb-2">{formErrors.permissions}</div>}
 
-                            <div className="border rounded p-3">
+                            <div className="border rounded p-3" style={{ maxHeight: '400px', overflowY: 'auto' }}>
                                 {Object.entries(groupedPermissions).map(([resource, perms]) => (
                                     <div key={resource} className="mb-4">
-                                        <h6 className="mb-2">{resource} Permissions</h6>
-                                        <div className="d-flex flex-wrap gap-3">
+                                        <h6 className="mb-2">{resource}</h6>
+                                        <div className="row">
                                             {perms.map(permission => (
-                                                <div key={permission} className="form-check">
-                                                    <input
-                                                        className="form-check-input"
-                                                        type="checkbox"
-                                                        id={`perm-${permission}`}
-                                                        checked={newRole.permissions.includes(permission)}
-                                                        onChange={(e) => handlePermissionChange(permission, e.target.checked)}
-                                                    />
-                                                    <h8 className="form-check-label" htmlFor={`perm-${permission}`}>
-                                                        {permission.replace(/_/g, ' ')}
-                                                    </h8>
+                                                <div key={permission} className="col-md-6 mb-2">
+                                                    <div className="form-check">
+                                                        <input
+                                                            className="form-check-input"
+                                                            type="checkbox"
+                                                            id={`perm-${permission}`}
+                                                            checked={newRole.permissions.includes(permission)}
+                                                            onChange={(e) => handlePermissionChange(permission, e.target.checked)}
+                                                        />
+                                                        <label className="form-check-label" htmlFor={`perm-${permission}`}>
+                                                            {permission.replace(/_/g, ' ')}
+                                                        </label>
+                                                    </div>
                                                 </div>
                                             ))}
                                         </div>
@@ -945,8 +688,15 @@ const RolesTable = () => {
                 </Modal.Body>
                 <Modal.Footer>
                     <Button
+                        variant="outlined"
+                        onClick={() => setIsModalOpen(false)}
+                        disabled={creating}
+                    >
+                        Cancel
+                    </Button>
+                    <Button
                         variant="contained"
-                        onClick={handleSubmit}
+                        onClick={handleCreateRole}
                         style={{ backgroundColor: '#1976d2', color: 'white' }}
                         disabled={creating}
                     >
@@ -968,90 +718,23 @@ const RolesTable = () => {
                 setEditFormErrors({});
             }} centered size="lg">
                 <Modal.Header closeButton>
-                    <Modal.Title>Edit Role: {editRole.name}</Modal.Title>
+                    <Modal.Title>Edit Custom Role: {editRole.name}</Modal.Title>
                 </Modal.Header>
                 <Modal.Body>
-                    <form onSubmit={handleEditSubmit}>
+                    <form onSubmit={handleUpdateRole}>
                         <div className="mb-3">
-                            <label htmlFor="edit-roleType" className="form-label">Role Type*</label>
-                            <select
-                                className={`form-select ${editFormErrors.name ? 'is-invalid' : ''}`}
-                                id="edit-roleType"
-                                onChange={(e) => {
-                                    const selectedValue = e.target.value;
-                                    const isCustom = selectedValue === 'OTHER';
-                                    setEditRole(prev => ({
-                                        ...prev,
-                                        name: isCustom ? '' : selectedValue,
-                                        isCustomRole: isCustom
-                                    }));
-                                    if (editFormErrors.name) {
-                                        setEditFormErrors(prev => ({ ...prev, name: '' }));
-                                    }
-                                }}
-                                value={editRole.isCustomRole ? 'OTHER' : editRole.name || ''}
-                                style={{
-                                    backgroundColor: 'transparent',
-                                    cursor: 'pointer',
-                                    paddingRight: '2.5rem',
-                                    backgroundImage:
-                                        'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'16\' height=\'16\' fill=\'%230092ff\' viewBox=\'0 0 16 16\'%3E%3Cpath d=\'M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z\'/%3E%3C/svg%3E")',
-                                    backgroundRepeat: 'no-repeat',
-                                    backgroundPosition: 'right 0.75rem center',
-                                    backgroundSize: '16px 12px',
-                                    appearance: 'none',
-                                }}
-                            >
-                                <option
-                                    value=""
-                                    style={{
-                                        color: '#6c757d',
-                                        backgroundColor: '#fff',
-                                        fontSize: '0.9rem',
-                                        padding: '0.5rem 1rem',
-                                    }}
-                                >
-                                    Select a role type
-                                </option>
-                                {COMMON_ROLES.map(role => (
-                                    <option
-                                        key={role}
-                                        value={role}
-                                        style={{
-                                            color: '#000000ff',
-                                            backgroundColor: '#fff',
-                                            fontSize: '0.9rem',
-                                            padding: '0.5rem 1rem',
-                                        }}
-                                    >
-                                        {role.replace(/_/g, ' ')}
-                                    </option>
-                                ))}
-                            </select>
+                            <label htmlFor="edit-roleName" className="form-label">Role Name*</label>
+                            <input
+                                type="text"
+                                className={`form-control ${editFormErrors.name ? 'is-invalid' : ''}`}
+                                id="edit-roleName"
+                                name="name"
+                                value={editRole.name}
+                                onChange={handleEditInputChange}
+                                placeholder="Enter role name"
+                            />
                             {editFormErrors.name && <div className="invalid-feedback">{editFormErrors.name}</div>}
                         </div>
-
-                        {editRole.isCustomRole && (
-                            <div className="mb-3">
-                                <label htmlFor="edit-customRoleName" className="form-label">Custom Role Name*</label>
-                                <input
-                                    type="text"
-                                    className={`form-control ${editFormErrors.name ? 'is-invalid' : ''}`}
-                                    id="edit-customRoleName"
-                                    name="name"
-                                    value={editRole.name}
-                                    onChange={(e) => {
-                                        const value = e.target.value.toUpperCase();
-                                        setEditRole(prev => ({ ...prev, name: value }));
-                                        if (editFormErrors.name) {
-                                            setEditFormErrors(prev => ({ ...prev, name: '' }));
-                                        }
-                                    }}
-                                    placeholder="Enter custom role name (will be converted to uppercase)"
-                                />
-                                {editFormErrors.name && <div className="invalid-feedback">{editFormErrors.name}</div>}
-                            </div>
-                        )}
 
                         <div className="mb-3">
                             <label htmlFor="edit-description" className="form-label">Description*</label>
@@ -1066,69 +749,30 @@ const RolesTable = () => {
                             />
                             {editFormErrors.description && <div className="invalid-feedback">{editFormErrors.description}</div>}
                         </div>
-                        <div className="mb-3">
-                            <label className="form-label">Tab Access*</label>
-                            {editFormErrors.tabPermissions && <div className="text-danger small mb-2">{editFormErrors.tabPermissions}</div>}
 
-                            <div className="border rounded p-3">
-                                <div className="row">
-                                    {TAB_PERMISSIONS.map(tab => (
-                                        <div key={tab} className="col-md-4 mb-3">
-                                            <div className="form-check form-switch">
-                                                <input
-                                                    className="form-check-input"
-                                                    type="checkbox"
-                                                    id={`edit-tab-${tab}`}
-                                                    checked={editRole.tabPermissions[tab.toLowerCase()] || false}
-                                                    onChange={(e) => handleEditTabPermissionChange(tab.toLowerCase(), e.target.checked)}
-                                                    disabled={tab === 'DASHBOARD'}
-                                                />
-                                                <h8 className="form-check-label" htmlFor={`edit-tab-${tab}`}>
-                                                    {tab.replace(/_/g, ' ')}
-                                                    {tab === 'DASHBOARD' && <span className="text-muted small ms-1">(required)</span>}
-                                                </h8>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-                        <div className="mb-3">
-                            <Form.Group controlId="formEditActiveStatus">
-                                <Form.Label>Status</Form.Label>
-                                <div className="d-flex align-items-center">
-                                    <Switch
-                                        checked={editRole.active}
-                                        onChange={handleStatusToggle(false)}
-                                        color="primary"
-                                    />
-                                    <h8 className="ms-2">
-                                        {editRole.active ? 'Active' : 'Inactive'}
-                                    </h8>
-                                </div>
-                            </Form.Group>
-                        </div>
                         <div className="mb-3">
                             <label className="form-label">Permissions*</label>
                             {editFormErrors.permissions && <div className="text-danger small mb-2">{editFormErrors.permissions}</div>}
 
-                            <div className="border rounded p-3">
+                            <div className="border rounded p-3" style={{ maxHeight: '400px', overflowY: 'auto' }}>
                                 {Object.entries(groupedPermissions).map(([resource, perms]) => (
                                     <div key={resource} className="mb-4">
-                                        <h6 className="mb-2">{resource} Permissions</h6>
-                                        <div className="d-flex flex-wrap gap-3">
+                                        <h6 className="mb-2">{resource}</h6>
+                                        <div className="row">
                                             {perms.map(permission => (
-                                                <div key={permission} className="form-check">
-                                                    <input
-                                                        className="form-check-input"
-                                                        type="checkbox"
-                                                        id={`edit-perm-${permission}`}
-                                                        checked={editRole.permissions.includes(permission)}
-                                                        onChange={(e) => handleEditPermissionChange(permission, e.target.checked)}
-                                                    />
-                                                    <h8 className="form-check-label" htmlFor={`edit-perm-${permission}`}>
-                                                        {permission.replace(/_/g, ' ')}
-                                                    </h8>
+                                                <div key={permission} className="col-md-6 mb-2">
+                                                    <div className="form-check">
+                                                        <input
+                                                            className="form-check-input"
+                                                            type="checkbox"
+                                                            id={`edit-perm-${permission}`}
+                                                            checked={editRole.permissions.includes(permission)}
+                                                            onChange={(e) => handleEditPermissionChange(permission, e.target.checked)}
+                                                        />
+                                                        <label className="form-check-label" htmlFor={`edit-perm-${permission}`}>
+                                                            {permission.replace(/_/g, ' ')}
+                                                        </label>
+                                                    </div>
                                                 </div>
                                             ))}
                                         </div>
@@ -1140,8 +784,15 @@ const RolesTable = () => {
                 </Modal.Body>
                 <Modal.Footer>
                     <Button
+                        variant="outlined"
+                        onClick={() => setIsEditModalOpen(false)}
+                        disabled={updating}
+                    >
+                        Cancel
+                    </Button>
+                    <Button
                         variant="contained"
-                        onClick={handleEditSubmit}
+                        onClick={handleUpdateRole}
                         style={{ backgroundColor: '#1976d2', color: 'white' }}
                         disabled={updating}
                     >
@@ -1167,37 +818,17 @@ const RolesTable = () => {
                         <div>
                             <div className="mb-4">
                                 <h5>Name</h5>
-                                <h8 className="fs-6">{selectedRole.name}</h8>
+                                <p className="fs-6">{selectedRole.name}</p>
                             </div>
                             <div className="mb-4">
                                 <h5>Description</h5>
-                                <h8 className="fs-6">{selectedRole.description}</h8>
-                            </div>
-                            <div className="mb-4">
-                                <h5>Tab Access</h5>
-                                <div className="d-flex flex-wrap gap-2">
-                                    {TAB_PERMISSIONS.map(tab => (
-                                        selectedRole.tabPermissions[tab.toLowerCase()] && (
-                                            <span key={tab} className="badge bg-info">
-                                                {tab.replace(/_/g, ' ')}
-                                            </span>
-                                        )
-                                    ))}
-                                </div>
-                            </div>
-                            <div className="mb-4">
-                                <h5>Status</h5>
-                                <h8 className="fs-6">
-                                    <span className={`badge ${selectedRole.active ? 'bg-success' : 'bg-danger'}`}>
-                                        {selectedRole.active ? 'Active' : 'Inactive'}
-                                    </span>
-                                </h8>
+                                <p className="fs-6">{selectedRole.description || 'No description provided'}</p>
                             </div>
                             <div className="mb-3">
                                 <h5>Permissions</h5>
                                 <div className="border rounded p-3">
                                     {Object.entries(groupedPermissions).map(([resource, perms]) => {
-                                        const rolePerms = perms.filter(p => selectedRole.permissions.includes(p));
+                                        const rolePerms = perms.filter(p => selectedRole.permissions?.includes(p));
                                         if (rolePerms.length === 0) return null;
 
                                         return (
@@ -1213,6 +844,9 @@ const RolesTable = () => {
                                             </div>
                                         );
                                     })}
+                                    {!selectedRole.permissions || selectedRole.permissions.length === 0 ? (
+                                        <p className="text-muted">No permissions assigned</p>
+                                    ) : null}
                                 </div>
                             </div>
                         </div>
@@ -1232,12 +866,19 @@ const RolesTable = () => {
                 <Modal.Body>
                     {roleToDelete && (
                         <>
-                            <h8>Are you sure you want to delete the role <strong>{roleToDelete.name}</strong>? </h8>
-                            <h8>This action cannot be undone and will remove all associated permissions.</h8>
+                            <p>Are you sure you want to delete the custom role <strong>{roleToDelete.name}</strong>?</p>
+                            <p className="text-danger">This action cannot be undone and will remove all associated permissions from users assigned to this role.</p>
                         </>
                     )}
                 </Modal.Body>
                 <Modal.Footer>
+                    <Button
+                        variant="outlined"
+                        onClick={() => setIsDeleteModalOpen(false)}
+                        disabled={deleting}
+                    >
+                        Cancel
+                    </Button>
                     <Button
                         variant="contained"
                         onClick={handleDeleteRole}
