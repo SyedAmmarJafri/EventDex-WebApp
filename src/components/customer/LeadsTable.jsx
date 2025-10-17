@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import Table from '@/components/shared/table/Table';
-import { FiEye, FiFilter, FiX } from 'react-icons/fi';
+import { FiEye, FiFilter, FiX, FiExternalLink } from 'react-icons/fi';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { BASE_URL } from '/src/constants.js';
@@ -120,6 +120,32 @@ const RegistrationTable = () => {
             progress: undefined,
             theme: "colored",
         });
+    };
+
+    // Function to get proper image URL
+    const getImageUrl = (imageUrl) => {
+        if (!imageUrl) return null;
+        
+        // If it's already a full URL, return as is
+        if (imageUrl.startsWith('http')) {
+            return imageUrl;
+        }
+        
+        // If it's a relative path, prepend BASE_URL
+        if (imageUrl.startsWith('/')) {
+            return BASE_URL + imageUrl;
+        }
+        
+        // If it's just a filename, construct the full URL
+        return `${BASE_URL}/api/files/payment-proofs/${imageUrl}`;
+    };
+
+    // Function to handle image click - opens in new tab
+    const handleImageClick = (imageUrl) => {
+        const fullImageUrl = getImageUrl(imageUrl);
+        if (fullImageUrl) {
+            window.open(fullImageUrl, '_blank', 'noopener,noreferrer');
+        }
     };
 
     const EmptyState = () => {
@@ -765,18 +791,37 @@ const RegistrationTable = () => {
                                     <div className="col-12">
                                         <h5>Payment Proof</h5>
                                         <div className="text-center">
-                                            <img
-                                                src={`${BASE_URL}${selectedRegistration.paymentProofImageUrl}`}
-                                                alt="Payment Proof"
-                                                className="img-fluid rounded"
-                                                style={{ maxHeight: '300px' }}
-                                                onError={(e) => {
-                                                    e.target.style.display = 'none';
-                                                    e.target.nextSibling.style.display = 'block';
-                                                }}
-                                            />
-                                            <div style={{ display: 'none' }} className="text-muted">
-                                                Payment proof image not available
+                                            <div 
+                                                className="payment-proof-preview"
+                                                onClick={() => handleImageClick(selectedRegistration.paymentProofImageUrl)}
+                                                style={{ cursor: 'pointer', display: 'inline-block' }}
+                                                title="Click to open payment proof in new tab"
+                                            >
+                                                <img
+                                                    src={getImageUrl(selectedRegistration.paymentProofImageUrl)}
+                                                    alt="Payment Proof"
+                                                    className="img-fluid rounded border"
+                                                    style={{ 
+                                                        maxHeight: '200px',
+                                                        maxWidth: '100%'
+                                                    }}
+                                                    onError={(e) => {
+                                                        e.target.style.display = 'none';
+                                                        e.target.nextSibling.style.display = 'block';
+                                                    }}
+                                                />
+                                                <div 
+                                                    style={{ display: 'none' }} 
+                                                    className="text-muted mt-2"
+                                                >
+                                                    Payment proof image not available
+                                                </div>
+                                                <div className="mt-2">
+                                                    <small className="text-primary">
+                                                        <FiExternalLink className="me-1" />
+                                                        Click to view in new tab
+                                                    </small>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -785,6 +830,14 @@ const RegistrationTable = () => {
                         </div>
                     )}
                 </Modal.Body>
+                <Modal.Footer>
+                    <Button 
+                        variant="outlined" 
+                        onClick={() => setIsViewModalOpen(false)}
+                    >
+                        Close
+                    </Button>
+                </Modal.Footer>
             </Modal>
 
             <style>
@@ -812,6 +865,12 @@ const RegistrationTable = () => {
                     color: white;
                 }
 
+                /* Payment proof preview styles */
+                .payment-proof-preview:hover {
+                    opacity: 0.8;
+                    transition: opacity 0.2s ease;
+                }
+
                 .avatar-text {
                     background: transparent;
                     border: none;
@@ -834,7 +893,7 @@ const RegistrationTable = () => {
                 }
 
                 .avatar-md {
-                    width: 32psx;
+                    width: 32px;
                     height: 32px;
                 }
                 `}
