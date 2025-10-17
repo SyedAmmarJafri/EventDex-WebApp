@@ -1,17 +1,19 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import Table from '@/components/shared/table/Table';
-import { FiEye } from 'react-icons/fi';
+import { FiEye, FiFilter, FiX } from 'react-icons/fi';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { BASE_URL } from '/src/constants.js';
 import Skeleton from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
 import Modal from 'react-bootstrap/Modal';
+import Button from '@mui/material/Button';
+import Form from 'react-bootstrap/Form';
 
 // IndexedDB setup
-const DB_NAME = 'CustomerDB';
+const DB_NAME = 'RegistrationDB';
 const DB_VERSION = 1;
-const STORE_NAME = 'customers';
+const STORE_NAME = 'registrations';
 const CACHE_EXPIRY = 15 * 60 * 1000; // 15 minutes in milliseconds
 
 const openDB = () => {
@@ -41,7 +43,7 @@ const getCachedData = async () => {
       request.onsuccess = () => {
         const data = request.result[0]; // Get first record
         if (data && (Date.now() - data.timestamp) < CACHE_EXPIRY) {
-          resolve(data.customers);
+          resolve(data.registrations);
         } else {
           resolve(null);
         }
@@ -54,7 +56,7 @@ const getCachedData = async () => {
   }
 };
 
-const storeData = async (customers) => {
+const storeData = async (registrations) => {
   try {
     const db = await openDB();
     const transaction = db.transaction(STORE_NAME, 'readwrite');
@@ -66,7 +68,7 @@ const storeData = async (customers) => {
     // Store new data with timestamp
     store.put({
       id: 1, // Using a fixed ID since we only store one set of data
-      customers,
+      registrations,
       timestamp: Date.now()
     });
   } catch (error) {
@@ -74,15 +76,39 @@ const storeData = async (customers) => {
   }
 };
 
-const CustomerTable = () => {
-    const [customers, setCustomers] = useState([]);
+const RegistrationTable = () => {
+    const [registrations, setRegistrations] = useState([]);
+    const [filteredRegistrations, setFilteredRegistrations] = useState([]);
     const [loading, setLoading] = useState(true);
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
-    const [selectedCustomer, setSelectedCustomer] = useState(null);
+    const [selectedRegistration, setSelectedRegistration] = useState(null);
+    const [subdomains, setSubdomains] = useState([]);
+    const [selectedSubdomain, setSelectedSubdomain] = useState('');
+    const [showFilter, setShowFilter] = useState(false);
+    const [paymentStatusFilter, setPaymentStatusFilter] = useState('');
+    const [registrationStatusFilter, setRegistrationStatusFilter] = useState('');
     const skinTheme = localStorage.getItem('skinTheme') || 'light';
     const isDarkMode = skinTheme === 'dark';
 
+    // Get user permissions
+    const authData = JSON.parse(localStorage.getItem("authData")) || {};
+    const userRole = authData?.role || '';
+    const canRead = userRole === 'PATRON' || userRole === 'DOMAIN_HEAD';
+
     // Toast notification helpers
+    const showSuccessToast = (message) => {
+        toast.success(message, {
+            position: "bottom-center",
+            autoClose: 3000,
+            hideProgressBar: false,
+            closeOnClick: true,
+            pauseOnHover: true,
+            draggable: true,
+            progress: undefined,
+            theme: "colored",
+        });
+    };
+
     const showErrorToast = (message) => {
         toast.error(message, {
             position: "bottom-center",
@@ -110,21 +136,21 @@ const CustomerTable = () => {
                         </g>
                     </svg>
                 </div>
-                <h5 className="mb-2">No Customers Found</h5>
-                <p className="text-muted mb-4">Your customer list is currently empty. New customers will appear here when they register.</p>
+                <h5 className="mb-2">No Registrations Found</h5>
+                <p className="text-muted mb-4">No registrations are available for the selected filters.</p>
             </div>
         );
     };
 
-    // Fetch customers from API
-    const fetchCustomersFromAPI = useCallback(async () => {
+    // Fetch subdomains for filtering
+    const fetchSubdomains = useCallback(async () => {
         try {
             const authData = JSON.parse(localStorage.getItem("authData"));
             if (!authData?.token) {
                 throw new Error("No authentication token found");
             }
 
-            const response = await fetch(`${BASE_URL}/api/admin/customers`, {
+            const response = await fetch(`${BASE_URL}/api/subdomains`, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${authData.token}`,
@@ -134,94 +160,179 @@ const CustomerTable = () => {
 
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.message || 'Failed to fetch customers');
+                throw new Error(errorData.message || 'Failed to fetch subdomains');
             }
 
             const data = await response.json();
-            if (data.data && data.data.content) {
-                const customersData = data.data.content;
-                await storeData(customersData); // Cache the new data
-                return customersData;
+            if (data.success && data.data) {
+                setSubdomains(data.data);
             }
-            throw new Error(data.message || 'Failed to fetch customers');
+        } catch (err) {
+            console.error('Error fetching subdomains:', err);
+            showErrorToast('Failed to fetch subdomains');
+        }
+    }, []);
+
+    // Fetch registrations from API
+    const fetchRegistrationsFromAPI = useCallback(async () => {
+        try {
+            const authData = JSON.parse(localStorage.getItem("authData"));
+            if (!authData?.token) {
+                throw new Error("No authentication token found");
+            }
+
+            const response = await fetch(`${BASE_URL}/api/registrations/admin/all`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${authData.token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to fetch registrations');
+            }
+
+            const data = await response.json();
+            if (data.success && data.data) {
+                await storeData(data.data); // Cache the new data
+                return data.data;
+            }
+            throw new Error(data.message || 'Failed to fetch registrations');
         } catch (err) {
             showErrorToast(err.message);
             return null;
         }
     }, []);
 
-    // Fetch customers with cache logic
-    const fetchCustomers = useCallback(async () => {
+    // Fetch registrations with cache logic
+    const fetchRegistrations = useCallback(async () => {
+        if (!canRead) {
+            setLoading(false);
+            return;
+        }
+
         setLoading(true);
         
         try {
             // First try to get cached data
-            const cachedCustomers = await getCachedData();
+            const cachedRegistrations = await getCachedData();
             
-            if (cachedCustomers) {
-                setCustomers(cachedCustomers);
+            if (cachedRegistrations) {
+                setRegistrations(cachedRegistrations);
+                setFilteredRegistrations(cachedRegistrations);
                 setLoading(false);
                 
                 // Fetch fresh data in background
                 setTimeout(async () => {
-                    const freshCustomers = await fetchCustomersFromAPI();
-                    if (freshCustomers) {
-                        setCustomers(freshCustomers);
+                    const freshRegistrations = await fetchRegistrationsFromAPI();
+                    if (freshRegistrations) {
+                        setRegistrations(freshRegistrations);
+                        setFilteredRegistrations(freshRegistrations);
                     }
                 }, 0);
             } else {
                 // No valid cache, fetch from API
-                const freshCustomers = await fetchCustomersFromAPI();
-                if (freshCustomers) {
-                    setCustomers(freshCustomers);
+                const freshRegistrations = await fetchRegistrationsFromAPI();
+                if (freshRegistrations) {
+                    setRegistrations(freshRegistrations);
+                    setFilteredRegistrations(freshRegistrations);
                 }
                 setLoading(false);
             }
         } catch (err) {
-            console.error('Error fetching customers:', err);
+            console.error('Error fetching registrations:', err);
             setLoading(false);
         }
-    }, [fetchCustomersFromAPI]);
+    }, [fetchRegistrationsFromAPI, canRead]);
+
+    // Apply filters
+    const applyFilters = useCallback(() => {
+        let filtered = [...registrations];
+
+        // Filter by subdomain
+        if (selectedSubdomain) {
+            filtered = filtered.filter(reg => 
+                reg.domainName === selectedSubdomain || 
+                reg.subDomainId === selectedSubdomain
+            );
+        }
+
+        // Filter by payment status
+        if (paymentStatusFilter) {
+            filtered = filtered.filter(reg => 
+                reg.paymentStatus === paymentStatusFilter
+            );
+        }
+
+        // Filter by registration status
+        if (registrationStatusFilter) {
+            filtered = filtered.filter(reg => 
+                reg.registrationStatus === registrationStatusFilter
+            );
+        }
+
+        setFilteredRegistrations(filtered);
+    }, [registrations, selectedSubdomain, paymentStatusFilter, registrationStatusFilter]);
+
+    // Clear all filters
+    const clearFilters = () => {
+        setSelectedSubdomain('');
+        setPaymentStatusFilter('');
+        setRegistrationStatusFilter('');
+        setFilteredRegistrations(registrations);
+        setShowFilter(false);
+    };
 
     useEffect(() => {
-        fetchCustomers();
-    }, [fetchCustomers]);
+        fetchRegistrations();
+        fetchSubdomains();
+    }, [fetchRegistrations, fetchSubdomains]);
 
-    // Rest of your component remains the same...
-    const handleViewCustomer = (customer) => {
-        setSelectedCustomer(customer);
+    useEffect(() => {
+        applyFilters();
+    }, [applyFilters]);
+
+    const handleViewRegistration = (registration) => {
+        if (!canRead) return;
+        setSelectedRegistration(registration);
         setIsViewModalOpen(true);
     };
 
     const formatDate = (dateString) => {
         if (!dateString) return '-';
-        const options = { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' };
-        return new Date(dateString).toLocaleDateString(undefined, options);
+        try {
+            const options = { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' };
+            return new Date(dateString).toLocaleDateString(undefined, options);
+        } catch (error) {
+            return 'Invalid date';
+        }
     };
 
-    const getStatusBadge = (status) => {
+    const getStatusBadge = (status, type = 'payment') => {
         if (!status) return null;
 
         const statusMap = {
-            'Active': { color: 'bg-emerald', label: 'Active' },
-            'Inactive': { color: 'bg-red', label: 'Inactive' },
-            'New': { color: 'bg-blue', label: 'New' },
-            'Regular': { color: 'bg-green1', label: 'Regular' },
-            'Frequent': { color: 'bg-purple', label: 'Frequent' },
-            'Occasional': { color: 'bg-yellow', label: 'Occasional' },
-            'High-value': { color: 'bg-orange', label: 'High-value' },
+            payment: {
+                'PENDING': { color: 'bg-warning', label: 'Pending' },
+                'APPROVED': { color: 'bg-success', label: 'Approved' },
+                'REJECTED': { color: 'bg-danger', label: 'Rejected' }
+            },
+            registration: {
+                'PENDING_OTP': { color: 'bg-secondary', label: 'Pending OTP' },
+                'REGISTERED': { color: 'bg-info', label: 'Registered' },
+                'CONFIRMED': { color: 'bg-success', label: 'Confirmed' },
+                'CANCELLED': { color: 'bg-danger', label: 'Cancelled' }
+            },
+            team: {
+                'Team': { color: 'bg-primary', label: 'Team' },
+                'Individual': { color: 'bg-secondary', label: 'Individual' }
+            }
         };
 
-        const statusInfo = statusMap[status] || { color: 'bg-secondary', label: status };
+        const statusInfo = statusMap[type]?.[status] || { color: 'bg-secondary', label: status };
         return <span className={`badge ${statusInfo.color}`}>{statusInfo.label}</span>;
-    };
-
-    const getTooltipContent = (classification, reason) => {
-        return (
-            <div className="tooltip-content">
-                {reason}
-            </div>
-        );
     };
 
     // Skeleton loader component
@@ -231,15 +342,15 @@ const CustomerTable = () => {
                 <table className="table table-hover table-nowrap">
                     <thead>
                         <tr>
-                            <th scope="col">Name</th>
-                            <th scope="col">Email</th>
-                            <th scope="col">Verified</th>
-                            <th scope="col">Customer Segment</th>
-                            <th scope="col">Active Status</th>
-                            <th scope="col">Order Frequency</th>
-                            <th scope="col">Total Orders</th>
-                            <th scope="col">Last Order</th>
-                            <th scope="col">Joined Date</th>
+                            <th scope="col">Registration ID</th>
+                            <th scope="col">Participant</th>
+                            <th scope="col">Event</th>
+                            <th scope="col">Domain</th>
+                            <th scope="col">Registration Status</th>
+                            <th scope="col">Payment Status</th>
+                            <th scope="col">Type</th>
+                            <th scope="col">Fee</th>
+                            <th scope="col">Registered At</th>
                             <th scope="col" className="text-end">Actions</th>
                         </tr>
                     </thead>
@@ -262,14 +373,7 @@ const CustomerTable = () => {
                                 </td>
                                 <td>
                                     <Skeleton
-                                        width={60}
-                                        baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
-                                        highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
-                                    />
-                                </td>
-                                <td>
-                                    <Skeleton
-                                        width={100}
+                                        width={120}
                                         baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
                                         highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
                                     />
@@ -297,7 +401,14 @@ const CustomerTable = () => {
                                 </td>
                                 <td>
                                     <Skeleton
-                                        width={100}
+                                        width={80}
+                                        baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
+                                        highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
+                                    />
+                                </td>
+                                <td>
+                                    <Skeleton
+                                        width={60}
                                         baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
                                         highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
                                     />
@@ -330,86 +441,55 @@ const CustomerTable = () => {
 
     const columns = React.useMemo(() => [
         {
-            accessorKey: 'name',
-            header: 'Name',
-            cell: (info) => info.getValue() || '-'
+            accessorKey: 'registrationId',
+            header: 'Registration ID',
+            cell: (info) => (
+                <code className="text-primary">{info.getValue()}</code>
+            )
         },
         {
-            accessorKey: 'email',
-            header: 'Email',
+            accessorKey: 'participantName',
+            header: 'Participant',
             cell: (info) => (
-                <div className="d-flex align-items-center gap-1">
-                    {info.getValue()}
-                    {info.row.original.verified ? (
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="#0d6efd" className="bi bi-patch-check-fill" viewBox="0 0 16 16">
-                            <path d="M10.067.87a2.89 2.89 0 0 0-4.134 0l-.622.638-.89-.011a2.89 2.89 0 0 0-2.924 2.924l.01.89-.636.622a2.89 2.89 0 0 0 0 4.134l.637.622-.011.89a2.89 2.89 0 0 0 2.924 2.924l.89-.01.622.636a2.89 2.89 0 0 0 4.134 0l.622-.637.89.011a2.89 2.89 0 0 0 2.924-2.924l-.01-.89.636-.622a2.89 2.89 0 0 0 0-4.134l-.637-.622.011-.89a2.89 2.89 0 0 0-2.924-2.924l-.89.01zm.287 5.984-3 3a.5.5 0 0 1-.708 0l-1.5-1.5a.5.5 0 1 1 .708-.708L7 8.793l2.646-2.647a.5.5 0 0 1 .708.708" />
-                        </svg>
-                    ) : (
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="#dc3545" className="bi bi-patch-exclamation-fill" viewBox="0 0 16 16">
-                            <path d="M10.067.87a2.89 2.89 0 0 0-4.134 0l-.622.638-.89-.011a2.89 2.89 0 0 0-2.924 2.924l.01.89-.636.622a2.89 2.89 0 0 0 0 4.134l.637.622-.011.89a2.89 2.89 0 0 0 2.924 2.924l.89-.01.622.636a2.89 2.89 0 0 0 4.134 0l.622-.637.89.011a2.89 2.89 0 0 0 2.924-2.924l-.01-.89.636-.622a2.89 2.89 0 0 0 0-4.134l-.637-.622.011-.89a2.89 2.89 0 0 0-2.924-2.924l-.89.01zM8 4c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 4.995A.905.905 0 0 1 8 4m.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2" />
-                        </svg>
-                    )}
+                <div>
+                    <div className="fw-semibold">{info.getValue()}</div>
+                    <small className="text-muted">{info.row.original.studentId}</small>
                 </div>
             )
         },
         {
-            accessorKey: 'customerSegment',
-            header: 'Customer Segment',
-            cell: (info) => {
-                const segment = info.getValue();
-                return (
-                    <div className="tooltip-container">
-                        {getStatusBadge(segment?.classification)}
-                        <div className="tooltip">
-                            {getTooltipContent(segment?.classification, segment?.reason)}
-                        </div>
-                    </div>
-                );
-            }
+            accessorKey: 'eventName',
+            header: 'Event',
+            cell: (info) => info.getValue() || '-'
         },
         {
-            accessorKey: 'activeStatus',
-            header: 'Active Status',
-            cell: (info) => {
-                const status = info.getValue();
-                return (
-                    <div className="tooltip-container">
-                        {getStatusBadge(status?.classification)}
-                        <div className="tooltip">
-                            {getTooltipContent(status?.classification, status?.reason)}
-                        </div>
-                    </div>
-                );
-            }
+            accessorKey: 'domainName',
+            header: 'Domain',
+            cell: (info) => info.getValue() || '-'
         },
         {
-            accessorKey: 'orderFrequency',
-            header: 'Order Frequency',
-            cell: (info) => {
-                const frequency = info.getValue();
-                return (
-                    <div className="tooltip-container">
-                        {getStatusBadge(frequency?.classification)}
-                        <div className="tooltip">
-                            {getTooltipContent(frequency?.classification, frequency?.reason)}
-                        </div>
-                    </div>
-                );
-            }
+            accessorKey: 'registrationStatus',
+            header: 'Registration Status',
+            cell: (info) => getStatusBadge(info.getValue(), 'registration')
         },
         {
-            accessorKey: 'totalOrders',
-            header: 'Total Orders',
-            cell: (info) => info.getValue()
+            accessorKey: 'paymentStatus',
+            header: 'Payment Status',
+            cell: (info) => getStatusBadge(info.getValue(), 'payment')
         },
         {
-            accessorKey: 'lastOrderDate',
-            header: 'Last Order',
-            cell: (info) => formatDate(info.getValue())
+            accessorKey: 'teamRegistration',
+            header: 'Type',
+            cell: (info) => getStatusBadge(info.getValue() ? 'Team' : 'Individual', 'team')
         },
         {
-            accessorKey: 'createdAt',
-            header: 'Joined Date',
+            accessorKey: 'registrationFee',
+            header: 'Fee',
+            cell: (info) => `Rs. ${parseFloat(info.getValue() || 0).toLocaleString('en-PK')}`
+        },
+        {
+            accessorKey: 'registeredAt',
+            header: 'Registered At',
             cell: (info) => formatDate(info.getValue())
         },
         {
@@ -419,8 +499,9 @@ const CustomerTable = () => {
                 <div className="hstack gap-2 justify-content-end">
                     <button
                         className="avatar-text avatar-md"
-                        onClick={() => handleViewCustomer(row.original)}
-                        title="View Customer"
+                        onClick={() => handleViewRegistration(row.original)}
+                        title="View Registration Details"
+                        disabled={!canRead}
                     >
                         <FiEye />
                     </button>
@@ -428,7 +509,23 @@ const CustomerTable = () => {
             ),
             meta: { headerClassName: 'text-end' }
         },
-    ], []);
+    ], [canRead]);
+
+    if (!canRead) {
+        return (
+            <div className="text-center py-5">
+                <div className="mb-4">
+                    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 17V11" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                        <path d="M12 7H12.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                        <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" strokeWidth="2"/>
+                    </svg>
+                </div>
+                <h5>Access Denied</h5>
+                <p className="text-muted">You don't have permission to view registrations.</p>
+            </div>
+        );
+    }
 
     return (
         <>
@@ -446,22 +543,97 @@ const CustomerTable = () => {
             />
 
             <div className="d-flex justify-content-between align-items-center mb-4">
-                <h4>Customers</h4>
+                <h4>Registrations</h4>
+                <div className="d-flex align-items-center gap-2">
+                    {registrations.length > 0 && (
+                        <small className="text-muted">
+                            Showing {filteredRegistrations.length} of {registrations.length} registrations
+                        </small>
+                    )}
+                    <Button
+                        variant="outlined"
+                        startIcon={<FiFilter />}
+                        onClick={() => setShowFilter(!showFilter)}
+                        size="small"
+                    >
+                        Filters
+                    </Button>
+                </div>
             </div>
+
+            {/* Filters Section */}
+            {showFilter && (
+                <div className="card mb-4">
+                    <div className="card-body">
+                        <div className="d-flex justify-content-between align-items-center mb-3">
+                            <h5 className="mb-0">Filter Registrations</h5>
+                            <Button
+                                variant="text"
+                                startIcon={<FiX />}
+                                onClick={clearFilters}
+                                size="small"
+                            >
+                                Clear All
+                            </Button>
+                        </div>
+                        <div className="row g-3">
+                            <div className="col-md-4">
+                                <Form.Label>Subdomain</Form.Label>
+                                <Form.Select
+                                    value={selectedSubdomain}
+                                    onChange={(e) => setSelectedSubdomain(e.target.value)}
+                                >
+                                    <option value="">All Subdomains</option>
+                                    {subdomains.map(subdomain => (
+                                        <option key={subdomain.id} value={subdomain.name}>
+                                            {subdomain.name}
+                                        </option>
+                                    ))}
+                                </Form.Select>
+                            </div>
+                            <div className="col-md-4">
+                                <Form.Label>Payment Status</Form.Label>
+                                <Form.Select
+                                    value={paymentStatusFilter}
+                                    onChange={(e) => setPaymentStatusFilter(e.target.value)}
+                                >
+                                    <option value="">All Status</option>
+                                    <option value="PENDING">Pending</option>
+                                    <option value="APPROVED">Approved</option>
+                                    <option value="REJECTED">Rejected</option>
+                                </Form.Select>
+                            </div>
+                            <div className="col-md-4">
+                                <Form.Label>Registration Status</Form.Label>
+                                <Form.Select
+                                    value={registrationStatusFilter}
+                                    onChange={(e) => setRegistrationStatusFilter(e.target.value)}
+                                >
+                                    <option value="">All Status</option>
+                                    <option value="PENDING_OTP">Pending OTP</option>
+                                    <option value="REGISTERED">Registered</option>
+                                    <option value="CONFIRMED">Confirmed</option>
+                                    <option value="CANCELLED">Cancelled</option>
+                                </Form.Select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {loading ? (
                 <SkeletonLoader />
-            ) : customers.length === 0 ? (
+            ) : filteredRegistrations.length === 0 ? (
                 <EmptyState />
             ) : (
                 <Table
-                    data={customers}
+                    data={filteredRegistrations}
                     columns={columns}
                     initialState={{ pagination: { pageSize: 10 } }}
                 />
             )}
 
-            {/* View Customer Modal */}
+            {/* View Registration Modal */}
             <Modal
                 show={isViewModalOpen}
                 onHide={() => setIsViewModalOpen(false)}
@@ -471,100 +643,145 @@ const CustomerTable = () => {
                 className={isDarkMode ? 'dark-modal' : ''}
             >
                 <Modal.Header closeButton>
-                    <Modal.Title>Customer Details</Modal.Title>
+                    <Modal.Title>Registration Details</Modal.Title>
                 </Modal.Header>
                 <Modal.Body>
-                    {selectedCustomer && (
+                    {selectedRegistration && (
                         <div>
                             <div className="row mb-3">
                                 <div className="col-md-6">
-                                    <h5>Name</h5>
-                                    <p>{selectedCustomer.name || '-'}</p>
+                                    <h5>Registration ID</h5>
+                                    <p><code>{selectedRegistration.registrationId}</code></p>
                                 </div>
                                 <div className="col-md-6">
-                                    <h5>Email</h5>
-                                    <p className="d-flex align-items-center gap-2">
-                                        {selectedCustomer.email}
-                                        {selectedCustomer.verified ? (
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="#0d6efd" className="bi bi-patch-check-fill" viewBox="0 0 16 16">
-                                                <path d="M10.067.87a2.89 2.89 0 0 0-4.134 0l-.622.638-.89-.011a2.89 2.89 0 0 0-2.924 2.924l.01.89-.636.622a2.89 2.89 0 0 0 0 4.134l.637.622-.011.89a2.89 2.89 0 0 0 2.924 2.924l.89-.01.622.636a2.89 2.89 0 0 0 4.134 0l.622-.637.89.011a2.89 2.89 0 0 0 2.924-2.924l-.01-.89.636-.622a2.89 2.89 0 0 0 0-4.134l-.637-.622.011-.89a2.89 2.89 0 0 0-2.924-2.924l-.89.01zm.287 5.984-3 3a.5.5 0 0 1-.708 0l-1.5-1.5a.5.5 0 1 1 .708-.708L7 8.793l2.646-2.647a.5.5 0 0 1 .708.708" />
-                                            </svg>
-                                        ) : (
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="#dc3545" className="bi bi-patch-exclamation-fill" viewBox="0 0 16 16">
-                                                <path d="M10.067.87a2.89 2.89 0 0 0-4.134 0l-.622.638-.89-.011a2.89 2.89 0 0 0-2.924 2.924l.01.89-.636.622a2.89 2.89 0 0 0 0 4.134l.637.622-.011.89a2.89 2.89 0 0 0 2.924 2.924l.89-.01.622.636a2.89 2.89 0 0 0 4.134 0l.622-.637.89.011a2.89 2.89 0 0 0 2.924-2.924l-.01-.89.636-.622a2.89 2.89 0 0 0 0-4.134l-.637-.622.011-.89a2.89 2.89 0 0 0-2.924-2.924l-.89.01zM8 4c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 4.995A.905.905 0 0 1 8 4m.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2" />
-                                            </svg>
-                                        )}
-                                    </p>
-                                </div>
-                            </div>
-                            <div className="row mb-3">
-                                <div className="col-md-6">
-                                    <h5>Joined Date</h5>
-                                    <p>{formatDate(selectedCustomer.createdAt)}</p>
-                                </div>
-                                <div className="col-md-6">
-                                    <h5>Total Orders</h5>
-                                    <p>{selectedCustomer.totalOrders}</p>
-                                </div>
-                            </div>
-                            <div className="row mb-3">
-                                <div className="col-md-6">
-                                    <h5>Last Order Type</h5>
-                                    <p>{selectedCustomer.lastOrderType || '-'}</p>
-                                </div>
-                                <div className="col-md-6">
-                                    <h5>Last Order Date</h5>
-                                    <p>{formatDate(selectedCustomer.lastOrderDate) || '-'}</p>
+                                    <h5>Registration Status</h5>
+                                    <p>{getStatusBadge(selectedRegistration.registrationStatus, 'registration')}</p>
                                 </div>
                             </div>
 
-                            <div className="mb-4">
-                                <h4 className="mb-3">Customer Classification</h4>
-                                <div className="row">
-                                    <div className="col-md-4 mb-3">
-                                        <div className="card h-100">
-                                            <div className="card-body">
-                                                <h5 className="card-title">Customer Segment</h5>
-                                                <div className="d-flex align-items-center">
-                                                    {getStatusBadge(selectedCustomer.customerSegment?.classification)}
-                                                    <div className="ms-3">
-                                                        <h8 className="mb-0"><strong>Reason: </strong></h8>
-                                                        <h8 className="mb-0">{selectedCustomer.customerSegment?.reason}</h8>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
+                            <div className="row mb-3">
+                                <div className="col-md-6">
+                                    <h5>Participant Name</h5>
+                                    <p>{selectedRegistration.participantName}</p>
+                                </div>
+                                <div className="col-md-6">
+                                    <h5>Student ID</h5>
+                                    <p>{selectedRegistration.studentId}</p>
+                                </div>
+                            </div>
+
+                            <div className="row mb-3">
+                                <div className="col-md-6">
+                                    <h5>Email</h5>
+                                    <p>{selectedRegistration.email}</p>
+                                </div>
+                                <div className="col-md-6">
+                                    <h5>Phone Number</h5>
+                                    <p>{selectedRegistration.phoneNumber || '-'}</p>
+                                </div>
+                            </div>
+
+                            <div className="row mb-3">
+                                <div className="col-md-6">
+                                    <h5>Degree</h5>
+                                    <p>{selectedRegistration.degree || '-'}</p>
+                                </div>
+                                <div className="col-md-6">
+                                    <h5>Semester</h5>
+                                    <p>{selectedRegistration.semester || '-'}</p>
+                                </div>
+                            </div>
+
+                            <div className="row mb-3">
+                                <div className="col-md-6">
+                                    <h5>Event</h5>
+                                    <p>{selectedRegistration.eventName || '-'}</p>
+                                </div>
+                                <div className="col-md-6">
+                                    <h5>Domain</h5>
+                                    <p>{selectedRegistration.domainName || '-'}</p>
+                                </div>
+                            </div>
+
+                            <div className="row mb-3">
+                                <div className="col-md-6">
+                                    <h5>Registration Type</h5>
+                                    <p>{getStatusBadge(selectedRegistration.teamRegistration ? 'Team' : 'Individual', 'team')}</p>
+                                </div>
+                                <div className="col-md-6">
+                                    <h5>Registration Fee</h5>
+                                    <p className="fw-bold">Rs. {parseFloat(selectedRegistration.registrationFee || 0).toLocaleString('en-PK')}</p>
+                                </div>
+                            </div>
+
+                            {selectedRegistration.teamRegistration && (
+                                <div className="row mb-3">
+                                    <div className="col-md-6">
+                                        <h5>Team Name</h5>
+                                        <p>{selectedRegistration.teamName || '-'}</p>
                                     </div>
-                                    <div className="col-md-4 mb-3">
-                                        <div className="card h-100">
-                                            <div className="card-body">
-                                                <h5 className="card-title">Active Status</h5>
-                                                <div className="d-flex align-items-center">
-                                                    {getStatusBadge(selectedCustomer.activeStatus?.classification)}
-                                                    <div className="ms-3">
-                                                        <h8 className="mb-0"><strong>Reason: </strong></h8>
-                                                        <h8 className="mb-0">{selectedCustomer.activeStatus?.reason}</h8>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
+                                    <div className="col-md-6">
+                                        <h5>Team Code</h5>
+                                        <p><code>{selectedRegistration.teamCode || '-'}</code></p>
                                     </div>
-                                    <div className="col-md-4 mb-3">
-                                        <div className="card h-100">
-                                            <div className="card-body">
-                                                <h5 className="card-title">Order Frequency</h5>
-                                                <div className="d-flex align-items-center">
-                                                    {getStatusBadge(selectedCustomer.orderFrequency?.classification)}
-                                                    <div className="ms-3">
-                                                        <h8 className="mb-0"><strong>Reason: </strong></h8>
-                                                        <h8 className="mb-0">{selectedCustomer.orderFrequency?.reason}</h8>
-                                                    </div>
-                                                </div>
+                                </div>
+                            )}
+
+                            <div className="row mb-3">
+                                <div className="col-md-6">
+                                    <h5>Payment Status</h5>
+                                    <p>{getStatusBadge(selectedRegistration.paymentStatus, 'payment')}</p>
+                                </div>
+                                <div className="col-md-6">
+                                    <h5>Transaction ID</h5>
+                                    <p>{selectedRegistration.transactionId || '-'}</p>
+                                </div>
+                            </div>
+
+                            {selectedRegistration.paymentStatus === 'REJECTED' && selectedRegistration.rejectionReason && (
+                                <div className="row mb-3">
+                                    <div className="col-12">
+                                        <h5>Rejection Reason</h5>
+                                        <p className="text-danger">{selectedRegistration.rejectionReason}</p>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="row mb-3">
+                                <div className="col-md-6">
+                                    <h5>Registered At</h5>
+                                    <p>{formatDate(selectedRegistration.registeredAt)}</p>
+                                </div>
+                                {selectedRegistration.paymentVerifiedAt && (
+                                    <div className="col-md-6">
+                                        <h5>Payment Verified At</h5>
+                                        <p>{formatDate(selectedRegistration.paymentVerifiedAt)}</p>
+                                    </div>
+                                )}
+                            </div>
+
+                            {selectedRegistration.paymentProofImageUrl && (
+                                <div className="row mb-3">
+                                    <div className="col-12">
+                                        <h5>Payment Proof</h5>
+                                        <div className="text-center">
+                                            <img 
+                                                src={`${BASE_URL}${selectedRegistration.paymentProofImageUrl}`} 
+                                                alt="Payment Proof" 
+                                                className="img-fluid rounded"
+                                                style={{ maxHeight: '300px' }}
+                                                onError={(e) => {
+                                                    e.target.style.display = 'none';
+                                                    e.target.nextSibling.style.display = 'block';
+                                                }}
+                                            />
+                                            <div style={{ display: 'none' }} className="text-muted">
+                                                Payment proof image not available
                                             </div>
                                         </div>
                                     </div>
                                 </div>
-                            </div>
+                            )}
                         </div>
                     )}
                 </Modal.Body>
@@ -573,63 +790,13 @@ const CustomerTable = () => {
             <style>
                 {`
                 /* Custom badge colors */
-                .bg-purple { background-color: #9333ea; color: white; }
-                .bg-teal { background-color: #0d9488; color: white; }
-                .bg-indigo { background-color: #4f46e5; color: white; }
-                .bg-orange { background-color: #f97316; color: white; }
-                .bg-pink { background-color: #ec4899; color: white; }
-                .bg-gray { background-color: #6b7280; color: white; }
-                .bg-blue { background-color: #3b82f6; color: white; }
-                .bg-cyan { background-color: #06b6d4; color: white; }
-                .bg-yellow { background-color:rgb(246, 185, 0); color: white; }
-                .bg-violet { background-color: #7c3aed; color: white; }
-                .bg-fuchsia { background-color: #c026d3; color: white; }
-                .bg-emerald { background-color: #10b981; color: white; }
-                .bg-black { background-color:rgb(0, 0, 0); color: white; }
-                .bg-green1 { background-color:rgb(0, 198, 13); color: white; }
-                .bg-red { background-color: #ef4444; color: white; }
-                .bg-dark-red { background-color: #8B0000; color: white; }
-                .bg-info { background-color: #17a2b8; color: white; }
-                .bg-primary { background-color: #007bff; color: white; }
+                .bg-danger { background-color: #dc3545; color: white; }
                 .bg-warning { background-color: #ffc107; color: #212529; }
                 .bg-success { background-color: #28a745; color: white; }
+                .bg-info { background-color: #17a2b8; color: white; }
+                .bg-primary { background-color: #007bff; color: white; }
                 .bg-secondary { background-color: #6c757d; color: white; }
                 
-                /* Tooltip styles */
-                .tooltip-container {
-                    position: relative;
-                    display: inline-block;
-                }
-                
-                .tooltip {
-                    visibility: hidden;
-                    width: 200px;
-                    background-color: ${isDarkMode ? '#1e293b' : '#ffffff'};
-                    color: ${isDarkMode ? '#ffffff' : '#000000'};
-                    text-align: left;
-                    border-radius: 6px;
-                    padding: 8px;
-                    position: absolute;
-                    z-index: 1;
-                    bottom: 125%;
-                    left: 50%;
-                    margin-left: -100px;
-                    opacity: 0;
-                    transition: opacity 0.3s;
-                    border: 1px solid ${isDarkMode ? '#334155' : '#e5e7eb'};
-                    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-                }
-                
-                .tooltip-container:hover .tooltip {
-                    visibility: visible;
-                    opacity: 1;
-                }
-                
-                .tooltip-content {
-                    font-size: 0.875rem;
-                    line-height: 1.4;
-                }
-
                 /* Dark mode modal styles */
                 .dark-modal .modal-content {
                     background-color: #0f172a;
@@ -644,10 +811,36 @@ const CustomerTable = () => {
                 .dark-modal .close {
                     color: white;
                 }
+
+                .avatar-text {
+                    background: transparent;
+                    border: none;
+                    color: inherit;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    padding: 4px;
+                    border-radius: 4px;
+                    transition: background-color 0.2s;
+                }
+
+                .avatar-text:hover {
+                    background-color: rgba(0, 0, 0, 0.1);
+                }
+
+                .avatar-text:disabled {
+                    opacity: 0.5;
+                    cursor: not-allowed;
+                }
+
+                .avatar-md {
+                    width: 32psx;
+                    height: 32px;
+                }
                 `}
             </style>
         </>
     );
 };
 
-export default CustomerTable;
+export default RegistrationTable;

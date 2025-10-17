@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import Table from '@/components/shared/table/Table';
-import { FiTrash, FiEdit, FiPlus, FiEye } from 'react-icons/fi';
+import { FiTrash, FiEdit, FiPlus, FiEye, FiUsers } from 'react-icons/fi';
 import Button from '@mui/material/Button';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -8,6 +8,9 @@ import { BASE_URL } from '/src/constants.js';
 import Skeleton from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
 import Modal from 'react-bootstrap/Modal';
+import Form from 'react-bootstrap/Form';
+import Switch from '@mui/material/Switch';
+import FormControlLabel from '@mui/material/FormControlLabel';
 
 const ItemsTable = () => {
     const [subdomains, setSubdomains] = useState([]);
@@ -25,7 +28,10 @@ const ItemsTable = () => {
         description: '',
         registrationFee: '',
         participantLimit: '',
-        parentDomainId: ''
+        parentDomainId: '',
+        teamGame: false,
+        minTeamSize: 1,
+        maxTeamSize: 1
     });
     const [editSubdomain, setEditSubdomain] = useState({
         id: '',
@@ -33,7 +39,10 @@ const ItemsTable = () => {
         description: '',
         registrationFee: '',
         participantLimit: '',
-        parentDomainId: ''
+        parentDomainId: '',
+        teamGame: false,
+        minTeamSize: 1,
+        maxTeamSize: 1
     });
     const [formErrors, setFormErrors] = useState({});
     const [editFormErrors, setEditFormErrors] = useState({});
@@ -49,11 +58,11 @@ const ItemsTable = () => {
     const userRole = authData?.role || '';
     const userPermissions = authData?.permissions || [];
 
-    // Permission checks
-    const canRead = userRole === 'PATRON' || userRole === 'DOMAIN_HEAD' || userPermissions.includes('CATEGORY_READ');
-    const canWrite = userRole === 'PATRON' || userRole === 'DOMAIN_HEAD' || userPermissions.includes('CATEGORY_WRITE');
-    const canUpdate = userRole === 'PATRON' || userRole === 'DOMAIN_HEAD' || userPermissions.includes('CATEGORY_UPDATE');
-    const canDelete = userRole === 'PATRON' || userRole === 'DOMAIN_HEAD' || userPermissions.includes('CATEGORY_DELETE');
+    // Permission checks - Updated to match backend security annotations
+    const canRead = userRole === 'PATRON' || userRole === 'DOMAIN_HEAD';
+    const canWrite = userRole === 'PATRON' || userRole === 'DOMAIN_HEAD';
+    const canUpdate = userRole === 'PATRON' || userRole === 'DOMAIN_HEAD';
+    const canDelete = userRole === 'PATRON' || userRole === 'DOMAIN_HEAD';
 
     // Get event ID from localStorage or EventsDropdown
     const getEventId = useCallback(() => {
@@ -138,6 +147,10 @@ const ItemsTable = () => {
                             <th scope="col">Registration Fee</th>
                             <th scope="col">Participant Limit</th>
                             <th scope="col">Current Participants</th>
+                            <th scope="col">Type</th>
+                            <th scope="col">Team Size</th>
+                            <th scope="col">Registered</th>
+                            <th scope="col">Waitlist</th>
                             <th scope="col">Parent Domain</th>
                             <th scope="col" className="text-end">Actions</th>
                         </tr>
@@ -176,6 +189,34 @@ const ItemsTable = () => {
                                 <td>
                                     <Skeleton
                                         width={80}
+                                        baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
+                                        highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
+                                    />
+                                </td>
+                                <td>
+                                    <Skeleton
+                                        width={80}
+                                        baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
+                                        highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
+                                    />
+                                </td>
+                                <td>
+                                    <Skeleton
+                                        width={80}
+                                        baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
+                                        highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
+                                    />
+                                </td>
+                                <td>
+                                    <Skeleton
+                                        width={60}
+                                        baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
+                                        highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
+                                    />
+                                </td>
+                                <td>
+                                    <Skeleton
+                                        width={60}
                                         baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
                                         highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
                                     />
@@ -255,7 +296,7 @@ const ItemsTable = () => {
         }
     }, [getEventId]);
 
-    // Fetch all subdomains
+    // Fetch all subdomains - Updated to use the correct backend endpoint
     const fetchAllSubdomains = useCallback(async () => {
         try {
             setLoading(true);
@@ -271,7 +312,7 @@ const ItemsTable = () => {
             const parentDomainsData = await fetchParentDomains();
             setParentDomains(parentDomainsData);
 
-            // Fetch all subdomains using the new API endpoint
+            // Fetch all subdomains using the correct API endpoint
             const response = await fetch(`${BASE_URL}/api/subdomains`, {
                 method: 'GET',
                 headers: {
@@ -311,10 +352,10 @@ const ItemsTable = () => {
     }, [fetchAllSubdomains]);
 
     const handleInputChange = (e) => {
-        const { name, value } = e.target;
+        const { name, value, type, checked } = e.target;
         setNewSubdomain(prev => ({ 
             ...prev, 
-            [name]: value 
+            [name]: type === 'checkbox' ? checked : value 
         }));
         if (formErrors[name]) {
             setFormErrors(prev => ({ ...prev, [name]: '' }));
@@ -322,38 +363,85 @@ const ItemsTable = () => {
     };
 
     const handleEditInputChange = (e) => {
-        const { name, value } = e.target;
+        const { name, value, type, checked } = e.target;
         setEditSubdomain(prev => ({ 
             ...prev, 
-            [name]: value 
+            [name]: type === 'checkbox' ? checked : value 
         }));
         if (editFormErrors[name]) {
             setEditFormErrors(prev => ({ ...prev, [name]: '' }));
         }
     };
 
+    const handleTeamGameToggle = (checked) => {
+        setNewSubdomain(prev => ({
+            ...prev,
+            teamGame: checked,
+            minTeamSize: checked ? 2 : 1,
+            maxTeamSize: checked ? 2 : 1
+        }));
+    };
+
+    const handleEditTeamGameToggle = (checked) => {
+        setEditSubdomain(prev => ({
+            ...prev,
+            teamGame: checked,
+            minTeamSize: checked ? Math.max(prev.minTeamSize, 2) : 1,
+            maxTeamSize: checked ? Math.max(prev.maxTeamSize, 2) : 1
+        }));
+    };
+
+    // Updated validation to match backend constraints
     const validateForm = (formData, setErrors) => {
         const errors = {};
-        if (!formData.name.trim()) errors.name = 'Name is required';
-        if (!formData.description.trim()) errors.description = 'Description is required';
         
-        // Validate registration fee
+        if (!formData.name || !formData.name.trim()) {
+            errors.name = 'Name is required';
+        }
+        
+        if (!formData.description || !formData.description.trim()) {
+            errors.description = 'Description is required';
+        }
+        
+        // Validate registration fee - matches backend validation
         if (formData.registrationFee === '' || formData.registrationFee === null) {
             errors.registrationFee = 'Registration fee is required';
         } else {
             const fee = parseFloat(formData.registrationFee);
-            if (isNaN(fee) || fee < 0) {
-                errors.registrationFee = 'Registration fee must be a valid number and cannot be negative';
+            if (isNaN(fee) || fee <= 0) {
+                errors.registrationFee = 'Registration fee must be greater than 0';
             }
         }
 
-        // Validate participant limit
+        // Validate participant limit - matches backend validation
         if (formData.participantLimit === '' || formData.participantLimit === null) {
             errors.participantLimit = 'Participant limit is required';
         } else {
             const limit = parseInt(formData.participantLimit);
-            if (isNaN(limit) || limit < 1) {
-                errors.participantLimit = 'Participant limit must be a valid number and at least 1';
+            if (isNaN(limit) || limit <= 0) {
+                errors.participantLimit = 'Participant limit must be greater than 0';
+            }
+        }
+
+        // Validate team game constraints - matches backend validation
+        if (formData.teamGame) {
+            const minSize = parseInt(formData.minTeamSize);
+            const maxSize = parseInt(formData.maxTeamSize);
+            
+            if (isNaN(minSize) || minSize <= 0) {
+                errors.minTeamSize = 'Minimum team size must be greater than 0 for team games';
+            }
+            if (isNaN(maxSize) || maxSize <= 0) {
+                errors.maxTeamSize = 'Maximum team size must be greater than 0 for team games';
+            }
+            if (minSize > maxSize) {
+                errors.maxTeamSize = 'Minimum team size cannot be greater than maximum team size';
+            }
+            
+            // Additional backend validation: participant limit must be divisible by min team size
+            const participantLimit = parseInt(formData.participantLimit);
+            if (participantLimit % minSize !== 0) {
+                errors.participantLimit = 'Participant limit must be divisible by minimum team size for team games';
             }
         }
 
@@ -374,19 +462,24 @@ const ItemsTable = () => {
             setCreatingSubdomain(true);
             const authData = JSON.parse(localStorage.getItem("authData"));
 
+            const requestBody = {
+                name: newSubdomain.name.trim(),
+                description: newSubdomain.description,
+                registrationFee: parseFloat(newSubdomain.registrationFee),
+                participantLimit: parseInt(newSubdomain.participantLimit),
+                parentDomainId: newSubdomain.parentDomainId,
+                teamGame: newSubdomain.teamGame,
+                minTeamSize: newSubdomain.teamGame ? parseInt(newSubdomain.minTeamSize) : 1,
+                maxTeamSize: newSubdomain.teamGame ? parseInt(newSubdomain.maxTeamSize) : 1
+            };
+
             const response = await fetch(`${BASE_URL}/api/subdomains`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${authData.token}`,
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({
-                    name: newSubdomain.name,
-                    description: newSubdomain.description,
-                    registrationFee: parseFloat(newSubdomain.registrationFee),
-                    participantLimit: parseInt(newSubdomain.participantLimit),
-                    parentDomainId: newSubdomain.parentDomainId
-                })
+                body: JSON.stringify(requestBody)
             });
 
             const data = await response.json();
@@ -402,7 +495,10 @@ const ItemsTable = () => {
                 description: '',
                 registrationFee: '',
                 participantLimit: '',
-                parentDomainId: ''
+                parentDomainId: '',
+                teamGame: false,
+                minTeamSize: 1,
+                maxTeamSize: 1
             });
             setFormErrors({});
         } catch (err) {
@@ -420,19 +516,24 @@ const ItemsTable = () => {
             setUpdatingSubdomain(true);
             const authData = JSON.parse(localStorage.getItem("authData"));
 
+            const requestBody = {
+                name: editSubdomain.name.trim(),
+                description: editSubdomain.description,
+                registrationFee: parseFloat(editSubdomain.registrationFee),
+                participantLimit: parseInt(editSubdomain.participantLimit),
+                parentDomainId: editSubdomain.parentDomainId,
+                teamGame: editSubdomain.teamGame,
+                minTeamSize: editSubdomain.teamGame ? parseInt(editSubdomain.minTeamSize) : 1,
+                maxTeamSize: editSubdomain.teamGame ? parseInt(editSubdomain.maxTeamSize) : 1
+            };
+
             const response = await fetch(`${BASE_URL}/api/subdomains/${editSubdomain.id}`, {
                 method: 'PUT',
                 headers: {
                     'Authorization': `Bearer ${authData.token}`,
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({
-                    name: editSubdomain.name,
-                    description: editSubdomain.description,
-                    registrationFee: parseFloat(editSubdomain.registrationFee),
-                    participantLimit: parseInt(editSubdomain.participantLimit),
-                    parentDomainId: editSubdomain.parentDomainId
-                })
+                body: JSON.stringify(requestBody)
             });
 
             const data = await response.json();
@@ -493,7 +594,10 @@ const ItemsTable = () => {
             description: subdomain.description,
             registrationFee: subdomain.registrationFee?.toString() || '',
             participantLimit: subdomain.participantLimit?.toString() || '',
-            parentDomainId: subdomain.parentDomainId || ''
+            parentDomainId: subdomain.parentDomainId || '',
+            teamGame: subdomain.teamGame || false,
+            minTeamSize: subdomain.minTeamSize || 1,
+            maxTeamSize: subdomain.maxTeamSize || 1
         });
         setIsEditModalOpen(true);
     };
@@ -525,11 +629,28 @@ const ItemsTable = () => {
         return `Rs. ${parseFloat(amount).toLocaleString('en-PK')}`;
     };
 
+    const getGameType = (subdomain) => {
+        return subdomain.teamGame ? 'Team Game' : 'Individual';
+    };
+
+    const getTeamSizeRange = (subdomain) => {
+        if (!subdomain.teamGame) return '1 (Individual)';
+        return `${subdomain.minTeamSize} - ${subdomain.maxTeamSize}`;
+    };
+
+    // Updated columns to match backend response structure
     const columns = React.useMemo(() => [
         {
             accessorKey: 'name',
             header: 'Name',
-            cell: (info) => info.getValue()
+            cell: (info) => (
+                <div className="d-flex align-items-center">
+                    {info.row.original.teamGame && (
+                        <FiUsers className="me-2 text-primary" title="Team Game" />
+                    )}
+                    {info.getValue()}
+                </div>
+            )
         },
         {
             accessorKey: 'description',
@@ -550,6 +671,38 @@ const ItemsTable = () => {
             accessorKey: 'currentParticipants',
             header: 'Current Participants',
             cell: (info) => info.getValue()?.toLocaleString() || '0'
+        },
+        {
+            accessorKey: 'teamGame',
+            header: 'Type',
+            cell: ({ row }) => (
+                <span className={`badge ${row.original.teamGame ? 'bg-primary' : 'bg-secondary'}`}>
+                    {getGameType(row.original)}
+                </span>
+            )
+        },
+        {
+            accessorKey: 'teamSize',
+            header: 'Team Size',
+            cell: ({ row }) => getTeamSizeRange(row.original)
+        },
+        {
+            accessorKey: 'registeredCount',
+            header: 'Registered',
+            cell: (info) => (
+                <span className="badge bg-success">
+                    {info.getValue()?.toLocaleString() || '0'}
+                </span>
+            )
+        },
+        {
+            accessorKey: 'waitlistCount',
+            header: 'Waitlist',
+            cell: (info) => (
+                <span className="badge bg-warning text-dark">
+                    {info.getValue()?.toLocaleString() || '0'}
+                </span>
+            )
         },
         {
             accessorKey: 'parentDomainName',
@@ -727,7 +880,7 @@ const ItemsTable = () => {
                                                 value={newSubdomain.registrationFee}
                                                 onChange={handleInputChange}
                                                 placeholder="0.00"
-                                                min="0"
+                                                min="0.01"
                                                 step="0.01"
                                             />
                                         </div>
@@ -750,6 +903,49 @@ const ItemsTable = () => {
                                     </div>
                                 </div>
                             </div>
+                            <div className="mb-3">
+                                <FormControlLabel
+                                    control={
+                                        <Switch
+                                            checked={newSubdomain.teamGame}
+                                            onChange={(e) => handleTeamGameToggle(e.target.checked)}
+                                            color="primary"
+                                        />
+                                    }
+                                    label="Team Game"
+                                />
+                                <Form.Text className="text-muted">
+                                    Enable if this subdomain requires team participation
+                                </Form.Text>
+                            </div>
+                            {newSubdomain.teamGame && (
+                                <div className="row mb-3">
+                                    <div className="col-md-6">
+                                        <label className="form-label">Minimum Team Size *</label>
+                                        <input
+                                            type="number"
+                                            className={`form-control ${formErrors.minTeamSize ? 'is-invalid' : ''}`}
+                                            name="minTeamSize"
+                                            value={newSubdomain.minTeamSize}
+                                            onChange={handleInputChange}
+                                            min="1"
+                                        />
+                                        {formErrors.minTeamSize && <div className="invalid-feedback">{formErrors.minTeamSize}</div>}
+                                    </div>
+                                    <div className="col-md-6">
+                                        <label className="form-label">Maximum Team Size *</label>
+                                        <input
+                                            type="number"
+                                            className={`form-control ${formErrors.maxTeamSize ? 'is-invalid' : ''}`}
+                                            name="maxTeamSize"
+                                            value={newSubdomain.maxTeamSize}
+                                            onChange={handleInputChange}
+                                            min="1"
+                                        />
+                                        {formErrors.maxTeamSize && <div className="invalid-feedback">{formErrors.maxTeamSize}</div>}
+                                    </div>
+                                </div>
+                            )}
                             <div className="mb-3">
                                 <label className="form-label">Parent Domain *</label>
                                 <select
@@ -853,7 +1049,7 @@ const ItemsTable = () => {
                                                 name="registrationFee"
                                                 value={editSubdomain.registrationFee}
                                                 onChange={handleEditInputChange}
-                                                min="0"
+                                                min="0.01"
                                                 step="0.01"
                                             />
                                         </div>
@@ -875,6 +1071,49 @@ const ItemsTable = () => {
                                     </div>
                                 </div>
                             </div>
+                            <div className="mb-3">
+                                <FormControlLabel
+                                    control={
+                                        <Switch
+                                            checked={editSubdomain.teamGame}
+                                            onChange={(e) => handleEditTeamGameToggle(e.target.checked)}
+                                            color="primary"
+                                        />
+                                    }
+                                    label="Team Game"
+                                />
+                                <Form.Text className="text-muted">
+                                    Enable if this subdomain requires team participation
+                                </Form.Text>
+                            </div>
+                            {editSubdomain.teamGame && (
+                                <div className="row mb-3">
+                                    <div className="col-md-6">
+                                        <label className="form-label">Minimum Team Size *</label>
+                                        <input
+                                            type="number"
+                                            className={`form-control ${editFormErrors.minTeamSize ? 'is-invalid' : ''}`}
+                                            name="minTeamSize"
+                                            value={editSubdomain.minTeamSize}
+                                            onChange={handleEditInputChange}
+                                            min="1"
+                                        />
+                                        {editFormErrors.minTeamSize && <div className="invalid-feedback">{editFormErrors.minTeamSize}</div>}
+                                    </div>
+                                    <div className="col-md-6">
+                                        <label className="form-label">Maximum Team Size *</label>
+                                        <input
+                                            type="number"
+                                            className={`form-control ${editFormErrors.maxTeamSize ? 'is-invalid' : ''}`}
+                                            name="maxTeamSize"
+                                            value={editSubdomain.maxTeamSize}
+                                            onChange={handleEditInputChange}
+                                            min="1"
+                                        />
+                                        {editFormErrors.maxTeamSize && <div className="invalid-feedback">{editFormErrors.maxTeamSize}</div>}
+                                    </div>
+                                </div>
+                            )}
                             <div className="mb-3">
                                 <label className="form-label">Parent Domain *</label>
                                 <select
@@ -953,6 +1192,30 @@ const ItemsTable = () => {
                                     <h5>Description</h5>
                                     <p className="mb-0">{selectedSubdomain.description || '-'}</p>
                                 </div>
+                                <div className="mb-3">
+                                    <h5>Game Type</h5>
+                                    <p className="mb-0">
+                                        <span className={`badge ${selectedSubdomain.teamGame ? 'bg-primary' : 'bg-secondary'}`}>
+                                            {getGameType(selectedSubdomain)}
+                                        </span>
+                                    </p>
+                                </div>
+                                {selectedSubdomain.teamGame && (
+                                    <>
+                                        <div className="mb-3">
+                                            <h5>Team Size Range</h5>
+                                            <p className="mb-0">{getTeamSizeRange(selectedSubdomain)}</p>
+                                        </div>
+                                        <div className="mb-3">
+                                            <h5>Minimum Team Size</h5>
+                                            <p className="mb-0">{selectedSubdomain.minTeamSize || '1'}</p>
+                                        </div>
+                                        <div className="mb-3">
+                                            <h5>Maximum Team Size</h5>
+                                            <p className="mb-0">{selectedSubdomain.maxTeamSize || '1'}</p>
+                                        </div>
+                                    </>
+                                )}
                                 <div className="mb-3">
                                     <h5>Current Participants</h5>
                                     <p className="mb-0">{selectedSubdomain.currentParticipants?.toLocaleString() || '0'}</p>
