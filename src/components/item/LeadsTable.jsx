@@ -10,7 +10,7 @@ import 'react-loading-skeleton/dist/skeleton.css';
 import Modal from 'react-bootstrap/Modal';
 
 const ItemsTable = () => {
-    const [domains, setDomains] = useState([]);
+    const [subdomains, setSubdomains] = useState([]);
     const [parentDomains, setParentDomains] = useState([]);
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -18,16 +18,16 @@ const ItemsTable = () => {
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [deleteLoading, setDeleteLoading] = useState(false);
-    const [selectedDomain, setSelectedDomain] = useState(null);
-    const [domainToDelete, setDomainToDelete] = useState(null);
-    const [newDomain, setNewDomain] = useState({
+    const [selectedSubdomain, setSelectedSubdomain] = useState(null);
+    const [subdomainToDelete, setSubdomainToDelete] = useState(null);
+    const [newSubdomain, setNewSubdomain] = useState({
         name: '',
         description: '',
         registrationFee: '',
         participantLimit: '',
         parentDomainId: ''
     });
-    const [editDomain, setEditDomain] = useState({
+    const [editSubdomain, setEditSubdomain] = useState({
         id: '',
         name: '',
         description: '',
@@ -37,8 +37,8 @@ const ItemsTable = () => {
     });
     const [formErrors, setFormErrors] = useState({});
     const [editFormErrors, setEditFormErrors] = useState({});
-    const [creatingDomain, setCreatingDomain] = useState(false);
-    const [updatingDomain, setUpdatingDomain] = useState(false);
+    const [creatingSubdomain, setCreatingSubdomain] = useState(false);
+    const [updatingSubdomain, setUpdatingSubdomain] = useState(false);
     const [currentEventId, setCurrentEventId] = useState(null);
     const [hasFetchedInitialData, setHasFetchedInitialData] = useState(false);
     const skinTheme = localStorage.getItem('skinTheme') || 'light';
@@ -50,10 +50,10 @@ const ItemsTable = () => {
     const userPermissions = authData?.permissions || [];
 
     // Permission checks
-    const canRead = userRole === 'PATRON' || userPermissions.includes('CATEGORY_READ');
-    const canWrite = userRole === 'PATRON' || userPermissions.includes('CATEGORY_WRITE');
-    const canUpdate = userRole === 'PATRON' || userPermissions.includes('CATEGORY_UPDATE');
-    const canDelete = userRole === 'PATRON' || userPermissions.includes('CATEGORY_DELETE');
+    const canRead = userRole === 'PATRON' || userRole === 'DOMAIN_HEAD' || userPermissions.includes('CATEGORY_READ');
+    const canWrite = userRole === 'PATRON' || userRole === 'DOMAIN_HEAD' || userPermissions.includes('CATEGORY_WRITE');
+    const canUpdate = userRole === 'PATRON' || userRole === 'DOMAIN_HEAD' || userPermissions.includes('CATEGORY_UPDATE');
+    const canDelete = userRole === 'PATRON' || userRole === 'DOMAIN_HEAD' || userPermissions.includes('CATEGORY_DELETE');
 
     // Get event ID from localStorage or EventsDropdown
     const getEventId = useCallback(() => {
@@ -98,9 +98,6 @@ const ItemsTable = () => {
         });
     };
 
-    // Utility function to add delay
-    const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
     const EmptyState = () => {
         return (
             <div className="text-center py-5" style={{ minHeight: '460px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
@@ -115,8 +112,8 @@ const ItemsTable = () => {
                         </g>
                     </svg>
                 </div>
-                <h5 className="mb-2">No Event Subdomains Found</h5>
-                <p className="text-muted mb-4">No event subdomains are available for this event.</p>
+                <h5 className="mb-2">No Subdomains Found</h5>
+                <p className="text-muted mb-4">No subdomains are available for this event.</p>
                 {canWrite && getEventId() && (
                     <Button 
                         variant="contained" 
@@ -141,6 +138,7 @@ const ItemsTable = () => {
                             <th scope="col">Registration Fee</th>
                             <th scope="col">Participant Limit</th>
                             <th scope="col">Current Participants</th>
+                            <th scope="col">Parent Domain</th>
                             <th scope="col" className="text-end">Actions</th>
                         </tr>
                     </thead>
@@ -183,6 +181,13 @@ const ItemsTable = () => {
                                     />
                                 </td>
                                 <td>
+                                    <Skeleton
+                                        width={120}
+                                        baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
+                                        highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
+                                    />
+                                </td>
+                                <td>
                                     <div className="hstack gap-2 justify-content-end">
                                         <Skeleton
                                             circle
@@ -215,8 +220,43 @@ const ItemsTable = () => {
         );
     };
 
-    // Fetch all data with sequential requests to prevent concurrent API calls
-    const fetchAllData = useCallback(async () => {
+    // Fetch parent domains (categories)
+    const fetchParentDomains = useCallback(async () => {
+        try {
+            const authData = JSON.parse(localStorage.getItem("authData"));
+            const eventId = getEventId();
+
+            if (!eventId) {
+                return [];
+            }
+
+            const response = await fetch(`${BASE_URL}/api/events/${eventId}/domains`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${authData.token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.message || 'Failed to fetch parent domains');
+            }
+
+            if (data.success && data.data) {
+                return data.data;
+            } else {
+                return [];
+            }
+        } catch (err) {
+            console.error('Error fetching parent domains:', err);
+            showErrorToast('Failed to fetch parent domains');
+            return [];
+        }
+    }, [getEventId]);
+
+    // Fetch all subdomains
+    const fetchAllSubdomains = useCallback(async () => {
         try {
             setLoading(true);
             const authData = JSON.parse(localStorage.getItem("authData"));
@@ -228,7 +268,11 @@ const ItemsTable = () => {
             }
 
             // Fetch parent domains first
-            const parentDomainsResponse = await fetch(`${BASE_URL}/api/events/${eventId}/domains`, {
+            const parentDomainsData = await fetchParentDomains();
+            setParentDomains(parentDomainsData);
+
+            // Fetch all subdomains using the new API endpoint
+            const response = await fetch(`${BASE_URL}/api/subdomains`, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${authData.token}`,
@@ -236,63 +280,39 @@ const ItemsTable = () => {
                 }
             });
 
-            const parentDomainsData = await parentDomainsResponse.json();
-            if (!parentDomainsResponse.ok) {
-                throw new Error(parentDomainsData.message || 'Failed to fetch parent domains');
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.message || 'Failed to fetch subdomains');
             }
 
-            if (parentDomainsData.success && parentDomainsData.data) {
-                setParentDomains(parentDomainsData.data);
-
-                // Fetch subdomains sequentially instead of in parallel to prevent concurrent requests
-                const allSubDomains = [];
-                for (const parentDomain of parentDomainsData.data) {
-                    try {
-                        // Add a small delay between requests to prevent overwhelming the backend
-                        await delay(50);
-                        
-                        const subDomainsResponse = await fetch(`${BASE_URL}/api/events/${eventId}/domains/${parentDomain.id}/subdomains`, {
-                            method: 'GET',
-                            headers: {
-                                'Authorization': `Bearer ${authData.token}`,
-                                'Content-Type': 'application/json'
-                            }
-                        });
-
-                        const subDomainsData = await subDomainsResponse.json();
-                        if (subDomainsResponse.ok && subDomainsData.success && subDomainsData.data) {
-                            allSubDomains.push(...subDomainsData.data);
-                        }
-                    } catch (error) {
-                        console.error(`Error fetching subdomains for parent ${parentDomain.id}:`, error);
-                        // Continue with other domains even if one fails
-                    }
-                }
-                
-                setDomains(allSubDomains);
+            if (data.success && data.data) {
+                // Filter subdomains that belong to the current event's parent domains
+                const eventParentDomainIds = parentDomainsData.map(domain => domain.id);
+                const eventSubdomains = data.data.filter(subdomain => 
+                    eventParentDomainIds.includes(subdomain.parentDomainId)
+                );
+                setSubdomains(eventSubdomains);
             } else {
-                setParentDomains([]);
-                setDomains([]);
+                setSubdomains([]);
             }
         } catch (err) {
-            console.error('Error fetching data:', err);
+            console.error('Error fetching subdomains:', err);
             showErrorToast(err.message);
-            setParentDomains([]);
-            setDomains([]);
+            setSubdomains([]);
         } finally {
             setLoading(false);
             setHasFetchedInitialData(true);
         }
-    }, [getEventId]);
+    }, [getEventId, fetchParentDomains]);
 
     // Refresh function for after create/update/delete operations
     const refreshData = useCallback(async () => {
-        await fetchAllData();
-    }, [fetchAllData]);
+        await fetchAllSubdomains();
+    }, [fetchAllSubdomains]);
 
     const handleInputChange = (e) => {
         const { name, value } = e.target;
-        setNewDomain(prev => ({ 
+        setNewSubdomain(prev => ({ 
             ...prev, 
             [name]: value 
         }));
@@ -303,7 +323,7 @@ const ItemsTable = () => {
 
     const handleEditInputChange = (e) => {
         const { name, value } = e.target;
-        setEditDomain(prev => ({ 
+        setEditSubdomain(prev => ({ 
             ...prev, 
             [name]: value 
         }));
@@ -346,45 +366,38 @@ const ItemsTable = () => {
         return Object.keys(errors).length === 0;
     };
 
-    const handleCreateDomain = async (e) => {
+    const handleCreateSubdomain = async (e) => {
         e.preventDefault();
-        if (!validateForm(newDomain, setFormErrors)) return;
+        if (!validateForm(newSubdomain, setFormErrors)) return;
 
         try {
-            setCreatingDomain(true);
+            setCreatingSubdomain(true);
             const authData = JSON.parse(localStorage.getItem("authData"));
-            const eventId = getEventId();
 
-            if (!eventId) {
-                showErrorToast("Please select an event first");
-                return;
-            }
-
-            const response = await fetch(`${BASE_URL}/api/events/${eventId}/domains`, {
+            const response = await fetch(`${BASE_URL}/api/subdomains`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${authData.token}`,
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    name: newDomain.name,
-                    description: newDomain.description,
-                    registrationFee: parseFloat(newDomain.registrationFee),
-                    participantLimit: parseInt(newDomain.participantLimit),
-                    domainHeadId: null,
-                    parentDomainId: newDomain.parentDomainId || null
+                    name: newSubdomain.name,
+                    description: newSubdomain.description,
+                    registrationFee: parseFloat(newSubdomain.registrationFee),
+                    participantLimit: parseInt(newSubdomain.participantLimit),
+                    parentDomainId: newSubdomain.parentDomainId
                 })
             });
 
             const data = await response.json();
             if (!response.ok) {
-                throw new Error(data.message || 'Failed to create domain');
+                throw new Error(data.message || 'Failed to create subdomain');
             }
 
             showSuccessToast('Subdomain created successfully');
             await refreshData();
             setIsModalOpen(false);
-            setNewDomain({
+            setNewSubdomain({
                 name: '',
                 description: '',
                 registrationFee: '',
@@ -395,43 +408,36 @@ const ItemsTable = () => {
         } catch (err) {
             showErrorToast(err.message);
         } finally {
-            setCreatingDomain(false);
+            setCreatingSubdomain(false);
         }
     };
 
     const handleEditSubmit = async (e) => {
         e.preventDefault();
-        if (!validateForm(editDomain, setEditFormErrors)) return;
+        if (!validateForm(editSubdomain, setEditFormErrors)) return;
 
         try {
-            setUpdatingDomain(true);
+            setUpdatingSubdomain(true);
             const authData = JSON.parse(localStorage.getItem("authData"));
-            const eventId = getEventId();
 
-            if (!eventId) {
-                showErrorToast("Please select an event first");
-                return;
-            }
-
-            const response = await fetch(`${BASE_URL}/api/events/${eventId}/domains/${editDomain.id}`, {
+            const response = await fetch(`${BASE_URL}/api/subdomains/${editSubdomain.id}`, {
                 method: 'PUT',
                 headers: {
                     'Authorization': `Bearer ${authData.token}`,
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    name: editDomain.name,
-                    description: editDomain.description,
-                    registrationFee: parseFloat(editDomain.registrationFee),
-                    participantLimit: parseInt(editDomain.participantLimit),
-                    domainHeadId: null,
-                    parentDomainId: editDomain.parentDomainId || null
+                    name: editSubdomain.name,
+                    description: editSubdomain.description,
+                    registrationFee: parseFloat(editSubdomain.registrationFee),
+                    participantLimit: parseInt(editSubdomain.participantLimit),
+                    parentDomainId: editSubdomain.parentDomainId
                 })
             });
 
             const data = await response.json();
             if (!response.ok) {
-                throw new Error(data.message || 'Failed to update domain');
+                throw new Error(data.message || 'Failed to update subdomain');
             }
 
             showSuccessToast('Subdomain updated successfully');
@@ -441,22 +447,16 @@ const ItemsTable = () => {
         } catch (err) {
             showErrorToast(err.message);
         } finally {
-            setUpdatingDomain(false);
+            setUpdatingSubdomain(false);
         }
     };
 
-    const handleDeleteDomain = async () => {
+    const handleDeleteSubdomain = async () => {
         try {
             setDeleteLoading(true);
             const authData = JSON.parse(localStorage.getItem("authData"));
-            const eventId = getEventId();
 
-            if (!eventId) {
-                showErrorToast("Please select an event first");
-                return;
-            }
-
-            const response = await fetch(`${BASE_URL}/api/events/${eventId}/domains/${domainToDelete.id}`, {
+            const response = await fetch(`${BASE_URL}/api/subdomains/${subdomainToDelete.id}`, {
                 method: 'DELETE',
                 headers: {
                     'Authorization': `Bearer ${authData.token}`,
@@ -466,7 +466,7 @@ const ItemsTable = () => {
 
             const data = await response.json();
             if (!response.ok) {
-                throw new Error(data.message || 'Failed to delete domain');
+                throw new Error(data.message || 'Failed to delete subdomain');
             }
 
             showSuccessToast('Subdomain deleted successfully');
@@ -479,28 +479,28 @@ const ItemsTable = () => {
         }
     };
 
-    const handleViewDomain = (domain) => {
+    const handleViewSubdomain = (subdomain) => {
         if (!canRead) return;
-        setSelectedDomain(domain);
+        setSelectedSubdomain(subdomain);
         setIsViewModalOpen(true);
     };
 
-    const handleEditDomain = (domain) => {
+    const handleEditSubdomain = (subdomain) => {
         if (!canUpdate) return;
-        setEditDomain({
-            id: domain.id,
-            name: domain.name,
-            description: domain.description,
-            registrationFee: domain.registrationFee?.toString() || '',
-            participantLimit: domain.participantLimit?.toString() || '',
-            parentDomainId: domain.parentDomainId || ''
+        setEditSubdomain({
+            id: subdomain.id,
+            name: subdomain.name,
+            description: subdomain.description,
+            registrationFee: subdomain.registrationFee?.toString() || '',
+            participantLimit: subdomain.participantLimit?.toString() || '',
+            parentDomainId: subdomain.parentDomainId || ''
         });
         setIsEditModalOpen(true);
     };
 
-    const handleDeleteClick = (domain) => {
+    const handleDeleteClick = (subdomain) => {
         if (!canDelete) return;
-        setDomainToDelete(domain);
+        setSubdomainToDelete(subdomain);
         setIsDeleteModalOpen(true);
     };
 
@@ -564,7 +564,7 @@ const ItemsTable = () => {
                     {canRead && (
                         <button
                             className="avatar-text avatar-md"
-                            onClick={() => handleViewDomain(row.original)}
+                            onClick={() => handleViewSubdomain(row.original)}
                             title="View Details"
                         >
                             <FiEye />
@@ -573,7 +573,7 @@ const ItemsTable = () => {
                     {canUpdate && (
                         <button
                             className="avatar-text avatar-md"
-                            onClick={() => handleEditDomain(row.original)}
+                            onClick={() => handleEditSubdomain(row.original)}
                             title="Edit Subdomain"
                         >
                             <FiEdit />
@@ -604,10 +604,10 @@ const ItemsTable = () => {
                 localStorage.setItem('selectedEvent', JSON.stringify(eventDetail));
                 
                 // Reset data and refresh when event changes
-                setDomains([]);
+                setSubdomains([]);
                 setParentDomains([]);
                 setHasFetchedInitialData(false);
-                fetchAllData();
+                fetchAllSubdomains();
             }
         };
 
@@ -616,15 +616,15 @@ const ItemsTable = () => {
         return () => {
             window.removeEventListener('eventSelected', handleEventSelected);
         };
-    }, [currentEventId, fetchAllData]);
+    }, [currentEventId, fetchAllSubdomains]);
 
-    // Fetch domains on component mount only once if event ID is available
+    // Fetch subdomains on component mount only once if event ID is available
     useEffect(() => {
         const eventId = getEventId();
         if (eventId && !hasFetchedInitialData) {
-            fetchAllData();
+            fetchAllSubdomains();
         }
-    }, [getEventId, fetchAllData, hasFetchedInitialData]);
+    }, [getEventId, fetchAllSubdomains, hasFetchedInitialData]);
 
     return (
         <>
@@ -672,31 +672,31 @@ const ItemsTable = () => {
                 </div>
             ) : loading ? (
                 <SkeletonLoader />
-            ) : domains.length === 0 ? (
+            ) : subdomains.length === 0 ? (
                 <EmptyState />
             ) : (
                 <Table
-                    data={domains}
+                    data={subdomains}
                     columns={columns}
                     initialState={{ pagination: { pageSize: 10 } }}
                 />
             )}
 
-            {/* Create Domain Modal */}
+            {/* Create Subdomain Modal */}
             {canWrite && (
                 <Modal show={isModalOpen} onHide={() => setIsModalOpen(false)} centered size="lg">
                     <Modal.Header closeButton>
                         <Modal.Title>Create New Subdomain</Modal.Title>
                     </Modal.Header>
                     <Modal.Body>
-                        <form onSubmit={handleCreateDomain}>
+                        <form onSubmit={handleCreateSubdomain}>
                             <div className="mb-3">
                                 <label className="form-label">Name *</label>
                                 <input
                                     type="text"
                                     className={`form-control ${formErrors.name ? 'is-invalid' : ''}`}
                                     name="name"
-                                    value={newDomain.name}
+                                    value={newSubdomain.name}
                                     onChange={handleInputChange}
                                     placeholder="Enter subdomain name"
                                 />
@@ -707,7 +707,7 @@ const ItemsTable = () => {
                                 <textarea
                                     className={`form-control ${formErrors.description ? 'is-invalid' : ''}`}
                                     name="description"
-                                    value={newDomain.description}
+                                    value={newSubdomain.description}
                                     onChange={handleInputChange}
                                     placeholder="Enter subdomain description"
                                     rows="3"
@@ -724,7 +724,7 @@ const ItemsTable = () => {
                                                 type="number"
                                                 className={`form-control ${formErrors.registrationFee ? 'is-invalid' : ''}`}
                                                 name="registrationFee"
-                                                value={newDomain.registrationFee}
+                                                value={newSubdomain.registrationFee}
                                                 onChange={handleInputChange}
                                                 placeholder="0.00"
                                                 min="0"
@@ -741,7 +741,7 @@ const ItemsTable = () => {
                                             type="number"
                                             className={`form-control ${formErrors.participantLimit ? 'is-invalid' : ''}`}
                                             name="participantLimit"
-                                            value={newDomain.participantLimit}
+                                            value={newSubdomain.participantLimit}
                                             onChange={handleInputChange}
                                             placeholder="0"
                                             min="1"
@@ -755,7 +755,7 @@ const ItemsTable = () => {
                                 <select
                                     className={`form-control ${formErrors.parentDomainId ? 'is-invalid' : ''}`}
                                     name="parentDomainId"
-                                    value={newDomain.parentDomainId}
+                                    value={newSubdomain.parentDomainId}
                                     onChange={handleInputChange}
                                     style={{
                                         backgroundColor: 'transparent',
@@ -789,16 +789,16 @@ const ItemsTable = () => {
                                 setIsModalOpen(false);
                                 setFormErrors({});
                             }}
-                            disabled={creatingDomain}
+                            disabled={creatingSubdomain}
                         >
                             Cancel
                         </Button>
                         <Button 
                             variant="contained" 
-                            onClick={handleCreateDomain}
-                            disabled={creatingDomain}
+                            onClick={handleCreateSubdomain}
+                            disabled={creatingSubdomain}
                         >
-                            {creatingDomain ? (
+                            {creatingSubdomain ? (
                                 <>
                                     <span className="spinner-border spinner-border-sm me-2" role="status"></span>
                                     Creating...
@@ -811,7 +811,7 @@ const ItemsTable = () => {
                 </Modal>
             )}
 
-            {/* Edit Domain Modal */}
+            {/* Edit Subdomain Modal */}
             {canUpdate && (
                 <Modal show={isEditModalOpen} onHide={() => setIsEditModalOpen(false)} centered size="lg">
                     <Modal.Header closeButton>
@@ -825,7 +825,7 @@ const ItemsTable = () => {
                                     type="text"
                                     className={`form-control ${editFormErrors.name ? 'is-invalid' : ''}`}
                                     name="name"
-                                    value={editDomain.name}
+                                    value={editSubdomain.name}
                                     onChange={handleEditInputChange}
                                 />
                                 {editFormErrors.name && <div className="invalid-feedback">{editFormErrors.name}</div>}
@@ -835,7 +835,7 @@ const ItemsTable = () => {
                                 <textarea
                                     className={`form-control ${editFormErrors.description ? 'is-invalid' : ''}`}
                                     name="description"
-                                    value={editDomain.description}
+                                    value={editSubdomain.description}
                                     onChange={handleEditInputChange}
                                     rows="3"
                                 />
@@ -851,7 +851,7 @@ const ItemsTable = () => {
                                                 type="number"
                                                 className={`form-control ${editFormErrors.registrationFee ? 'is-invalid' : ''}`}
                                                 name="registrationFee"
-                                                value={editDomain.registrationFee}
+                                                value={editSubdomain.registrationFee}
                                                 onChange={handleEditInputChange}
                                                 min="0"
                                                 step="0.01"
@@ -867,7 +867,7 @@ const ItemsTable = () => {
                                             type="number"
                                             className={`form-control ${editFormErrors.participantLimit ? 'is-invalid' : ''}`}
                                             name="participantLimit"
-                                            value={editDomain.participantLimit}
+                                            value={editSubdomain.participantLimit}
                                             onChange={handleEditInputChange}
                                             min="1"
                                         />
@@ -880,7 +880,7 @@ const ItemsTable = () => {
                                 <select
                                     className={`form-control ${editFormErrors.parentDomainId ? 'is-invalid' : ''}`}
                                     name="parentDomainId"
-                                    value={editDomain.parentDomainId}
+                                    value={editSubdomain.parentDomainId}
                                     onChange={handleEditInputChange}
                                     style={{
                                         backgroundColor: 'transparent',
@@ -914,16 +914,16 @@ const ItemsTable = () => {
                                 setIsEditModalOpen(false);
                                 setEditFormErrors({});
                             }}
-                            disabled={updatingDomain}
+                            disabled={updatingSubdomain}
                         >
                             Cancel
                         </Button>
                         <Button 
                             variant="contained" 
                             onClick={handleEditSubmit}
-                            disabled={updatingDomain}
+                            disabled={updatingSubdomain}
                         >
-                            {updatingDomain ? (
+                            {updatingSubdomain ? (
                                 <>
                                     <span className="spinner-border spinner-border-sm me-2" role="status"></span>
                                     Updating...
@@ -936,46 +936,50 @@ const ItemsTable = () => {
                 </Modal>
             )}
 
-            {/* View Domain Modal */}
+            {/* View Subdomain Modal */}
             {canRead && (
                 <Modal show={isViewModalOpen} onHide={() => setIsViewModalOpen(false)} centered size="lg">
                     <Modal.Header closeButton>
                         <Modal.Title>Subdomain Details</Modal.Title>
                     </Modal.Header>
                     <Modal.Body>
-                        {selectedDomain && (
+                        {selectedSubdomain && (
                             <div>
                                 <div className="mb-3">
                                     <h5>Name</h5>
-                                    <p className="mb-0">{selectedDomain.name}</p>
+                                    <p className="mb-0">{selectedSubdomain.name}</p>
                                 </div>
                                 <div className="mb-3">
                                     <h5>Description</h5>
-                                    <p className="mb-0">{selectedDomain.description || '-'}</p>
+                                    <p className="mb-0">{selectedSubdomain.description || '-'}</p>
                                 </div>
                                 <div className="mb-3">
                                     <h5>Current Participants</h5>
-                                    <p className="mb-0">{selectedDomain.currentParticipants?.toLocaleString() || '0'}</p>
+                                    <p className="mb-0">{selectedSubdomain.currentParticipants?.toLocaleString() || '0'}</p>
+                                </div>
+                                <div className="mb-3">
+                                    <h5>Registered Count</h5>
+                                    <p className="mb-0">{selectedSubdomain.registeredCount?.toLocaleString() || '0'}</p>
+                                </div>
+                                <div className="mb-3">
+                                    <h5>Waitlist Count</h5>
+                                    <p className="mb-0">{selectedSubdomain.waitlistCount?.toLocaleString() || '0'}</p>
                                 </div>
                                 <div className="mb-3">
                                     <h5>Registration Fee</h5>
-                                    <p className="mb-0">{formatCurrency(selectedDomain.registrationFee)}</p>
+                                    <p className="mb-0">{formatCurrency(selectedSubdomain.registrationFee)}</p>
                                 </div>
                                 <div className="mb-3">
                                     <h5>Participant Limit</h5>
-                                    <p className="mb-0">{selectedDomain.participantLimit?.toLocaleString() || '0'}</p>
-                                </div>
-                                <div className="mb-3">
-                                    <h5>Domain Type</h5>
-                                    <p className="mb-0">{selectedDomain.domainType}</p>
+                                    <p className="mb-0">{selectedSubdomain.participantLimit?.toLocaleString() || '0'}</p>
                                 </div>
                                 <div className="mb-3">
                                     <h5>Parent Domain</h5>
-                                    <p className="mb-0">{selectedDomain.parentDomainName || 'N/A'}</p>
+                                    <p className="mb-0">{selectedSubdomain.parentDomainName || 'N/A'}</p>
                                 </div>
                                 <div className="mb-3">
                                     <h5>Created At</h5>
-                                    <p className="mb-0">{formatDate(selectedDomain.createdAt)}</p>
+                                    <p className="mb-0">{formatDate(selectedSubdomain.createdAt)}</p>
                                 </div>
                             </div>
                         )}
@@ -994,9 +998,9 @@ const ItemsTable = () => {
                         <Modal.Title>Delete Subdomain</Modal.Title>
                     </Modal.Header>
                     <Modal.Body>
-                        {domainToDelete && (
+                        {subdomainToDelete && (
                             <>
-                                <p>Are you sure you want to delete the subdomain <strong>{domainToDelete.name}</strong>?</p>
+                                <p>Are you sure you want to delete the subdomain <strong>{subdomainToDelete.name}</strong>?</p>
                                 <p className="text-danger">This action cannot be undone.</p>
                             </>
                         )}
@@ -1011,7 +1015,7 @@ const ItemsTable = () => {
                         </Button>
                         <Button
                             variant="contained"
-                            onClick={handleDeleteDomain}
+                            onClick={handleDeleteSubdomain}
                             style={{ backgroundColor: '#d32f2f', color: 'white' }}
                             disabled={deleteLoading}
                         >
