@@ -569,7 +569,7 @@ const RegistrationTable = () => {
             />
 
             <div className="d-flex justify-content-between align-items-center mb-4">
-                <h4>Registrations</h4>
+                <h4>Participants</h4>
                 <div className="d-flex align-items-center gap-2">
                     {registrations.length > 0 && (
                         <small className="text-muted">
