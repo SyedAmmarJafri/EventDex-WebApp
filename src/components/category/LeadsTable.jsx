@@ -58,18 +58,18 @@ const CategoriesTable = () => {
         if (savedEventId) {
             return savedEventId;
         }
-        
+
         // If not in localStorage, try to get from currentEventId state
         if (currentEventId) {
             return currentEventId;
         }
-        
+
         // Fallback to checking if there's an event selected in the dropdown
         const eventData = JSON.parse(localStorage.getItem('selectedEvent'));
         if (eventData && eventData.id) {
             return eventData.id;
         }
-        
+
         return null;
     };
 
@@ -159,10 +159,11 @@ const CategoriesTable = () => {
                 <h5 className="mb-2">No Event Domains Found</h5>
                 <p className="text-muted mb-4">No event domains are available for this event.</p>
                 {canWrite && (
-                    <Button 
-                        variant="contained" 
+                    <Button
+                        variant="contained"
                         startIcon={<FiPlus />}
                         onClick={() => setIsModalOpen(true)}
+                        style={{ backgroundColor: '#af0000ff', color: 'white' }}
                     >
                         Create New Domain
                     </Button>
@@ -261,9 +262,9 @@ const CategoriesTable = () => {
 
     const handleInputChange = (e) => {
         const { name, value } = e.target;
-        setNewCategory(prev => ({ 
-            ...prev, 
-            [name]: value 
+        setNewCategory(prev => ({
+            ...prev,
+            [name]: value
         }));
         if (formErrors[name]) {
             setFormErrors(prev => ({ ...prev, [name]: '' }));
@@ -272,9 +273,9 @@ const CategoriesTable = () => {
 
     const handleEditInputChange = (e) => {
         const { name, value } = e.target;
-        setEditCategory(prev => ({ 
-            ...prev, 
-            [name]: value 
+        setEditCategory(prev => ({
+            ...prev,
+            [name]: value
         }));
         if (editFormErrors[name]) {
             setEditFormErrors(prev => ({ ...prev, [name]: '' }));
@@ -344,7 +345,7 @@ const CategoriesTable = () => {
                 progress: undefined,
                 theme: "colored",
             });
-            
+
             await fetchCategories();
             setIsModalOpen(false);
             setNewCategory({
@@ -428,7 +429,7 @@ const CategoriesTable = () => {
                 progress: undefined,
                 theme: "colored",
             });
-            
+
             await fetchCategories();
             setIsEditModalOpen(false);
             setEditFormErrors({});
@@ -610,7 +611,7 @@ const CategoriesTable = () => {
                 setCurrentEventId(eventDetail.id);
                 localStorage.setItem('eventid', eventDetail.id);
                 localStorage.setItem('selectedEvent', JSON.stringify(eventDetail));
-                
+
                 // Refresh categories when event changes
                 fetchCategories();
             }
@@ -656,19 +657,14 @@ const CategoriesTable = () => {
             <div className="d-flex justify-content-between align-items-center mb-4">
                 <h4>Event Domains</h4>
                 <div className="d-flex align-items-center gap-3">
-                    {currentEventId && (
-                        <small className="text-muted">
-                            Showing domains for selected event
-                        </small>
-                    )}
                     {canWrite && getEventId() && (
-                        <Button 
-                            variant="contained" 
-                            startIcon={<FiPlus />}
+                        <Button
+                            variant="contained"
                             onClick={() => setIsModalOpen(true)}
-                            size="small"
+                            className="d-flex align-items-center gap-2 mx-auto"
+                            style={{ backgroundColor: '#af0000ff', color: 'white' }}
                         >
-                            Create New Domain
+                            <FiPlus /> Create Domain
                         </Button>
                     )}
                 </div>
@@ -729,20 +725,11 @@ const CategoriesTable = () => {
                         </form>
                     </Modal.Body>
                     <Modal.Footer>
-                        <Button 
-                            variant="outlined" 
-                            onClick={() => {
-                                setIsModalOpen(false);
-                                setFormErrors({});
-                            }}
-                            disabled={creatingCategory}
-                        >
-                            Cancel
-                        </Button>
-                        <Button 
-                            variant="contained" 
+                        <Button
+                            variant="contained"
                             onClick={handleCreateDomain}
                             disabled={creatingCategory}
+                            style={{ backgroundColor: '#af0000ff', color: 'white' }}
                         >
                             {creatingCategory ? (
                                 <>
@@ -790,19 +777,10 @@ const CategoriesTable = () => {
                         </form>
                     </Modal.Body>
                     <Modal.Footer>
-                        <Button 
-                            variant="outlined" 
-                            onClick={() => {
-                                setIsEditModalOpen(false);
-                                setEditFormErrors({});
-                            }}
-                            disabled={updatingCategory}
-                        >
-                            Cancel
-                        </Button>
-                        <Button 
-                            variant="contained" 
+                        <Button
+                            variant="contained"
                             onClick={handleEditSubmit}
+                            style={{ backgroundColor: '#af0000ff', color: 'white' }}
                             disabled={updatingCategory}
                         >
                             {updatingCategory ? (
@@ -869,16 +847,9 @@ const CategoriesTable = () => {
                     </Modal.Body>
                     <Modal.Footer>
                         <Button
-                            variant="outlined"
-                            onClick={() => setIsDeleteModalOpen(false)}
-                            disabled={deletingCategory}
-                        >
-                            Cancel
-                        </Button>
-                        <Button
                             variant="contained"
                             onClick={handleDeleteCategory}
-                            style={{ backgroundColor: '#d32f2f', color: 'white' }}
+                            style={{ backgroundColor: '#af0000ff', color: 'white' }}
                             disabled={deletingCategory}
                         >
                             {deletingCategory ? (

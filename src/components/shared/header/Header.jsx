@@ -188,35 +188,6 @@ const Header = () => {
                 </div>
                 <div className="header-right ms-auto">
                     <div className="d-flex justify-content-end align-items-center w-100">
-                        <Support />
-                        <div className="nxl-h-item d-none d-sm-flex">
-                            <div className="full-screen-switcher" onClick={toggleFullScreen} style={{ cursor: 'pointer' }}>
-                                <span className="nxl-head-link me-0">
-                                    {!isFullScreen ? (
-                                        <FiMaximize size={20} className="maximize" />
-                                    ) : (
-                                        <FiMinimize size={20} className="minimize" />
-                                    )}
-                                </span>
-                            </div>
-                        </div>
-                        <div className="nxl-h-item dark-light-theme">
-                            <div
-                                className="nxl-head-link me-0 dark-button"
-                                onClick={() => handleThemeMode("dark")}
-                                style={{ display: darkMode ? "none" : "block", cursor: 'pointer' }}
-                            >
-                                <FiMoon size={20} />
-                            </div>
-                            <div
-                                className="nxl-head-link me-0 light-button"
-                                onClick={() => handleThemeMode("light")}
-                                style={{ display: darkMode ? "block" : "none", cursor: 'pointer' }}
-                            >
-                                <FiSun size={20} />
-                            </div>
-                        </div>
-                        <NotificationsModal />
                         <ProfileModal />
                     </div>
                 </div>

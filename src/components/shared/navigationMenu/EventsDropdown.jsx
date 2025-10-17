@@ -289,8 +289,8 @@ const EventsDropdown = () => {
                     align-items: center;
                     justify-content: space-between;
                     padding: 8px 12px;
-                    background: #0092ff;
-                    border: 1px solid #0092ff;
+                    background: #af0000ff;
+                    border: 1px solid #af0000ff;
                     border-radius: 6px;
                     cursor: pointer;
                     transition: all 0.2s ease;
@@ -298,14 +298,14 @@ const EventsDropdown = () => {
                 }
 
                 .events-dropdown-trigger:hover {
-                    border-color: #0092ff;
-                    background: #0092ff;
+                    border-color: #af0000ff;
+                    background: #af0000ff;
                 }
 
                 .events-dropdown-trigger.active {
-                    border-color: #0092ff;
-                    background: #0092ff;
-                    box-shadow: 0 0 0 2px rgba(0, 146, 255, 0.1);
+                    border-color: #af0000ff;
+                    background: #af0000ff;
+                    box-shadow: 0 0 0 2px rgba(207, 0, 0, 0.1);
                 }
 
                 .trigger-content {
@@ -396,7 +396,7 @@ const EventsDropdown = () => {
                 .reset-btn {
                     background: none;
                     border: none;
-                    color: #0092ff;
+                    color: #af0000ff;
                     font-size: 12px;
                     cursor: pointer;
                     padding: 4px 8px;
@@ -417,7 +417,7 @@ const EventsDropdown = () => {
 
                 .current-label {
                     font-size: 11px;
-                    color: #007acc;
+                    color: #af0000ff;
                     font-weight: 600;
                     margin-bottom: 4px;
                     text-transform: uppercase;
@@ -525,7 +525,7 @@ const EventsDropdown = () => {
                 }
 
                 .select-arrow {
-                    color: #0092ff;
+                    color: #af0000ff;
                     font-size: 14px;
                     flex-shrink: 0;
                     margin-left: 8px;
@@ -554,7 +554,7 @@ const EventsDropdown = () => {
                 }
 
                 .retry-btn {
-                    background: #0092ff;
+                    background: #af0000ff;
                     color: white;
                     border: none;
                     padding: 6px 12px;
@@ -565,7 +565,7 @@ const EventsDropdown = () => {
                 }
 
                 .retry-btn:hover {
-                    background: #007acc;
+                    background: #af0000ff;
                 }
 
                 /* Ensure text colors are proper in dropdown */

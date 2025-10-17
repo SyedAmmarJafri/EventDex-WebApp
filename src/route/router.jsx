@@ -9,7 +9,7 @@ import ReportsFinancial from "../pages/reports-financial";
 import ReportsTeam from "../pages/reports-team";
 import ReportsComparison from "../pages/reports-comparison";
 import Reports from "../pages/reports";
-import LoginCover from "../pages/login-cover";
+import LoginCover from "../pages/login-creative";
 import Categorylist from "../pages/category";
 import Itemlist from "../pages/item";
 import Inventorylist from "../pages/inventory";

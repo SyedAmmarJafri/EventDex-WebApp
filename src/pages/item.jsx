@@ -1,5 +1,4 @@
 import LeadssTable from '@/components/item/LeadsTable'
-import Footer from '@/components/shared/Footer'
 
 const LeadsList = () => {
     return (
@@ -9,7 +8,6 @@ const LeadsList = () => {
                     <LeadssTable />
                 </div>
             </div>
-            <Footer/>
         </>
     )
 }

@@ -15,6 +15,9 @@ const LoginForm = ({ registerPath, resetPath }) => {
     const [loginType, setLoginType] = useState('admin'); // 'admin' or 'team'
     const navigate = useNavigate();
 
+    // Custom danger color
+    const customDangerColor = '#af0000ff';
+
     // Check for saved credentials on component mount
     useEffect(() => {
         const savedCredentials = localStorage.getItem("savedCredentials");
@@ -133,6 +136,27 @@ const LoginForm = ({ registerPath, resetPath }) => {
         }
     };
 
+    // Custom button styles
+    const getButtonStyle = (isActive) => ({
+        backgroundColor: isActive ? customDangerColor : 'transparent',
+        color: isActive ? 'white' : customDangerColor,
+        border: `1px solid ${customDangerColor}`,
+        padding: '8px 16px',
+        cursor: 'pointer',
+        transition: 'all 0.3s ease'
+    });
+
+    const getLoginButtonStyle = {
+        backgroundColor: customDangerColor,
+        color: 'white',
+        border: 'none',
+        padding: '12px',
+        width: '100%',
+        cursor: 'pointer',
+        fontSize: '16px',
+        fontWeight: 'bold'
+    };
+
     return (
         <>
             {/* Login type toggle */}
@@ -140,17 +164,17 @@ const LoginForm = ({ registerPath, resetPath }) => {
                 <div className="btn-group" role="group">
                     <button
                         type="button"
-                        className={`btn ${loginType === 'admin' ? 'btn-primary' : 'btn-outline-primary'}`}
+                        style={getButtonStyle(loginType === 'admin')}
                         onClick={toggleLoginType}
                     >
-                        Admin Login
+                        ADMIN LOGIN
                     </button>
                     <button
                         type="button"
-                        className={`btn ${loginType === 'team' ? 'btn-primary' : 'btn-outline-primary'}`}
+                        style={getButtonStyle(loginType === 'team')}
                         onClick={toggleLoginType}
                     >
-                        Team Login
+                        TEAM LOGIN
                     </button>
                 </div>
             </div>
@@ -167,6 +191,11 @@ const LoginForm = ({ registerPath, resetPath }) => {
                         value={formData.username}
                         onChange={handleChange}
                         required
+                        style={{
+                            border: '1px solid #ced4da',
+                            padding: '10px',
+                            width: '100%'
+                        }}
                     />
                 </div>
                 <div className="mb-3 position-relative">
@@ -178,6 +207,12 @@ const LoginForm = ({ registerPath, resetPath }) => {
                         value={formData.password}
                         onChange={handleChange}
                         required
+                        style={{
+                            border: '1px solid #ced4da',
+                            padding: '10px',
+                            width: '100%',
+                            paddingRight: '40px'
+                        }}
                     />
                     <button
                         type="button"
@@ -209,22 +244,18 @@ const LoginForm = ({ registerPath, resetPath }) => {
                             <label className="custom-control-label c-pointer" htmlFor="rememberMe">Remember Me</label>
                         </div>
                     </div>
-                    {loginType === 'admin' && (
-                        <div>
-                            <Link to={resetPath} className="fs-11 text-primary">Forget password?</Link>
-                        </div>
-                    )}
                 </div>
                 <div className="mt-5">
                     <button
                         type="submit"
-                        className="btn btn-lg btn-primary w-100"
+                        style={getLoginButtonStyle}
                         disabled={loading}
                     >
                         {loading ? 'Logging in...' : 'Login'}
                     </button>
                 </div>
             </form>
+
             {/* Notification Popup */}
             {notification && (
                 <div className={`notification-popup ${notification.type}`}
@@ -242,8 +273,8 @@ const LoginForm = ({ registerPath, resetPath }) => {
                         minWidth: '300px',
                         maxWidth: '90%',
                         zIndex: 1000,
-                        backgroundColor: notification.type === 'success' ? '#28a745' : 
-                                       notification.type === 'error' ? '#dc3545' : '#007bff',
+                        backgroundColor: notification.type === 'success' ? '#28a745' :
+                            notification.type === 'error' ? customDangerColor : '#007bff',
                         boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
                         animation: 'slideIn 0.3s ease-out'
                     }}
@@ -277,6 +308,29 @@ const LoginForm = ({ registerPath, resetPath }) => {
                         transform: translateX(-50%) translateY(0);
                         opacity: 1;
                     }
+                }
+                
+                .btn-group button:first-child {
+                    border-right: none;
+                }
+                
+                .btn-group button:last-child {
+                    border-left: none;
+                }
+                
+                .btn-group button:hover {
+                    background-color: ${customDangerColor} !important;
+                    color: white !important;
+                }
+                
+                .custom-control-input:checked {
+                    background-color: ${customDangerColor};
+                    border-color: ${customDangerColor};
+                }
+                
+                .custom-control-input:focus {
+                    border-color: ${customDangerColor};
+                    box-shadow: 0 0 0 0.2rem rgba(175, 0, 0, 0.25);
                 }
                 `}
             </style>

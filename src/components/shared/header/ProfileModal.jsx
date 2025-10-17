@@ -1,6 +1,6 @@
 import { Fragment, useState, useEffect, useCallback } from 'react'
-import { FiDollarSign, FiLogOut, FiSettings, FiUser, FiX } from "react-icons/fi"
-import { useNavigate, Link } from 'react-router-dom'
+import { FiLogOut, FiX } from "react-icons/fi"
+import { useNavigate } from 'react-router-dom'
 import Button from '@mui/material/Button'
 import { BASE_URL } from '/src/constants.js';
 import Modal from 'react-bootstrap/Modal';
@@ -9,7 +9,6 @@ const ProfileModal = () => {
     const navigate = useNavigate()
     const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false)
     const [notification, setNotification] = useState(null)
-    const [profilePicture, setProfilePicture] = useState('')
 
     // Timeout durations
     const ABSOLUTE_TIMEOUT = 24 * 60 * 60 * 1000; // 24 hours
@@ -42,46 +41,6 @@ const ProfileModal = () => {
     }, [resetInactivityTimer]);
 
     useEffect(() => {
-        const fetchProfilePicture = async () => {
-            try {
-                const authData = JSON.parse(localStorage.getItem('authData'))
-                if (!authData?.token) throw new Error('No authentication token found')
-
-                // Check if profile picture exists in localStorage
-                const cachedProfilePicture = localStorage.getItem('profilePicture');
-                if (cachedProfilePicture) {
-                    setProfilePicture(cachedProfilePicture);
-                    return;
-                }
-
-                const response = await fetch(`${BASE_URL}/api/client-admin/profile/picture`, {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `Bearer ${authData.token}`,
-                        'Content-Type': 'application/json'
-                    }
-                })
-
-                // Check if response is successful
-                if (response.ok) {
-                    const data = await response.json()
-                    setProfilePicture(data.data)
-                    // Store in localStorage for future use
-                    localStorage.setItem('profilePicture', data.data);
-                } else if (response.status === 404 || response.status === 488 || response.status === 400) {
-                    // Handle case where profile picture doesn't exist
-                    setProfilePicture(null) // Set to null to use fallback avatar
-                } else {
-                    throw new Error(`Failed to fetch profile picture: ${response.status}`)
-                }
-            } catch (error) {
-                console.error('Error fetching profile picture:', error)
-                setProfilePicture(null) // Ensure fallback avatar is used on error
-            }
-        }
-
-        fetchProfilePicture()
-
         // Set up activity listeners
         const cleanupListeners = setupActivityListeners();
 
@@ -133,8 +92,7 @@ const ProfileModal = () => {
             const data = await response.json()
             if (!response.ok) throw new Error(data.message || 'Logout failed')
 
-            // Remove profile picture from localStorage on logout
-            localStorage.removeItem('profilePicture');
+            // Remove auth data from localStorage on logout
             localStorage.removeItem('authData')
             showNotification(data.message || 'Logged out successfully', 'success')
 
@@ -157,7 +115,7 @@ const ProfileModal = () => {
     }
 
     const getAvatar = () => {
-        return profilePicture || "/images/avatar/undefined-profile.png";
+        return "/images/avatar/undefined-profile.png";
     }
 
     return (
@@ -195,7 +153,7 @@ const ProfileModal = () => {
                             <div className="d-flex flex-column">
                                 <div className="d-flex align-items-center gap-2 flex-wrap">
                                     <h6 className="text-dark mb-0 fw-semibold">{username}</h6>
-                                    <span className="badge bg-primary bg-opacity-10 text-light fs-11 fw-medium">
+                                    <span className="badge bg-danger bg-opacity-10 text-light fs-11 fw-medium">
                                         {role}
                                     </span>
                                 </div>
@@ -203,28 +161,6 @@ const ProfileModal = () => {
                             </div>
                         </div>
                     </div>
-
-                    {/* Updated to use Link component for hash routing */}
-                    {(role === 'PATRON' || hasPermission('PROFILE_UPDATE')) && (
-                        <Link to="/account" className="dropdown-item">
-                            <i><FiUser /></i>
-                            <span>Account Information</span>
-                        </Link>
-                    )}
-
-                    {role === 'PATRON' && (
-                        <Link to="/account" className="dropdown-item">
-                            <i><FiDollarSign /></i>
-                            <span>Subscription & Plan</span>
-                        </Link>
-                    )}
-
-                    {(role === 'PATRON' || hasPermission('TAX_READ') || hasPermission('CURRENCY_READ')) && (
-                        <Link to="/account" className="dropdown-item">
-                            <i><FiSettings /></i>
-                            <span>System Settings</span>
-                        </Link>
-                    )}
 
                     <a
                         className="dropdown-item"

@@ -172,7 +172,7 @@ const EventsTable = () => {
                         variant="contained"
                         onClick={() => setIsModalOpen(true)}
                         className="d-flex align-items-center gap-2 mx-auto"
-                        style={{ backgroundColor: '#0092ff', color: 'white' }}
+                        style={{ backgroundColor: '#af0000ff', color: 'white' }}
                     >
                         <FiPlus /> Create Event
                     </Button>
@@ -538,7 +538,7 @@ const EventsTable = () => {
                         variant="contained"
                         onClick={() => setIsModalOpen(true)}
                         className="d-flex align-items-center gap-2"
-                        style={{ backgroundColor: '#0092ff', color: 'white' }}
+                        style={{ backgroundColor: '#af0000ff', color: 'white' }}
                     >
                         <FiPlus /> Create Event
                     </Button>
@@ -659,7 +659,7 @@ const EventsTable = () => {
                         <Button
                             variant="contained"
                             onClick={handleSubmit}
-                            style={{ backgroundColor: '#1976d2', color: 'white' }}
+                            style={{ backgroundColor: '#af0000ff', color: 'white' }}
                             disabled={creating}
                         >
                             {creating ? (
@@ -757,7 +757,7 @@ const EventsTable = () => {
                         <Button
                             variant="contained"
                             onClick={handleEditSubmit}
-                            style={{ backgroundColor: '#1976d2', color: 'white' }}
+                            style={{ backgroundColor: '#af0000ff', color: 'white' }}
                             disabled={updating}
                         >
                             {updating ? (
@@ -855,7 +855,7 @@ const EventsTable = () => {
                         <Button
                             variant="contained"
                             onClick={handleDeleteEvent}
-                            style={{ backgroundColor: '#d32f2f', color: 'white' }}
+                            style={{ backgroundColor: '#af0000ff', color: 'white' }}
                             disabled={deleting}
                         >
                             {deleting ? (

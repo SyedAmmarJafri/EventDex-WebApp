@@ -124,12 +124,13 @@ const ItemsTable = () => {
                 <h5 className="mb-2">No Subdomains Found</h5>
                 <p className="text-muted mb-4">No subdomains are available for this event.</p>
                 {canWrite && getEventId() && (
-                    <Button 
-                        variant="contained" 
+                    <Button
+                        variant="contained"
                         startIcon={<FiPlus />}
                         onClick={() => setIsModalOpen(true)}
+                        style={{ backgroundColor: '#af0000ff', color: 'white' }}
                     >
-                        Create New Subdomain
+                        Create Subdomain
                     </Button>
                 )}
             </div>
@@ -329,7 +330,7 @@ const ItemsTable = () => {
             if (data.success && data.data) {
                 // Filter subdomains that belong to the current event's parent domains
                 const eventParentDomainIds = parentDomainsData.map(domain => domain.id);
-                const eventSubdomains = data.data.filter(subdomain => 
+                const eventSubdomains = data.data.filter(subdomain =>
                     eventParentDomainIds.includes(subdomain.parentDomainId)
                 );
                 setSubdomains(eventSubdomains);
@@ -353,9 +354,9 @@ const ItemsTable = () => {
 
     const handleInputChange = (e) => {
         const { name, value, type, checked } = e.target;
-        setNewSubdomain(prev => ({ 
-            ...prev, 
-            [name]: type === 'checkbox' ? checked : value 
+        setNewSubdomain(prev => ({
+            ...prev,
+            [name]: type === 'checkbox' ? checked : value
         }));
         if (formErrors[name]) {
             setFormErrors(prev => ({ ...prev, [name]: '' }));
@@ -364,9 +365,9 @@ const ItemsTable = () => {
 
     const handleEditInputChange = (e) => {
         const { name, value, type, checked } = e.target;
-        setEditSubdomain(prev => ({ 
-            ...prev, 
-            [name]: type === 'checkbox' ? checked : value 
+        setEditSubdomain(prev => ({
+            ...prev,
+            [name]: type === 'checkbox' ? checked : value
         }));
         if (editFormErrors[name]) {
             setEditFormErrors(prev => ({ ...prev, [name]: '' }));
@@ -394,15 +395,15 @@ const ItemsTable = () => {
     // Updated validation to match backend constraints
     const validateForm = (formData, setErrors) => {
         const errors = {};
-        
+
         if (!formData.name || !formData.name.trim()) {
             errors.name = 'Name is required';
         }
-        
+
         if (!formData.description || !formData.description.trim()) {
             errors.description = 'Description is required';
         }
-        
+
         // Validate registration fee - matches backend validation
         if (formData.registrationFee === '' || formData.registrationFee === null) {
             errors.registrationFee = 'Registration fee is required';
@@ -427,7 +428,7 @@ const ItemsTable = () => {
         if (formData.teamGame) {
             const minSize = parseInt(formData.minTeamSize);
             const maxSize = parseInt(formData.maxTeamSize);
-            
+
             if (isNaN(minSize) || minSize <= 0) {
                 errors.minTeamSize = 'Minimum team size must be greater than 0 for team games';
             }
@@ -437,7 +438,7 @@ const ItemsTable = () => {
             if (minSize > maxSize) {
                 errors.maxTeamSize = 'Minimum team size cannot be greater than maximum team size';
             }
-            
+
             // Additional backend validation: participant limit must be divisible by min team size
             const participantLimit = parseInt(formData.participantLimit);
             if (participantLimit % minSize !== 0) {
@@ -755,7 +756,7 @@ const ItemsTable = () => {
                 setCurrentEventId(eventDetail.id);
                 localStorage.setItem('eventid', eventDetail.id);
                 localStorage.setItem('selectedEvent', JSON.stringify(eventDetail));
-                
+
                 // Reset data and refresh when event changes
                 setSubdomains([]);
                 setParentDomains([]);
@@ -797,19 +798,14 @@ const ItemsTable = () => {
             <div className="d-flex justify-content-between align-items-center mb-4">
                 <h4>Event Subdomains</h4>
                 <div className="d-flex align-items-center gap-3">
-                    {currentEventId && (
-                        <small className="text-muted">
-                            Showing subdomains for selected event
-                        </small>
-                    )}
                     {canWrite && getEventId() && (
-                        <Button 
-                            variant="contained" 
-                            startIcon={<FiPlus />}
+                        <Button
+                            variant="contained"
                             onClick={() => setIsModalOpen(true)}
-                            size="small"
+                            className="d-flex align-items-center gap-2 mx-auto"
+                            style={{ backgroundColor: '#af0000ff', color: 'white' }}
                         >
-                            Create New Subdomain
+                            <FiPlus /> Create Subdomain
                         </Button>
                     )}
                 </div>
@@ -979,20 +975,11 @@ const ItemsTable = () => {
                         </form>
                     </Modal.Body>
                     <Modal.Footer>
-                        <Button 
-                            variant="outlined" 
-                            onClick={() => {
-                                setIsModalOpen(false);
-                                setFormErrors({});
-                            }}
-                            disabled={creatingSubdomain}
-                        >
-                            Cancel
-                        </Button>
-                        <Button 
-                            variant="contained" 
+                        <Button
+                            variant="contained"
                             onClick={handleCreateSubdomain}
                             disabled={creatingSubdomain}
+                            style={{ backgroundColor: '#af0000ff', color: 'white' }}
                         >
                             {creatingSubdomain ? (
                                 <>
@@ -1147,20 +1134,11 @@ const ItemsTable = () => {
                         </form>
                     </Modal.Body>
                     <Modal.Footer>
-                        <Button 
-                            variant="outlined" 
-                            onClick={() => {
-                                setIsEditModalOpen(false);
-                                setEditFormErrors({});
-                            }}
-                            disabled={updatingSubdomain}
-                        >
-                            Cancel
-                        </Button>
-                        <Button 
-                            variant="contained" 
+                        <Button
+                            variant="contained"
                             onClick={handleEditSubmit}
                             disabled={updatingSubdomain}
+                            style={{ backgroundColor: '#af0000ff', color: 'white' }}
                         >
                             {updatingSubdomain ? (
                                 <>
@@ -1270,16 +1248,9 @@ const ItemsTable = () => {
                     </Modal.Body>
                     <Modal.Footer>
                         <Button
-                            variant="outlined"
-                            onClick={() => setIsDeleteModalOpen(false)}
-                            disabled={deleteLoading}
-                        >
-                            Cancel
-                        </Button>
-                        <Button
                             variant="contained"
                             onClick={handleDeleteSubdomain}
-                            style={{ backgroundColor: '#d32f2f', color: 'white' }}
+                            style={{ backgroundColor: '#af0000ff', color: 'white' }}
                             disabled={deleteLoading}
                         >
                             {deleteLoading ? (

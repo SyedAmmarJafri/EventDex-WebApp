@@ -436,7 +436,7 @@ const Dashboard = () => {
                         icon={<SyncOutlined spin={isRefreshing} />}
                         style={{
                             fontWeight: '500',
-                            background: '#0092ff',
+                            background: '#af0000ff',
                             border: 'none',
                             boxShadow: '0 1px 3px rgba(16, 148, 185, 0.3)',
                         }}
@@ -446,7 +446,7 @@ const Dashboard = () => {
                 )}
             </div>
 
-            <Card className="card bg-white text-light" variant="borderless" styles={{ body: { padding: '24px', background: 'linear-gradient(135deg, #0092ff 0%, #005ece 100%)', color: 'white', borderRadius: '10px', position: 'relative', overflow: 'hidden' } }} style={{ marginBottom: '24px', }} >
+            <Card className="card bg-white text-light" variant="borderless" styles={{ body: { padding: '24px', background: 'linear-gradient(135deg, #af0000ff 0%, #840000ff 100%)', color: 'white', borderRadius: '10px', position: 'relative', overflow: 'hidden' } }} style={{ marginBottom: '24px', }} >
                 <div style={{ position: 'absolute', top: '-50px', right: '-50px', width: '200px', height: '200px', borderRadius: '50%', background: 'rgba(255, 255, 255, 0.1)' }} />
                 <div style={{ position: 'absolute', bottom: '-80px', right: '0', width: '160px', height: '160px', borderRadius: '50%', background: 'rgba(255, 255, 255, 0.1)' }} />
                 <Row align="middle" gutter={16}>
@@ -455,7 +455,7 @@ const Dashboard = () => {
                             Welcome {userName}!
                         </Title>
                         <Text style={{ color: 'rgba(255, 255, 255, 0.85)', display: 'block', marginBottom: '16px', fontSize: '16px' }}>
-                            Here&apos;s what&apos;s happening with business today.
+                            Here&apos;s what&apos;s happening with Event today.
                         </Text>
                         <Button type="default" icon={<CalendarOutlined />} style={{ background: 'rgba(255, 255, 255, 0.1)', border: '1px solid rgba(255, 255, 255, 0.2)', color: 'white', fontWeight: 500, borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', }} >
                             <span style={{ color: '#ffffff', fontSize: 'clamp(12px, 2vw, 16px)', }} >

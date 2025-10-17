@@ -1,40 +1,44 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import Table from '@/components/shared/table/Table';
-import { FiTrash, FiEdit, FiPlus, FiEye, FiUpload } from 'react-icons/fi';
+import { FiTrash, FiEdit, FiPlus, FiEye, FiUpload, FiExternalLink, FiCheck, FiX } from 'react-icons/fi';
 import Button from '@mui/material/Button';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { BASE_URL } from '/src/constants.js';
 import Skeleton from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
-import Switch from '@mui/material/Switch';
 import Modal from 'react-bootstrap/Modal';
-import Select from 'react-select';
+import Badge from 'react-bootstrap/Badge';
 
-const DealsTable = () => {
-    const [deals, setDeals] = useState([]);
-    const [items, setItems] = useState([]);
+const SponsorsTable = () => {
+    const [sponsors, setSponsors] = useState([]);
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-    const [selectedDeal, setSelectedDeal] = useState(null);
-    const [dealToDelete, setDealToDelete] = useState(null);
-    const [newDeal, setNewDeal] = useState({
-        name: '',
-        description: '',
-        price: 0,
-        items: [],
-        imageUrl: ''
+    const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
+    const [selectedSponsor, setSelectedSponsor] = useState(null);
+    const [sponsorToDelete, setSponsorToDelete] = useState(null);
+    const [sponsorToUpdateStatus, setSponsorToUpdateStatus] = useState(null);
+    const [newStatus, setNewStatus] = useState('');
+    const [rejectionReason, setRejectionReason] = useState('');
+    const [newSponsor, setNewSponsor] = useState({
+        fullName: '',
+        businessEmail: '',
+        companyName: '',
+        companyWebsite: '',
+        contactNumber: '',
+        pitchDescription: ''
     });
-    const [editDeal, setEditDeal] = useState({
+    const [editSponsor, setEditSponsor] = useState({
         id: '',
-        name: '',
-        description: '',
-        price: 0,
-        items: [],
-        imageUrl: ''
+        fullName: '',
+        businessEmail: '',
+        companyName: '',
+        companyWebsite: '',
+        contactNumber: '',
+        pitchDescription: ''
     });
     const [formErrors, setFormErrors] = useState({});
     const [editFormErrors, setEditFormErrors] = useState({});
@@ -43,53 +47,22 @@ const DealsTable = () => {
     const [imagePreview, setImagePreview] = useState('');
     const skinTheme = localStorage.getItem('skinTheme') || 'light';
     const isDarkMode = skinTheme === 'dark';
-    const [selectedItems, setSelectedItems] = useState([]);
     const [deleting, setDeleting] = useState(false);
+    const [updatingStatus, setUpdatingStatus] = useState(false);
     const [imageSizeError, setImageSizeError] = useState('');
+    const [submitting, setSubmitting] = useState(false);
 
     const authData = JSON.parse(localStorage.getItem("authData"));
-    const currencySymbol = authData?.currencySettings?.currencySymbol || '$';
     const userRole = authData?.role || '';
     const userPermissions = authData?.permissions || [];
+    const eventId = authData?.eventId || '';
 
     // Permission checks
-    const canRead = userRole === 'PATRON' || userPermissions.includes('DEAL_READ');
-    const canWrite = userRole === 'PATRON' || userPermissions.includes('DEAL_WRITE');
-    const canUpdate = userRole === 'PATRON' || userPermissions.includes('DEAL_UPDATE');
-    const canDelete = userRole === 'PATRON' || userPermissions.includes('DEAL_DELETE');
-    const canChangeStatus = userRole === 'PATRON' || userPermissions.includes('DEAL_UPDATE');
-
-    const fetchItems = useCallback(async () => {
-        try {
-            const authData = JSON.parse(localStorage.getItem("authData"));
-            if (!authData?.token) {
-                toast.error("Authentication token not found");
-                return;
-            }
-
-            const response = await fetch(`${BASE_URL}/api/client-admin/items`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${authData.token}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || errorData.message || 'Failed to fetch items');
-            }
-
-            const data = await response.json();
-            if (data.status === 200 && data.data) {
-                setItems(data.data);
-            } else {
-                throw new Error(data.error || data.message || 'Failed to fetch items');
-            }
-        } catch (err) {
-            toast.error(err.message);
-        }
-    }, []);
+    const canRead = userRole === 'PATRON' || userPermissions.includes('SPONSOR_READ');
+    const canWrite = userRole === 'PATRON' || userPermissions.includes('SPONSOR_WRITE');
+    const canUpdate = userRole === 'PATRON' || userPermissions.includes('SPONSOR_UPDATE');
+    const canDelete = userRole === 'PATRON' || userPermissions.includes('SPONSOR_DELETE');
+    const canUpdateStatus = userRole === 'PATRON' || userPermissions.includes('SPONSOR_UPDATE_STATUS');
 
     const SkeletonLoader = () => {
         return (
@@ -97,13 +70,14 @@ const DealsTable = () => {
                 <table className="table table-hover table-nowrap">
                     <thead>
                         <tr>
-                            <th scope="col">Image</th>
-                            <th scope="col">Name</th>
-                            <th scope="col">Description</th>
-                            <th scope="col">Price</th>
-                            <th scope="col">Items</th>
+                            <th scope="col">Logo</th>
+                            <th scope="col">Full Name</th>
+                            <th scope="col">Company</th>
+                            <th scope="col">Email</th>
+                            <th scope="col">Contact</th>
                             <th scope="col">Status</th>
-                            {canRead || canUpdate || canDelete ? (
+                            <th scope="col">Event</th>
+                            {canRead || canUpdate || canDelete || canUpdateStatus ? (
                                 <th scope="col" className="text-end">Actions</th>
                             ) : null}
                         </tr>
@@ -129,14 +103,14 @@ const DealsTable = () => {
                                 </td>
                                 <td>
                                     <Skeleton
-                                        width={200}
+                                        width={120}
                                         baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
                                         highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
                                     />
                                 </td>
                                 <td>
                                     <Skeleton
-                                        width={80}
+                                        width={180}
                                         baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
                                         highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
                                     />
@@ -155,7 +129,14 @@ const DealsTable = () => {
                                         highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
                                     />
                                 </td>
-                                {canRead || canUpdate || canDelete ? (
+                                <td>
+                                    <Skeleton
+                                        width={100}
+                                        baseColor={isDarkMode ? "#1e293b" : "#f3f3f3"}
+                                        highlightColor={isDarkMode ? "#334155" : "#ecebeb"}
+                                    />
+                                </td>
+                                {canRead || canUpdate || canDelete || canUpdateStatus ? (
                                     <td>
                                         <div className="hstack gap-2 justify-content-end">
                                             <Skeleton
@@ -204,16 +185,16 @@ const DealsTable = () => {
                         </g>
                     </svg>
                 </div>
-                <h5 className="mb-2">No Deals Found</h5>
-                <p className="text-muted mb-4">You haven&apos;t added any deals yet. Start by adding a new deal.</p>
+                <h5 className="mb-2">No Sponsors Found</h5>
+                <p className="text-muted mb-4">You haven&apos;t added any sponsors yet. Start by adding a new sponsor.</p>
                 {canWrite && (
                     <Button
                         variant="contained"
                         onClick={() => setIsModalOpen(true)}
                         className="d-flex align-items-center gap-2 mx-auto"
-                        style={{ backgroundColor: '#0092ff', color: 'white' }}
+                        style={{ backgroundColor: '#af0000ff', color: 'white' }}
                     >
-                        <FiPlus /> Add Deal
+                        <FiPlus /> Add Sponsor
                     </Button>
                 )}
             </div>
@@ -229,8 +210,8 @@ const DealsTable = () => {
             return;
         }
 
-        if (file.size > 250 * 1024) { // 200 KB limit
-            setImageSizeError('File size should be less than 200KB');
+        if (file.size > 2 * 1024 * 1024) { // 2 MB limit
+            setImageSizeError('File size should be less than 2MB');
             setSelectedFile(null);
             setImagePreview('');
             return;
@@ -246,7 +227,7 @@ const DealsTable = () => {
         reader.readAsDataURL(file);
     };
 
-    const fetchDeals = useCallback(async () => {
+    const fetchSponsors = useCallback(async () => {
         try {
             setLoading(true);
             const authData = JSON.parse(localStorage.getItem("authData"));
@@ -255,7 +236,7 @@ const DealsTable = () => {
                 return;
             }
 
-            const response = await fetch(`${BASE_URL}/api/client-admin/deals`, {
+            const response = await fetch(`${BASE_URL}/api/sponsors`, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${authData.token}`,
@@ -265,14 +246,14 @@ const DealsTable = () => {
 
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.error || errorData.message || 'Failed to fetch deals');
+                throw new Error(errorData.error || errorData.message || 'Failed to fetch sponsors');
             }
 
             const data = await response.json();
-            if (data.status === 200 && data.data) {
-                setDeals(data.data);
+            if (data.success && data.data) {
+                setSponsors(data.data);
             } else {
-                throw new Error(data.error || data.message || 'Failed to fetch deals');
+                throw new Error(data.error || data.message || 'Failed to fetch sponsors');
             }
         } catch (err) {
             toast.error(err.message);
@@ -281,64 +262,25 @@ const DealsTable = () => {
         }
     }, []);
 
-    const getItemNameById = (itemId) => {
-        const item = items.find(item => item.id === itemId);
-        return item ? item.name : `Item (ID: ${itemId})`;
-    };
+    const getStatusBadge = (status) => {
+        const statusConfig = {
+            'PENDING': { variant: 'warning', label: 'Pending' },
+            'APPROVED': { variant: 'success', label: 'Approved' },
+            'REJECTED': { variant: 'danger', label: 'Rejected' }
+        };
 
-    const getItemDetailsById = (itemId) => {
-        const item = items.find(item => item.id === itemId);
-        return item || null;
-    };
-
-    const handleItemSelection = (selectedOptions, action) => {
-        if (action.action === 'select-option' || action.action === 'remove-value' || action.action === 'pop-value') {
-            const selectedItemsWithQuantity = selectedOptions.map(option => ({
-                itemId: option.value,
-                quantity: 1
-            }));
-            setNewDeal(prev => ({
-                ...prev,
-                items: selectedItemsWithQuantity
-            }));
-            setSelectedItems(selectedOptions);
-        }
-    };
-
-    const handleEditItemSelection = (selectedOptions, action) => {
-        if (action.action === 'select-option' || action.action === 'remove-value' || action.action === 'pop-value') {
-            const selectedItemsWithQuantity = selectedOptions.map(option => ({
-                itemId: option.value,
-                quantity: editDeal.items.find(item => item.itemId === option.value)?.quantity || 1
-            }));
-            setEditDeal(prev => ({
-                ...prev,
-                items: selectedItemsWithQuantity
-            }));
-        }
-    };
-
-    const handleQuantityChange = (itemId, quantity) => {
-        setNewDeal(prev => ({
-            ...prev,
-            items: prev.items.map(item =>
-                item.itemId === itemId ? { ...item, quantity: parseInt(quantity) || 1 } : item
-            )
-        }));
-    };
-
-    const handleEditQuantityChange = (itemId, quantity) => {
-        setEditDeal(prev => ({
-            ...prev,
-            items: prev.items.map(item =>
-                item.itemId === itemId ? { ...item, quantity: parseInt(quantity) || 1 } : item
-            )
-        }));
+        const config = statusConfig[status] || { variant: 'secondary', label: status };
+        
+        return (
+            <Badge bg={config.variant} className="text-capitalize">
+                {config.label}
+            </Badge>
+        );
     };
 
     const handleInputChange = (e) => {
         const { name, value } = e.target;
-        setNewDeal(prev => ({ ...prev, [name]: value }));
+        setNewSponsor(prev => ({ ...prev, [name]: value }));
         if (formErrors[name]) {
             setFormErrors(prev => ({ ...prev, [name]: '' }));
         }
@@ -346,7 +288,7 @@ const DealsTable = () => {
 
     const handleEditInputChange = (e) => {
         const { name, value } = e.target;
-        setEditDeal(prev => ({ ...prev, [name]: value }));
+        setEditSponsor(prev => ({ ...prev, [name]: value }));
         if (editFormErrors[name]) {
             setEditFormErrors(prev => ({ ...prev, [name]: '' }));
         }
@@ -354,138 +296,124 @@ const DealsTable = () => {
 
     const validateForm = (formData, setErrors) => {
         const errors = {};
-        if (!formData.name.trim()) errors.name = 'Name is required';
-        if (formData.price <= 0) errors.price = 'Price must be greater than 0';
-        if (formData.items.length === 0) errors.items = 'At least one item is required';
+        if (!formData.fullName.trim()) errors.fullName = 'Full name is required';
+        if (!formData.businessEmail.trim()) errors.businessEmail = 'Business email is required';
+        else if (!/\S+@\S+\.\S+/.test(formData.businessEmail)) errors.businessEmail = 'Email is invalid';
+        if (!formData.companyName.trim()) errors.companyName = 'Company name is required';
+        if (!formData.contactNumber.trim()) errors.contactNumber = 'Contact number is required';
+        if (!formData.pitchDescription.trim()) errors.pitchDescription = 'Pitch description is required';
+        
         setErrors(errors);
         return Object.keys(errors).length === 0;
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!validateForm(newDeal, setFormErrors)) return;
+        if (!validateForm(newSponsor, setFormErrors)) return;
         
-        if (selectedFile && selectedFile.size > 250 * 1024) {
-            setImageSizeError('File size should be less than 200KB');
+        if (!eventId) {
+            toast.error('Event ID not found. Please make sure you are associated with an event.');
+            return;
+        }
+
+        if (selectedFile && selectedFile.size > 2 * 1024 * 1024) {
+            setImageSizeError('File size should be less than 2MB');
             return;
         }
 
         try {
-            setUploadingImage(true);
+            setSubmitting(true);
             const authData = JSON.parse(localStorage.getItem("authData"));
 
-            const response = await fetch(`${BASE_URL}/api/client-admin/deals`, {
+            const formData = new FormData();
+            formData.append('fullName', newSponsor.fullName);
+            formData.append('businessEmail', newSponsor.businessEmail);
+            formData.append('companyName', newSponsor.companyName);
+            formData.append('companyWebsite', newSponsor.companyWebsite);
+            formData.append('contactNumber', newSponsor.contactNumber);
+            formData.append('pitchDescription', newSponsor.pitchDescription);
+            formData.append('eventId', eventId);
+            
+            if (selectedFile) {
+                formData.append('companyLogo', selectedFile);
+            }
+
+            const response = await fetch(`${BASE_URL}/api/sponsors`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${authData.token}`,
-                    'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({
-                    name: newDeal.name,
-                    description: newDeal.description,
-                    price: newDeal.price,
-                    items: newDeal.items
-                })
+                body: formData
             });
 
             const data = await response.json();
             if (!response.ok) {
-                const errorMsg = data.error || data.message || 'Failed to create deal';
+                const errorMsg = data.error || data.message || 'Failed to create sponsor';
                 throw new Error(errorMsg);
             }
 
-            if (selectedFile) {
-                const formData = new FormData();
-                formData.append('file', selectedFile);
-
-                const uploadResponse = await fetch(`${BASE_URL}/api/client-admin/deals/${data.data.id}/image`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${authData.token}`,
-                    },
-                    body: formData
-                });
-
-                if (!uploadResponse.ok) {
-                    const uploadError = await uploadResponse.json();
-                    throw new Error(uploadError.error || uploadError.message || 'Failed to upload image');
-                }
-            }
-
-            toast.success('Deal created successfully');
-            await fetchDeals();
+            toast.success('Sponsor created successfully');
+            await fetchSponsors();
             setIsModalOpen(false);
-            setNewDeal({
-                name: '',
-                description: '',
-                price: 0,
-                items: [],
-                imageUrl: ''
+            setNewSponsor({
+                fullName: '',
+                businessEmail: '',
+                companyName: '',
+                companyWebsite: '',
+                contactNumber: '',
+                pitchDescription: ''
             });
             setSelectedFile(null);
             setImagePreview('');
-            setSelectedItems([]);
             setImageSizeError('');
         } catch (err) {
             toast.error(err.message);
         } finally {
-            setUploadingImage(false);
+            setSubmitting(false);
         }
     };
 
     const handleEditSubmit = async (e) => {
         e.preventDefault();
-        if (!validateForm(editDeal, setEditFormErrors)) return;
+        if (!validateForm(editSponsor, setEditFormErrors)) return;
         
-        if (selectedFile && selectedFile.size > 250 * 1024) {
-            setImageSizeError('File size should be less than 200KB');
+        if (selectedFile && selectedFile.size > 2 * 1024 * 1024) {
+            setImageSizeError('File size should be less than 2MB');
             return;
         }
 
         try {
-            setUploadingImage(true);
+            setSubmitting(true);
             const authData = JSON.parse(localStorage.getItem("authData"));
 
-            const response = await fetch(`${BASE_URL}/api/client-admin/deals/${editDeal.id}`, {
+            const formData = new FormData();
+            formData.append('fullName', editSponsor.fullName);
+            formData.append('businessEmail', editSponsor.businessEmail);
+            formData.append('companyName', editSponsor.companyName);
+            formData.append('companyWebsite', editSponsor.companyWebsite);
+            formData.append('contactNumber', editSponsor.contactNumber);
+            formData.append('pitchDescription', editSponsor.pitchDescription);
+            
+            if (selectedFile) {
+                formData.append('companyLogo', selectedFile);
+            }
+
+            const response = await fetch(`${BASE_URL}/api/sponsors/${editSponsor.id}`, {
                 method: 'PUT',
                 headers: {
                     'Authorization': `Bearer ${authData.token}`,
-                    'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({
-                    name: editDeal.name,
-                    description: editDeal.description,
-                    price: editDeal.price,
-                    items: editDeal.items
-                })
+                body: formData
             });
 
             const data = await response.json();
             if (!response.ok) {
-                const errorMsg = data.error || data.message || 'Failed to update deal';
+                const errorMsg = data.error || data.message || 'Failed to update sponsor';
                 throw new Error(errorMsg);
             }
 
-            if (selectedFile) {
-                const formData = new FormData();
-                formData.append('file', selectedFile);
-
-                const uploadResponse = await fetch(`${BASE_URL}/api/client-admin/deals/${editDeal.id}/image`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${authData.token}`,
-                    },
-                    body: formData
-                });
-
-                if (!uploadResponse.ok) {
-                    const uploadError = await uploadResponse.json();
-                    throw new Error(uploadError.error || uploadError.message || 'Failed to upload image');
-                }
-            }
-
-            toast.success('Deal updated successfully');
-            await fetchDeals();
+            toast.success('Sponsor updated successfully');
+            await fetchSponsors();
             setIsEditModalOpen(false);
             setSelectedFile(null);
             setImagePreview('');
@@ -493,56 +421,24 @@ const DealsTable = () => {
         } catch (err) {
             toast.error(err.message);
         } finally {
-            setUploadingImage(false);
+            setSubmitting(false);
         }
     };
 
-    const handleStatusChange = async (deal) => {
-        try {
-            const authData = JSON.parse(localStorage.getItem("authData"));
-            const newStatus = !deal.active;
-
-            setDeals(prev => prev.map(d =>
-                d.id === deal.id ? { ...d, active: newStatus } : d
-            ));
-
-            const response = await fetch(`${BASE_URL}/api/client-admin/deals/${deal.id}/status`, {
-                method: 'PATCH',
-                headers: {
-                    'Authorization': `Bearer ${authData.token}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ active: newStatus })
-            });
-
-            const data = await response.json();
-            if (!response.ok) {
-                throw new Error(data.error || data.message || 'Failed to update deal status');
-            }
-
-            toast.success(`Deal ${newStatus ? 'activated' : 'deactivated'} successfully`);
-            await fetchDeals();
-        } catch (err) {
-            toast.error(err.message);
-            setDeals(prev => prev.map(d =>
-                d.id === deal.id ? { ...d, active: deal.active } : d
-            ));
-        }
-    };
-
-    const handleViewDeal = (deal) => {
-        setSelectedDeal(deal);
+    const handleViewSponsor = (sponsor) => {
+        setSelectedSponsor(sponsor);
         setIsViewModalOpen(true);
     };
 
-    const handleEditDeal = (deal) => {
-        setEditDeal({
-            id: deal.id,
-            name: deal.name,
-            description: deal.description,
-            price: deal.price,
-            items: deal.items,
-            imageUrl: deal.imageUrl || ''
+    const handleEditSponsor = (sponsor) => {
+        setEditSponsor({
+            id: sponsor.id,
+            fullName: sponsor.fullName,
+            businessEmail: sponsor.businessEmail,
+            companyName: sponsor.companyName,
+            companyWebsite: sponsor.companyWebsite || '',
+            contactNumber: sponsor.contactNumber,
+            pitchDescription: sponsor.pitchDescription
         });
         setSelectedFile(null);
         setImagePreview('');
@@ -550,16 +446,16 @@ const DealsTable = () => {
         setIsEditModalOpen(true);
     };
 
-    const handleDeleteClick = (deal) => {
-        setDealToDelete(deal);
+    const handleDeleteClick = (sponsor) => {
+        setSponsorToDelete(sponsor);
         setIsDeleteModalOpen(true);
     };
 
-    const handleDeleteDeal = async () => {
+    const handleDeleteSponsor = async () => {
         try {
             setDeleting(true);
             const authData = JSON.parse(localStorage.getItem("authData"));
-            const response = await fetch(`${BASE_URL}/api/client-admin/deals/${dealToDelete.id}`, {
+            const response = await fetch(`${BASE_URL}/api/sponsors/${sponsorToDelete.id}`, {
                 method: 'DELETE',
                 headers: {
                     'Authorization': `Bearer ${authData.token}`,
@@ -569,12 +465,12 @@ const DealsTable = () => {
 
             const data = await response.json();
             if (!response.ok) {
-                const errorMsg = data.error || data.message || 'Failed to delete deal';
+                const errorMsg = data.error || data.message || 'Failed to delete sponsor';
                 throw new Error(errorMsg);
             }
 
-            toast.success('Deal deleted successfully');
-            await fetchDeals();
+            toast.success('Sponsor deleted successfully');
+            await fetchSponsors();
             setIsDeleteModalOpen(false);
         } catch (err) {
             toast.error(err.message);
@@ -583,63 +479,176 @@ const DealsTable = () => {
         }
     };
 
+    const handleStatusUpdateClick = (sponsor, status) => {
+        setSponsorToUpdateStatus(sponsor);
+        setNewStatus(status);
+        setRejectionReason('');
+        
+        if (status === 'REJECTED') {
+            setIsStatusModalOpen(true);
+        } else {
+            handleUpdateStatus(status);
+        }
+    };
+
+    const handleUpdateStatus = async (status = null) => {
+        const finalStatus = status || newStatus;
+        try {
+            setUpdatingStatus(true);
+            const authData = JSON.parse(localStorage.getItem("authData"));
+            
+            const requestBody = {
+                status: finalStatus
+            };
+            
+            // Add rejection reason if status is REJECTED
+            if (finalStatus === 'REJECTED' && rejectionReason.trim()) {
+                requestBody.rejectionReason = rejectionReason.trim();
+            }
+
+            const response = await fetch(`${BASE_URL}/api/sponsors/${sponsorToUpdateStatus.id}/status`, {
+                method: 'PATCH',
+                headers: {
+                    'Authorization': `Bearer ${authData.token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(requestBody)
+            });
+
+            const data = await response.json();
+            if (!response.ok) {
+                const errorMsg = data.error || data.message || 'Failed to update sponsor status';
+                throw new Error(errorMsg);
+            }
+
+            toast.success(`Sponsor ${finalStatus.toLowerCase()} successfully`);
+            await fetchSponsors();
+            setIsStatusModalOpen(false);
+            setIsViewModalOpen(false);
+            setSponsorToUpdateStatus(null);
+            setNewStatus('');
+            setRejectionReason('');
+        } catch (err) {
+            toast.error(err.message);
+        } finally {
+            setUpdatingStatus(false);
+        }
+    };
+
+    const getLogoUrl = (logoUrl) => {
+        if (!logoUrl) return '/images/avatar/undefined.png';
+        return logoUrl.startsWith('http') ? logoUrl : `${BASE_URL}/uploads/${logoUrl}`;
+    };
+
+    const StatusActions = ({ sponsor }) => {
+        if (!canUpdateStatus || sponsor.status !== 'PENDING') return null;
+
+        return (
+            <div className="d-flex gap-2 mt-3">
+                <Button
+                    variant="contained"
+                    size="small"
+                    startIcon={<FiCheck />}
+                    onClick={() => handleStatusUpdateClick(sponsor, 'APPROVED')}
+                    style={{ backgroundColor: '#28a745', color: 'white' }}
+                >
+                    Approve
+                </Button>
+                <Button
+                    variant="contained"
+                    size="small"
+                    startIcon={<FiX />}
+                    onClick={() => handleStatusUpdateClick(sponsor, 'REJECTED')}
+                    style={{ backgroundColor: '#dc3545', color: 'white' }}
+                >
+                    Reject
+                </Button>
+            </div>
+        );
+    };
+
     const columns = React.useMemo(() => [
         {
-            accessorKey: 'imageUrl',
-            header: 'Image',
+            accessorKey: 'companyLogoUrl',
+            header: 'Logo',
             cell: (info) => (
-                info.getValue() ? (
-                    <img
-                        src={info.getValue()}
-                        alt="Deal"
-                        style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px' }}
-                    />
-                ) : (
-                    <img
-                        src="/images/avatar/undefined.png"
-                        alt="Deal"
-                        style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px' }}
-                    />
-                )
+                <img
+                    src={getLogoUrl(info.getValue())}
+                    alt="Company Logo"
+                    style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px' }}
+                    onError={(e) => {
+                        e.target.src = '/images/avatar/undefined.png';
+                    }}
+                />
             )
         },
         {
-            accessorKey: 'name',
-            header: 'Name',
+            accessorKey: 'fullName',
+            header: 'Full Name',
             cell: (info) => info.getValue()
         },
         {
-            accessorKey: 'price',
-            header: 'Price',
-            cell: (info) => `${currencySymbol}${info.getValue().toFixed(2)}`
+            accessorKey: 'companyName',
+            header: 'Company',
+            cell: (info) => info.getValue()
         },
         {
-            accessorKey: 'items',
-            header: 'Items',
+            accessorKey: 'businessEmail',
+            header: 'Email',
             cell: (info) => (
-                <div>
-                    {info.getValue().map((item, index) => (
-                        <div key={index}>
-                            {getItemNameById(item.itemId)} (Qty: {item.quantity})
+                <a href={`mailto:${info.getValue()}`} className="text-decoration-none">
+                    {info.getValue()}
+                </a>
+            )
+        },
+        {
+            accessorKey: 'contactNumber',
+            header: 'Contact',
+            cell: (info) => (
+                <a href={`tel:${info.getValue()}`} className="text-decoration-none">
+                    {info.getValue()}
+                </a>
+            )
+        },
+        {
+            accessorKey: 'status',
+            header: 'Status',
+            cell: (info) => (
+                <div className="d-flex align-items-center gap-2">
+                    {getStatusBadge(info.getValue())}
+                    {canUpdateStatus && info.row.original.status === 'PENDING' && (
+                        <div className="d-flex gap-1">
+                            <button
+                                className="btn btn-success btn-sm p-1"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleStatusUpdateClick(info.row.original, 'APPROVED');
+                                }}
+                                title="Approve"
+                                style={{ width: '24px', height: '24px' }}
+                            >
+                                <FiCheck size={12} />
+                            </button>
+                            <button
+                                className="btn btn-danger btn-sm p-1"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleStatusUpdateClick(info.row.original, 'REJECTED');
+                                }}
+                                title="Reject"
+                                style={{ width: '24px', height: '24px' }}
+                            >
+                                <FiX size={12} />
+                            </button>
                         </div>
-                    ))}
+                    )}
                 </div>
             )
         },
         {
-            accessorKey: 'active',
-            header: 'Status',
-            cell: (info) => (
-                canChangeStatus ? (
-                    <Switch
-                        checked={info.getValue()}
-                        onChange={() => handleStatusChange(info.row.original)}
-                        color="primary"
-                    />
-                ) : (
-                    <span>{info.getValue() ? 'Active' : 'Inactive'}</span>
-                )
-            )
+            accessorKey: 'eventName',
+            header: 'Event',
+            cell: (info) => info.getValue() || '-'
         },
         {
             accessorKey: 'actions',
@@ -649,7 +658,7 @@ const DealsTable = () => {
                     {canRead && (
                         <button
                             className="avatar-text avatar-md"
-                            onClick={() => handleViewDeal(row.original)}
+                            onClick={() => handleViewSponsor(row.original)}
                         >
                             <FiEye />
                         </button>
@@ -657,7 +666,7 @@ const DealsTable = () => {
                     {canUpdate && (
                         <button
                             className="avatar-text avatar-md"
-                            onClick={() => handleEditDeal(row.original)}
+                            onClick={() => handleEditSponsor(row.original)}
                         >
                             <FiEdit />
                         </button>
@@ -674,24 +683,11 @@ const DealsTable = () => {
             ),
             meta: { headerClassName: 'text-end' }
         },
-    ], [items, canRead, canUpdate, canDelete, canChangeStatus]);
+    ], [canRead, canUpdate, canDelete, canUpdateStatus]);
 
     useEffect(() => {
-        fetchDeals();
-        fetchItems();
-    }, [fetchDeals, fetchItems]);
-
-    const itemOptions = items.map(item => ({
-        value: item.id,
-        label: item.name,
-        price: item.price
-    }));
-
-    const editSelectedItems = editDeal.items.map(item => ({
-        value: item.itemId,
-        label: getItemNameById(item.itemId),
-        quantity: item.quantity
-    }));
+        fetchSponsors();
+    }, [fetchSponsors]);
 
     return (
         <>
@@ -709,171 +705,183 @@ const DealsTable = () => {
             />
 
             <div className="d-flex justify-content-between align-items-center mb-4">
-                <h4>Deals</h4>
+                <h4>Sponsors</h4>
                 {canWrite && (
                     <Button
                         variant="contained"
                         onClick={() => setIsModalOpen(true)}
                         className="d-flex align-items-center gap-2"
-                        style={{ backgroundColor: '#0092ff', color: 'white' }}
+                        style={{ backgroundColor: '#af0000ff', color: 'white' }}
                     >
-                        <FiPlus /> Add Deal
+                        <FiPlus /> Add Sponsor
                     </Button>
                 )}
             </div>
 
             {loading ? (
                 <SkeletonLoader />
-            ) : deals.length === 0 ? (
+            ) : sponsors.length === 0 ? (
                 <EmptyState />
             ) : (
                 <Table
-                    data={deals}
+                    data={sponsors}
                     columns={columns}
                     initialState={{ pagination: { pageSize: 10 } }}
                 />
             )}
 
-            {/* Add Deal Modal - Only show if user has write permission */}
+            {/* Add Sponsor Modal */}
             {canWrite && (
                 <Modal show={isModalOpen} onHide={() => {
-                    if (!uploadingImage) {
+                    if (!submitting) {
                         setIsModalOpen(false);
-                        setNewDeal({ name: '', description: '', price: 0, items: [], imageUrl: '' });
+                        setNewSponsor({
+                            fullName: '',
+                            businessEmail: '',
+                            companyName: '',
+                            companyWebsite: '',
+                            contactNumber: '',
+                            pitchDescription: ''
+                        });
                         setFormErrors({});
                         setSelectedFile(null);
                         setImagePreview('');
-                        setSelectedItems([]);
                         setImageSizeError('');
                     }
                 }} centered size="lg">
-                    <Modal.Header closeButton={!uploadingImage}>
-                        <Modal.Title>Add Deal</Modal.Title>
+                    <Modal.Header closeButton={!submitting}>
+                        <Modal.Title>Add Sponsor</Modal.Title>
                     </Modal.Header>
                     <Modal.Body>
                         <form onSubmit={handleSubmit}>
-                            <div className="mb-3">
-                                <label htmlFor="name" className="form-label">Name</label>
-                                <input
-                                    type="text"
-                                    className={`form-control ${formErrors.name ? 'is-invalid' : ''}`}
-                                    id="name"
-                                    name="name"
-                                    value={newDeal.name}
-                                    onChange={handleInputChange}
-                                />
-                                {formErrors.name && <div className="invalid-feedback">{formErrors.name}</div>}
-                            </div>
-                            <div className="mb-3">
-                                <label htmlFor="description" className="form-label">Description</label>
-                                <textarea
-                                    className="form-control"
-                                    id="description"
-                                    name="description"
-                                    value={newDeal.description}
-                                    onChange={handleInputChange}
-                                    rows="3"
-                                />
-                            </div>
-                            <div className="mb-3">
-                                <label htmlFor="price" className="form-label">Price</label>
-                                <input
-                                    type="number"
-                                    className={`form-control ${formErrors.price ? 'is-invalid' : ''}`}
-                                    id="price"
-                                    name="price"
-                                    value={newDeal.price}
-                                    onChange={handleInputChange}
-                                    min="0"
-                                    step="0.01"
-                                />
-                                {formErrors.price && <div className="invalid-feedback">{formErrors.price}</div>}
-                            </div>
-                            <div className="mb-3">
-                                <label className="form-label">Items</label>
-                                <Select
-                                    isMulti
-                                    options={itemOptions}
-                                    className="basic-multi-select"
-                                    classNamePrefix="select"
-                                    onChange={handleItemSelection}
-                                    value={selectedItems}
-                                    placeholder="Select items..."
-                                />
-                                {formErrors.items && <div className="invalid-feedback d-block">{formErrors.items}</div>}
-
-                                {newDeal.items.length > 0 && (
-                                    <div className="mt-3">
-                                        <h6>Selected Items:</h6>
-                                        {newDeal.items.map((item, index) => {
-                                            const itemDetails = getItemDetailsById(item.itemId);
-                                            return (
-                                                <div key={index} className="d-flex align-items-center mb-2">
-                                                    <div className="flex-grow-1">
-                                                        <h8>{itemDetails ? itemDetails.name : `Item ID: ${item.itemId}`}</h8>
-                                                        {itemDetails && (
-                                                            <div className="text-muted small">{currencySymbol}{itemDetails.price.toFixed(2)} each</div>
-                                                        )}
-                                                    </div>
-                                                    <div className="d-flex align-items-center">
-                                                        <h8 className="me-2">Qty:</h8>
-                                                        <input
-                                                            type="number"
-                                                            min="1"
-                                                            className="form-control form-control-sm"
-                                                            style={{ width: '70px' }}
-                                                            value={item.quantity}
-                                                            onChange={(e) => handleQuantityChange(item.itemId, e.target.value)}
-                                                        />
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                )}
-                            </div>
-                            <div className="mb-3">
-                                <label className="form-label">Deal Image</label>
-                                <div className="d-flex flex-wrap gap-3 mb-3">
-                                    <div className="position-relative" style={{ width: '100px', height: '100px' }}>
-                                        <div
-                                            className="w-100 h-100 border rounded d-flex flex-column justify-content-center align-items-center cursor-pointer"
-                                            style={{
-                                                borderStyle: imagePreview ? 'solid' : 'dashed',
-                                                backgroundColor: isDarkMode ? '#1e293b' : '#f8f9fa'
-                                            }}
-                                            onClick={() => document.getElementById('add-image-upload').click()}
-                                        >
-                                            {imagePreview ? (
-                                                <img
-                                                    src={imagePreview}
-                                                    alt="Preview"
-                                                    className="w-100 h-100"
-                                                    style={{
-                                                        objectFit: 'cover',
-                                                        borderRadius: '4px'
-                                                    }}
-                                                />
-                                            ) : (
-                                                <>
-                                                    <FiUpload size={20} className="mb-1" />
-                                                    <h8 className="small">Add Image</h8>
-                                                    <h8 className="small">Max 200 KB</h8>
-                                                </>
-                                            )}
-                                        </div>
-                                        <input
-                                            type="file"
-                                            id="add-image-upload"
-                                            className="d-none"
-                                            accept="image/*"
-                                            onChange={(e) => handleFileChange(e, false)}
-                                        />
-                                    </div>
+                            <div className="row">
+                                <div className="col-md-6 mb-3">
+                                    <label htmlFor="fullName" className="form-label">Full Name *</label>
+                                    <input
+                                        type="text"
+                                        className={`form-control ${formErrors.fullName ? 'is-invalid' : ''}`}
+                                        id="fullName"
+                                        name="fullName"
+                                        value={newSponsor.fullName}
+                                        onChange={handleInputChange}
+                                        placeholder="Enter full name"
+                                    />
+                                    {formErrors.fullName && <div className="invalid-feedback">{formErrors.fullName}</div>}
                                 </div>
-                                {imageSizeError && (
-                                    <div className="text-danger small">{imageSizeError}</div>
-                                )}
+                                <div className="col-md-6 mb-3">
+                                    <label htmlFor="businessEmail" className="form-label">Business Email *</label>
+                                    <input
+                                        type="email"
+                                        className={`form-control ${formErrors.businessEmail ? 'is-invalid' : ''}`}
+                                        id="businessEmail"
+                                        name="businessEmail"
+                                        value={newSponsor.businessEmail}
+                                        onChange={handleInputChange}
+                                        placeholder="Enter business email"
+                                    />
+                                    {formErrors.businessEmail && <div className="invalid-feedback">{formErrors.businessEmail}</div>}
+                                </div>
+                            </div>
+                            <div className="row">
+                                <div className="col-md-6 mb-3">
+                                    <label htmlFor="companyName" className="form-label">Company Name *</label>
+                                    <input
+                                        type="text"
+                                        className={`form-control ${formErrors.companyName ? 'is-invalid' : ''}`}
+                                        id="companyName"
+                                        name="companyName"
+                                        value={newSponsor.companyName}
+                                        onChange={handleInputChange}
+                                        placeholder="Enter company name"
+                                    />
+                                    {formErrors.companyName && <div className="invalid-feedback">{formErrors.companyName}</div>}
+                                </div>
+                                <div className="col-md-6 mb-3">
+                                    <label htmlFor="companyWebsite" className="form-label">Company Website</label>
+                                    <input
+                                        type="url"
+                                        className="form-control"
+                                        id="companyWebsite"
+                                        name="companyWebsite"
+                                        value={newSponsor.companyWebsite}
+                                        onChange={handleInputChange}
+                                        placeholder="https://example.com"
+                                    />
+                                </div>
+                            </div>
+                            <div className="row">
+                                <div className="col-md-6 mb-3">
+                                    <label htmlFor="contactNumber" className="form-label">Contact Number *</label>
+                                    <input
+                                        type="tel"
+                                        className={`form-control ${formErrors.contactNumber ? 'is-invalid' : ''}`}
+                                        id="contactNumber"
+                                        name="contactNumber"
+                                        value={newSponsor.contactNumber}
+                                        onChange={handleInputChange}
+                                        placeholder="Enter contact number"
+                                    />
+                                    {formErrors.contactNumber && <div className="invalid-feedback">{formErrors.contactNumber}</div>}
+                                </div>
+                                <div className="col-md-6 mb-3">
+                                    <label className="form-label">Company Logo</label>
+                                    <div className="d-flex flex-wrap gap-3">
+                                        <div className="position-relative" style={{ width: '100px', height: '100px' }}>
+                                            <div
+                                                className="w-100 h-100 border rounded d-flex flex-column justify-content-center align-items-center cursor-pointer"
+                                                style={{
+                                                    borderStyle: imagePreview ? 'solid' : 'dashed',
+                                                    backgroundColor: isDarkMode ? '#1e293b' : '#f8f9fa'
+                                                }}
+                                                onClick={() => document.getElementById('add-logo-upload').click()}
+                                            >
+                                                {imagePreview ? (
+                                                    <img
+                                                        src={imagePreview}
+                                                        alt="Preview"
+                                                        className="w-100 h-100"
+                                                        style={{
+                                                            objectFit: 'cover',
+                                                            borderRadius: '4px'
+                                                        }}
+                                                    />
+                                                ) : (
+                                                    <>
+                                                        <FiUpload size={20} className="mb-1" />
+                                                        <h8 className="small">Upload Logo</h8>
+                                                        <h8 className="small">Max 2 MB</h8>
+                                                    </>
+                                                )}
+                                            </div>
+                                            <input
+                                                type="file"
+                                                id="add-logo-upload"
+                                                className="d-none"
+                                                accept="image/*"
+                                                onChange={(e) => handleFileChange(e, false)}
+                                            />
+                                        </div>
+                                    </div>
+                                    {imageSizeError && (
+                                        <div className="text-danger small mt-1">{imageSizeError}</div>
+                                    )}
+                                </div>
+                            </div>
+                            <div className="mb-3">
+                                <label htmlFor="pitchDescription" className="form-label">Pitch Description *</label>
+                                <textarea
+                                    className={`form-control ${formErrors.pitchDescription ? 'is-invalid' : ''}`}
+                                    id="pitchDescription"
+                                    name="pitchDescription"
+                                    value={newSponsor.pitchDescription}
+                                    onChange={handleInputChange}
+                                    rows="4"
+                                    placeholder="Describe the sponsor's pitch and value proposition"
+                                />
+                                {formErrors.pitchDescription && <div className="invalid-feedback">{formErrors.pitchDescription}</div>}
+                            </div>
+                            <div className="mb-3">
+                                <h8 className="text-muted">* Required fields</h8>
                             </div>
                         </form>
                     </Modal.Body>
@@ -881,26 +889,26 @@ const DealsTable = () => {
                         <Button
                             variant="contained"
                             onClick={handleSubmit}
-                            style={{ backgroundColor: '#1976d2', color: 'white' }}
-                            disabled={uploadingImage}
+                            style={{ backgroundColor: '#af0000ff', color: 'white' }}
+                            disabled={submitting}
                         >
-                            {uploadingImage ? (
+                            {submitting ? (
                                 <>
                                     <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
                                     Creating...
                                 </>
                             ) : (
-                                'Create'
+                                'Create Sponsor'
                             )}
                         </Button>
                     </Modal.Footer>
                 </Modal>
             )}
 
-            {/* Edit Deal Modal - Only show if user has update permission */}
+            {/* Edit Sponsor Modal */}
             {canUpdate && (
                 <Modal show={isEditModalOpen} onHide={() => {
-                    if (!uploadingImage) {
+                    if (!submitting) {
                         setIsEditModalOpen(false);
                         setEditFormErrors({});
                         setSelectedFile(null);
@@ -908,146 +916,150 @@ const DealsTable = () => {
                         setImageSizeError('');
                     }
                 }} centered size="lg">
-                    <Modal.Header closeButton={!uploadingImage}>
-                        <Modal.Title>Edit Deal</Modal.Title>
+                    <Modal.Header closeButton={!submitting}>
+                        <Modal.Title>Edit Sponsor</Modal.Title>
                     </Modal.Header>
                     <Modal.Body>
                         <form onSubmit={handleEditSubmit}>
-                            <div className="mb-3">
-                                <label htmlFor="edit-name" className="form-label">Name</label>
-                                <input
-                                    type="text"
-                                    className={`form-control ${editFormErrors.name ? 'is-invalid' : ''}`}
-                                    id="edit-name"
-                                    name="name"
-                                    value={editDeal.name}
-                                    onChange={handleEditInputChange}
-                                />
-                                {editFormErrors.name && <div className="invalid-feedback">{editFormErrors.name}</div>}
+                            <div className="row">
+                                <div className="col-md-6 mb-3">
+                                    <label htmlFor="edit-fullName" className="form-label">Full Name *</label>
+                                    <input
+                                        type="text"
+                                        className={`form-control ${editFormErrors.fullName ? 'is-invalid' : ''}`}
+                                        id="edit-fullName"
+                                        name="fullName"
+                                        value={editSponsor.fullName}
+                                        onChange={handleEditInputChange}
+                                    />
+                                    {editFormErrors.fullName && <div className="invalid-feedback">{editFormErrors.fullName}</div>}
+                                </div>
+                                <div className="col-md-6 mb-3">
+                                    <label htmlFor="edit-businessEmail" className="form-label">Business Email *</label>
+                                    <input
+                                        type="email"
+                                        className={`form-control ${editFormErrors.businessEmail ? 'is-invalid' : ''}`}
+                                        id="edit-businessEmail"
+                                        name="businessEmail"
+                                        value={editSponsor.businessEmail}
+                                        onChange={handleEditInputChange}
+                                    />
+                                    {editFormErrors.businessEmail && <div className="invalid-feedback">{editFormErrors.businessEmail}</div>}
+                                </div>
                             </div>
-                            <div className="mb-3">
-                                <label htmlFor="edit-description" className="form-label">Description</label>
-                                <textarea
-                                    className="form-control"
-                                    id="edit-description"
-                                    name="description"
-                                    value={editDeal.description}
-                                    onChange={handleEditInputChange}
-                                    rows="3"
-                                />
+                            <div className="row">
+                                <div className="col-md-6 mb-3">
+                                    <label htmlFor="edit-companyName" className="form-label">Company Name *</label>
+                                    <input
+                                        type="text"
+                                        className={`form-control ${editFormErrors.companyName ? 'is-invalid' : ''}`}
+                                        id="edit-companyName"
+                                        name="companyName"
+                                        value={editSponsor.companyName}
+                                        onChange={handleEditInputChange}
+                                    />
+                                    {editFormErrors.companyName && <div className="invalid-feedback">{editFormErrors.companyName}</div>}
+                                </div>
+                                <div className="col-md-6 mb-3">
+                                    <label htmlFor="edit-companyWebsite" className="form-label">Company Website</label>
+                                    <input
+                                        type="url"
+                                        className="form-control"
+                                        id="edit-companyWebsite"
+                                        name="companyWebsite"
+                                        value={editSponsor.companyWebsite}
+                                        onChange={handleEditInputChange}
+                                    />
+                                </div>
                             </div>
-                            <div className="mb-3">
-                                <label htmlFor="edit-price" className="form-label">Price</label>
-                                <input
-                                    type="number"
-                                    className={`form-control ${editFormErrors.price ? 'is-invalid' : ''}`}
-                                    id="edit-price"
-                                    name="price"
-                                    value={editDeal.price}
-                                    onChange={handleEditInputChange}
-                                    min="0"
-                                    step="0.01"
-                                />
-                                {editFormErrors.price && <div className="invalid-feedback">{editFormErrors.price}</div>}
-                            </div>
-                            <div className="mb-3">
-                                <label className="form-label">Items</label>
-                                <Select
-                                    isMulti
-                                    options={itemOptions}
-                                    className="basic-multi-select"
-                                    classNamePrefix="select"
-                                    onChange={handleEditItemSelection}
-                                    value={editSelectedItems}
-                                    placeholder="Select items..."
-                                />
-                                {editFormErrors.items && <div className="invalid-feedback d-block">{editFormErrors.items}</div>}
-
-                                {editDeal.items.length > 0 && (
-                                    <div className="mt-3">
-                                        <h6>Selected Items:</h6>
-                                        {editDeal.items.map((item, index) => {
-                                            const itemDetails = getItemDetailsById(item.itemId);
-                                            return (
-                                                <div key={index} className="d-flex align-items-center mb-2">
-                                                    <div className="flex-grow-1">
-                                                        <h8>{itemDetails ? itemDetails.name : `Item ID: ${item.itemId}`}</h8>
-                                                        {itemDetails && (
-                                                            <div className="text-muted small">{currencySymbol}{itemDetails.price.toFixed(2)} each</div>
-                                                        )}
-                                                    </div>
-                                                    <div className="d-flex align-items-center">
-                                                        <h8 className="me-2">Qty:</h8>
-                                                        <input
-                                                            type="number"
-                                                            min="1"
-                                                            className="form-control form-control-sm"
-                                                            style={{ width: '70px' }}
-                                                            value={item.quantity}
-                                                            onChange={(e) => handleEditQuantityChange(item.itemId, e.target.value)}
-                                                        />
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                )}
-                            </div>
-                            <div className="mb-3">
-                                <label className="form-label">Deal Image</label>
-                                <div className="d-flex flex-wrap gap-3 mb-3">
-                                    {editDeal.imageUrl && (
-                                        <div className="position-relative" style={{ width: '100px', height: '100px' }}>
-                                            <img
-                                                src={editDeal.imageUrl}
-                                                alt="Deal"
-                                                className="w-100 h-100"
-                                                style={{
-                                                    objectFit: 'cover',
-                                                    borderRadius: '4px'
-                                                }}
-                                            />
-                                        </div>
-                                    )}
-                                    <div className="position-relative" style={{ width: '100px', height: '100px' }}>
-                                        <div
-                                            className="w-100 h-100 border rounded d-flex flex-column justify-content-center align-items-center cursor-pointer"
-                                            style={{
-                                                borderStyle: imagePreview ? 'solid' : 'dashed',
-                                                backgroundColor: isDarkMode ? '#1e293b' : '#f8f9fa'
-                                            }}
-                                            onClick={() => document.getElementById('edit-image-upload').click()}
-                                        >
-                                            {imagePreview ? (
+                            <div className="row">
+                                <div className="col-md-6 mb-3">
+                                    <label htmlFor="edit-contactNumber" className="form-label">Contact Number *</label>
+                                    <input
+                                        type="tel"
+                                        className={`form-control ${editFormErrors.contactNumber ? 'is-invalid' : ''}`}
+                                        id="edit-contactNumber"
+                                        name="contactNumber"
+                                        value={editSponsor.contactNumber}
+                                        onChange={handleEditInputChange}
+                                    />
+                                    {editFormErrors.contactNumber && <div className="invalid-feedback">{editFormErrors.contactNumber}</div>}
+                                </div>
+                                <div className="col-md-6 mb-3">
+                                    <label className="form-label">Company Logo</label>
+                                    <div className="d-flex flex-wrap gap-3">
+                                        {editSponsor.id && (
+                                            <div className="position-relative" style={{ width: '100px', height: '100px' }}>
                                                 <img
-                                                    src={imagePreview}
-                                                    alt="Preview"
+                                                    src={getLogoUrl(selectedSponsor?.companyLogoUrl)}
+                                                    alt="Current Logo"
                                                     className="w-100 h-100"
                                                     style={{
                                                         objectFit: 'cover',
                                                         borderRadius: '4px'
                                                     }}
+                                                    onError={(e) => {
+                                                        e.target.src = '/images/avatar/undefined.png';
+                                                    }}
                                                 />
-                                            ) : (
-                                                <>
-                                                    <FiUpload size={20} className="mb-1" />
-                                                    <h8 className="small">Change Image</h8>
-                                                    <h8 className="small">Max 200 KB</h8>
-                                                </>
-                                            )}
+                                                <h8 className="small text-center mt-1">Current</h8>
+                                            </div>
+                                        )}
+                                        <div className="position-relative" style={{ width: '100px', height: '100px' }}>
+                                            <div
+                                                className="w-100 h-100 border rounded d-flex flex-column justify-content-center align-items-center cursor-pointer"
+                                                style={{
+                                                    borderStyle: imagePreview ? 'solid' : 'dashed',
+                                                    backgroundColor: isDarkMode ? '#1e293b' : '#f8f9fa'
+                                                }}
+                                                onClick={() => document.getElementById('edit-logo-upload').click()}
+                                            >
+                                                {imagePreview ? (
+                                                    <img
+                                                        src={imagePreview}
+                                                        alt="Preview"
+                                                        className="w-100 h-100"
+                                                        style={{
+                                                            objectFit: 'cover',
+                                                            borderRadius: '4px'
+                                                        }}
+                                                    />
+                                                ) : (
+                                                    <>
+                                                        <FiUpload size={20} className="mb-1" />
+                                                        <h8 className="small">Change Logo</h8>
+                                                        <h8 className="small">Max 2 MB</h8>
+                                                    </>
+                                                )}
+                                            </div>
+                                            <input
+                                                type="file"
+                                                id="edit-logo-upload"
+                                                className="d-none"
+                                                accept="image/*"
+                                                onChange={(e) => handleFileChange(e, true)}
+                                            />
                                         </div>
-                                        <input
-                                            type="file"
-                                            id="edit-image-upload"
-                                            className="d-none"
-                                            accept="image/*"
-                                            onChange={(e) => handleFileChange(e, true)}
-                                        />
                                     </div>
+                                    {imageSizeError && (
+                                        <div className="text-danger small mt-1">{imageSizeError}</div>
+                                    )}
                                 </div>
-                                {imageSizeError && (
-                                    <div className="text-danger small">{imageSizeError}</div>
-                                )}
+                            </div>
+                            <div className="mb-3">
+                                <label htmlFor="edit-pitchDescription" className="form-label">Pitch Description *</label>
+                                <textarea
+                                    className={`form-control ${editFormErrors.pitchDescription ? 'is-invalid' : ''}`}
+                                    id="edit-pitchDescription"
+                                    name="pitchDescription"
+                                    value={editSponsor.pitchDescription}
+                                    onChange={handleEditInputChange}
+                                    rows="4"
+                                />
+                                {editFormErrors.pitchDescription && <div className="invalid-feedback">{editFormErrors.pitchDescription}</div>}
+                            </div>
+                            <div className="mb-3">
+                                <h8 className="text-muted">* Required fields</h8>
                             </div>
                         </form>
                     </Modal.Body>
@@ -1055,100 +1067,87 @@ const DealsTable = () => {
                         <Button
                             variant="contained"
                             onClick={handleEditSubmit}
-                            style={{ backgroundColor: '#1976d2', color: 'white' }}
-                            disabled={uploadingImage}
+                            style={{ backgroundColor: '#af0000ff', color: 'white' }}
+                            disabled={submitting}
                         >
-                            {uploadingImage ? (
+                            {submitting ? (
                                 <>
                                     <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
                                     Updating...
                                 </>
                             ) : (
-                                'Update'
+                                'Update Sponsor'
                             )}
                         </Button>
                     </Modal.Footer>
                 </Modal>
             )}
 
-            {/* View Deal Modal */}
+            {/* View Sponsor Modal */}
             {canRead && (
                 <Modal show={isViewModalOpen} onHide={() => setIsViewModalOpen(false)} centered size="lg">
                     <Modal.Header closeButton>
-                        <Modal.Title>Deal Details</Modal.Title>
+                        <Modal.Title>Sponsor Details</Modal.Title>
                     </Modal.Header>
                     <Modal.Body>
-                        {selectedDeal && (
+                        {selectedSponsor && (
                             <div>
-                                <div className="mb-3">
-                                    <h5>Name</h5>
-                                    <h8>{selectedDeal.name}</h8>
-                                </div>
-                                <div className="mb-3">
-                                    <h5>Description</h5>
-                                    <h8>{selectedDeal.description || '-'}</h8>
-                                </div>
-                                <div className="mb-3">
-                                    <h5>Price</h5>
-                                    <h8>{currencySymbol}{selectedDeal.price.toFixed(2)}</h8>
-                                </div>
-                                <div className="mb-3">
-                                    <h5>Status</h5>
-                                    <h8>{selectedDeal.active ? 'Active' : 'Inactive'}</h8>
-                                </div>
-                                <div className="mb-3">
-                                    <h5>Items</h5>
-                                    <ul className="list-unstyled">
-                                        {selectedDeal.items.map((item, index) => {
-                                            const itemDetails = getItemDetailsById(item.itemId);
-                                            return (
-                                                <li key={index} className="mb-2">
-                                                    {itemDetails ? (
-                                                        <>
-                                                            <div className="d-flex justify-content-between">
-                                                                <h8>{itemDetails.name}</h8>
-                                                                <h8>Qty: {item.quantity}</h8>
-                                                            </div>
-                                                            <div className="text-muted small">{currencySymbol}{itemDetails.price.toFixed(2)} each</div>
-                                                        </>
-                                                    ) : (
-                                                        <div className="d-flex justify-content-between">
-                                                            <span>Item ID: {item.itemId}</span>
-                                                            <span>Qty: {item.quantity}</span>
-                                                        </div>
-                                                    )}
-                                                </li>
-                                            );
-                                        })}
-                                    </ul>
-                                </div>
-                                <div className="mb-3">
-                                    <h5>Image</h5>
-                                    <div className="d-flex flex-wrap gap-3">
-                                        {selectedDeal.imageUrl ? (
-                                            <div style={{ width: '100px', height: '100px' }}>
-                                                <img
-                                                    src={selectedDeal.imageUrl}
-                                                    alt="Deal"
-                                                    className="w-100 h-100"
-                                                    style={{
-                                                        objectFit: 'cover',
-                                                        borderRadius: '4px'
-                                                    }}
-                                                />
+                                <div className="row mb-4">
+                                    <div className="col-md-4 text-center">
+                                        <img
+                                            src={getLogoUrl(selectedSponsor.companyLogoUrl)}
+                                            alt="Company Logo"
+                                            style={{ width: '120px', height: '120px', objectFit: 'cover', borderRadius: '8px' }}
+                                            onError={(e) => {
+                                                e.target.src = '/images/avatar/undefined.png';
+                                            }}
+                                        />
+                                    </div>
+                                    <div className="col-md-8">
+                                        <h4>{selectedSponsor.companyName}</h4>
+                                        <p className="text-muted mb-2">{selectedSponsor.pitchDescription}</p>
+                                        <div className="mb-2">
+                                            <strong>Status: </strong>
+                                            {getStatusBadge(selectedSponsor.status)}
+                                        </div>
+                                        {selectedSponsor.companyWebsite && (
+                                            <div className="mb-2">
+                                                <strong>Website: </strong>
+                                                <a href={selectedSponsor.companyWebsite} target="_blank" rel="noopener noreferrer" className="text-decoration-none">
+                                                    {selectedSponsor.companyWebsite} <FiExternalLink size={14} />
+                                                </a>
                                             </div>
-                                        ) : (
-                                            <div style={{ width: '100px', height: '100px' }}>
-                                                <img
-                                                    src="/images/avatar/undefined.png"
-                                                    alt="Deal"
-                                                    className="w-100 h-100"
-                                                    style={{
-                                                        objectFit: 'cover',
-                                                        borderRadius: '4px'
-                                                    }}
-                                                />
-                                            </div>
+                                        )}
+                                        <StatusActions sponsor={selectedSponsor} />
+                                    </div>
+                                </div>
+                                
+                                <div className="row">
+                                    <div className="col-md-6 mb-3">
+                                        <h6>Contact Information</h6>
+                                        <p><strong>Full Name:</strong> {selectedSponsor.fullName}</p>
+                                        <p><strong>Email:</strong> 
+                                            <a href={`mailto:${selectedSponsor.businessEmail}`} className="text-decoration-none ms-1">
+                                                {selectedSponsor.businessEmail}
+                                            </a>
+                                        </p>
+                                        <p><strong>Contact:</strong> 
+                                            <a href={`tel:${selectedSponsor.contactNumber}`} className="text-decoration-none ms-1">
+                                                {selectedSponsor.contactNumber}
+                                            </a>
+                                        </p>
+                                    </div>
+                                    <div className="col-md-6 mb-3">
+                                        <h6>Event Information</h6>
+                                        <p><strong>Event:</strong> {selectedSponsor.eventName || '-'}</p>
+                                        <p><strong>Self Registered:</strong> {selectedSponsor.selfRegistered ? 'Yes' : 'No'}</p>
+                                        <p><strong>OTP Verified:</strong> {selectedSponsor.otpVerified ? 'Yes' : 'No'}</p>
+                                        <p><strong>Created At:</strong> {new Date(selectedSponsor.createdAt).toLocaleDateString()}</p>
+                                        {selectedSponsor.approvedAt && (
+                                            <p><strong>Approved At:</strong> {new Date(selectedSponsor.approvedAt).toLocaleDateString()}</p>
+                                        )}
+                                        {selectedSponsor.rejectionReason && (
+                                            <p><strong>Rejection Reason:</strong> {selectedSponsor.rejectionReason}</p>
                                         )}
                                     </div>
                                 </div>
@@ -1166,21 +1165,21 @@ const DealsTable = () => {
                     }
                 }} centered>
                     <Modal.Header closeButton={!deleting}>
-                        <Modal.Title>Delete Deal</Modal.Title>
+                        <Modal.Title>Delete Sponsor</Modal.Title>
                     </Modal.Header>
                     <Modal.Body>
-                        {dealToDelete && (
+                        {sponsorToDelete && (
                             <>
-                                <h8>Are you sure you want to delete the deal <strong>{dealToDelete.name}</strong>? </h8>
-                                <h8>This action cannot be undone.</h8>
+                                <h8>Are you sure you want to delete the sponsor <strong>{sponsorToDelete.companyName}</strong>?</h8>
+                                <h8 className="d-block mt-2">This action cannot be undone.</h8>
                             </>
                         )}
                     </Modal.Body>
                     <Modal.Footer>
                         <Button
                             variant="contained"
-                            onClick={handleDeleteDeal}
-                            style={{ backgroundColor: '#d32f2f', color: 'white' }}
+                            onClick={handleDeleteSponsor}
+                            style={{ backgroundColor: '#af0000ff', color: 'white' }}
                             disabled={deleting}
                         >
                             {deleting ? (
@@ -1196,8 +1195,53 @@ const DealsTable = () => {
                 </Modal>
             )}
 
+            {/* Status Update Modal for Rejection Reason */}
+            <Modal show={isStatusModalOpen} onHide={() => {
+                if (!updatingStatus) {
+                    setIsStatusModalOpen(false);
+                }
+            }} centered>
+                <Modal.Header closeButton={!updatingStatus}>
+                    <Modal.Title>Reject Sponsor</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    {sponsorToUpdateStatus && (
+                        <>
+                            <p>Are you sure you want to reject the sponsor <strong>{sponsorToUpdateStatus.companyName}</strong>?</p>
+                            <div className="mb-3">
+                                <label htmlFor="rejectionReason" className="form-label">Rejection Reason (Optional)</label>
+                                <textarea
+                                    className="form-control"
+                                    id="rejectionReason"
+                                    rows="3"
+                                    value={rejectionReason}
+                                    onChange={(e) => setRejectionReason(e.target.value)}
+                                    placeholder="Enter reason for rejection..."
+                                />
+                            </div>
+                        </>
+                    )}
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button
+                        variant="contained"
+                        onClick={() => handleUpdateStatus()}
+                        style={{ backgroundColor: '#dc3545', color: 'white' }}
+                        disabled={updatingStatus}
+                    >
+                        {updatingStatus ? (
+                            <>
+                                <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                Rejecting...
+                            </>
+                        ) : (
+                            'Reject Sponsor'
+                        )}
+                    </Button>
+                </Modal.Footer>
+            </Modal>
         </>
     );
 };
 
-export default DealsTable;
+export default SponsorsTable;

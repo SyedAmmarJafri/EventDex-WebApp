@@ -17,63 +17,63 @@ const STORE_NAME = 'registrations';
 const CACHE_EXPIRY = 15 * 60 * 1000; // 15 minutes in milliseconds
 
 const openDB = () => {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
 
-    request.onupgradeneeded = (event) => {
-      const db = event.target.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME, { keyPath: 'id' });
-      }
-    };
+        request.onupgradeneeded = (event) => {
+            const db = event.target.result;
+            if (!db.objectStoreNames.contains(STORE_NAME)) {
+                db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+            }
+        };
 
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+    });
 };
 
 const getCachedData = async () => {
-  try {
-    const db = await openDB();
-    const transaction = db.transaction(STORE_NAME, 'readonly');
-    const store = transaction.objectStore(STORE_NAME);
-    const request = store.getAll();
+    try {
+        const db = await openDB();
+        const transaction = db.transaction(STORE_NAME, 'readonly');
+        const store = transaction.objectStore(STORE_NAME);
+        const request = store.getAll();
 
-    return new Promise((resolve, reject) => {
-      request.onsuccess = () => {
-        const data = request.result[0]; // Get first record
-        if (data && (Date.now() - data.timestamp) < CACHE_EXPIRY) {
-          resolve(data.registrations);
-        } else {
-          resolve(null);
-        }
-      };
-      request.onerror = () => reject(request.error);
-    });
-  } catch (error) {
-    console.error('IndexedDB error:', error);
-    return null;
-  }
+        return new Promise((resolve, reject) => {
+            request.onsuccess = () => {
+                const data = request.result[0]; // Get first record
+                if (data && (Date.now() - data.timestamp) < CACHE_EXPIRY) {
+                    resolve(data.registrations);
+                } else {
+                    resolve(null);
+                }
+            };
+            request.onerror = () => reject(request.error);
+        });
+    } catch (error) {
+        console.error('IndexedDB error:', error);
+        return null;
+    }
 };
 
 const storeData = async (registrations) => {
-  try {
-    const db = await openDB();
-    const transaction = db.transaction(STORE_NAME, 'readwrite');
-    const store = transaction.objectStore(STORE_NAME);
-    
-    // Clear existing data
-    store.clear();
-    
-    // Store new data with timestamp
-    store.put({
-      id: 1, // Using a fixed ID since we only store one set of data
-      registrations,
-      timestamp: Date.now()
-    });
-  } catch (error) {
-    console.error('IndexedDB error:', error);
-  }
+    try {
+        const db = await openDB();
+        const transaction = db.transaction(STORE_NAME, 'readwrite');
+        const store = transaction.objectStore(STORE_NAME);
+
+        // Clear existing data
+        store.clear();
+
+        // Store new data with timestamp
+        store.put({
+            id: 1, // Using a fixed ID since we only store one set of data
+            registrations,
+            timestamp: Date.now()
+        });
+    } catch (error) {
+        console.error('IndexedDB error:', error);
+    }
 };
 
 const RegistrationTable = () => {
@@ -214,16 +214,16 @@ const RegistrationTable = () => {
         }
 
         setLoading(true);
-        
+
         try {
             // First try to get cached data
             const cachedRegistrations = await getCachedData();
-            
+
             if (cachedRegistrations) {
                 setRegistrations(cachedRegistrations);
                 setFilteredRegistrations(cachedRegistrations);
                 setLoading(false);
-                
+
                 // Fetch fresh data in background
                 setTimeout(async () => {
                     const freshRegistrations = await fetchRegistrationsFromAPI();
@@ -253,22 +253,22 @@ const RegistrationTable = () => {
 
         // Filter by subdomain
         if (selectedSubdomain) {
-            filtered = filtered.filter(reg => 
-                reg.domainName === selectedSubdomain || 
+            filtered = filtered.filter(reg =>
+                reg.domainName === selectedSubdomain ||
                 reg.subDomainId === selectedSubdomain
             );
         }
 
         // Filter by payment status
         if (paymentStatusFilter) {
-            filtered = filtered.filter(reg => 
+            filtered = filtered.filter(reg =>
                 reg.paymentStatus === paymentStatusFilter
             );
         }
 
         // Filter by registration status
         if (registrationStatusFilter) {
-            filtered = filtered.filter(reg => 
+            filtered = filtered.filter(reg =>
                 reg.registrationStatus === registrationStatusFilter
             );
         }
@@ -516,9 +516,9 @@ const RegistrationTable = () => {
             <div className="text-center py-5">
                 <div className="mb-4">
                     <svg width="64" height="64" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M12 17V11" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                        <path d="M12 7H12.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                        <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" strokeWidth="2"/>
+                        <path d="M12 17V11" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                        <path d="M12 7H12.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                        <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" strokeWidth="2" />
                     </svg>
                 </div>
                 <h5>Access Denied</h5>
@@ -551,12 +551,12 @@ const RegistrationTable = () => {
                         </small>
                     )}
                     <Button
-                        variant="outlined"
-                        startIcon={<FiFilter />}
+                        variant="contained"
                         onClick={() => setShowFilter(!showFilter)}
-                        size="small"
+                        className="d-flex align-items-center gap-2 mx-auto"
+                        style={{ backgroundColor: '#af0000ff', color: 'white' }}
                     >
-                        Filters
+                        <FiFilter /> Filters
                     </Button>
                 </div>
             </div>
@@ -765,9 +765,9 @@ const RegistrationTable = () => {
                                     <div className="col-12">
                                         <h5>Payment Proof</h5>
                                         <div className="text-center">
-                                            <img 
-                                                src={`${BASE_URL}${selectedRegistration.paymentProofImageUrl}`} 
-                                                alt="Payment Proof" 
+                                            <img
+                                                src={`${BASE_URL}${selectedRegistration.paymentProofImageUrl}`}
+                                                alt="Payment Proof"
                                                 className="img-fluid rounded"
                                                 style={{ maxHeight: '300px' }}
                                                 onError={(e) => {

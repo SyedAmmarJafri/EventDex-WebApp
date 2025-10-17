@@ -273,7 +273,7 @@ const RolesTable = () => {
                         variant="contained"
                         onClick={() => setIsModalOpen(true)}
                         className="d-flex align-items-center gap-2 mx-auto"
-                        style={{ backgroundColor: '#0092ff', color: 'white' }}
+                        style={{ backgroundColor: '#af0000ff', color: 'white' }}
                     >
                         <FiPlus /> Create Custom Role
                     </Button>
@@ -582,14 +582,13 @@ const RolesTable = () => {
             <div className="d-flex justify-content-between align-items-center mb-4">
                 <div>
                     <h4>Custom Roles Management</h4>
-                    <p className="text-muted mb-0">Create and manage custom roles with specific permissions</p>
                 </div>
                 {isPatron && (
                     <Button
                         variant="contained"
                         onClick={() => setIsModalOpen(true)}
                         className="d-flex align-items-center gap-2"
-                        style={{ backgroundColor: '#0092ff', color: 'white' }}
+                        style={{ backgroundColor: '#af0000ff', color: 'white' }}
                     >
                         <FiPlus /> Create Custom Role
                     </Button>
@@ -688,16 +687,9 @@ const RolesTable = () => {
                 </Modal.Body>
                 <Modal.Footer>
                     <Button
-                        variant="outlined"
-                        onClick={() => setIsModalOpen(false)}
-                        disabled={creating}
-                    >
-                        Cancel
-                    </Button>
-                    <Button
                         variant="contained"
                         onClick={handleCreateRole}
-                        style={{ backgroundColor: '#1976d2', color: 'white' }}
+                        style={{ backgroundColor: '#af0000ff', color: 'white' }}
                         disabled={creating}
                     >
                         {creating ? (
@@ -784,16 +776,9 @@ const RolesTable = () => {
                 </Modal.Body>
                 <Modal.Footer>
                     <Button
-                        variant="outlined"
-                        onClick={() => setIsEditModalOpen(false)}
-                        disabled={updating}
-                    >
-                        Cancel
-                    </Button>
-                    <Button
                         variant="contained"
                         onClick={handleUpdateRole}
-                        style={{ backgroundColor: '#1976d2', color: 'white' }}
+                        style={{ backgroundColor: '#af0000ff', color: 'white' }}
                         disabled={updating}
                     >
                         {updating ? (
@@ -873,16 +858,9 @@ const RolesTable = () => {
                 </Modal.Body>
                 <Modal.Footer>
                     <Button
-                        variant="outlined"
-                        onClick={() => setIsDeleteModalOpen(false)}
-                        disabled={deleting}
-                    >
-                        Cancel
-                    </Button>
-                    <Button
                         variant="contained"
                         onClick={handleDeleteRole}
-                        style={{ backgroundColor: '#d32f2f', color: 'white' }}
+                        style={{ backgroundColor: '#af0000ff', color: 'white' }}
                         disabled={deleting}
                     >
                         {deleting ? (
