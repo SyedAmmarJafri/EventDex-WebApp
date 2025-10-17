@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import {
     Card,
@@ -234,7 +235,7 @@ const Dashboard = () => {
     const [registrationStats, setRegistrationStats] = useState(null);
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [currentTime, setCurrentTime] = useState(moment());
-    const [timezone, setTimezone] = useState('UTC');
+    const [timezone, setTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone); // Get device timezone
     const screens = useBreakpoint();
 
     // Get auth data from localStorage
@@ -258,9 +259,9 @@ const Dashboard = () => {
     const hasAnalyticsPermission = userRole === 'PATRON' || userPermissions.includes('ANALYTICS_READ');
 
     useEffect(() => {
-        if (authData?.timezone) {
-            setTimezone(authData.timezone);
-        }
+        // Always use device timezone instead of user preference
+        const deviceTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        setTimezone(deviceTimezone);
 
         const loadData = async () => {
             setLoading(true);
@@ -332,11 +333,12 @@ const Dashboard = () => {
 
     useEffect(() => {
         const interval = setInterval(() => {
-            setCurrentTime(moment().tz(timezone));
+            // Use device's local time instead of timezone conversion
+            setCurrentTime(moment());
         }, 1000);
 
         return () => clearInterval(interval);
-    }, [timezone]);
+    }, []); // Remove timezone dependency
 
     const handleRefreshAll = async () => {
         setIsRefreshing(true);
@@ -344,6 +346,24 @@ const Dashboard = () => {
         setIsRefreshing(false);
         message.success('Dashboard refreshed successfully');
     };
+
+    // Get device timezone information
+    const getDeviceTimeInfo = () => {
+        const now = new Date();
+        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        const offset = now.getTimezoneOffset();
+        const offsetHours = Math.abs(Math.floor(offset / 60));
+        const offsetMinutes = Math.abs(offset % 60);
+        const offsetSign = offset <= 0 ? '+' : '-';
+        
+        return {
+            timezone,
+            offset: `UTC${offsetSign}${offsetHours.toString().padStart(2, '0')}:${offsetMinutes.toString().padStart(2, '0')}`,
+            isDST: now.getTimezoneOffset() < Math.max(...[0, -60, 60]) // Simple DST check
+        };
+    };
+
+    const deviceTimeInfo = getDeviceTimeInfo();
 
     // All Statistics Cards - Same size
     const mainStatsCards = [
@@ -581,29 +601,32 @@ const Dashboard = () => {
                                 Comprehensive analytics dashboard showing date-wise registration trends, 
                                 payment status distribution, and domain-wise participation insights.
                             </Text>
-                            <Button 
-                                type="default" 
-                                icon={<CalendarOutlined />}
-                                style={{
-                                    background: 'rgba(255, 255, 255, 0.15)',
-                                    border: '1px solid rgba(255, 255, 255, 0.3)',
-                                    color: 'white',
-                                    fontWeight: 600,
-                                    borderRadius: '12px',
-                                    marginTop: '20px',
-                                    backdropFilter: 'blur(10px)',
-                                    padding: '12px 20px',
-                                    height: 'auto',
-                                    fontSize: '14px'
-                                }}
-                            >
-                                <span style={{ 
-                                    color: '#ffffff', 
-                                    fontSize: screens.xs ? '12px' : '14px',
-                                }}>
-                                    {currentTime.format('dddd, MMMM D, YYYY · h:mm:ss A')}
-                                </span>
-                            </Button>
+                            <Space direction="vertical" size={12} style={{ marginTop: '20px' }}>
+                                <Button 
+                                    type="default" 
+                                    icon={<CalendarOutlined />}
+                                    style={{
+                                        background: 'rgba(255, 255, 255, 0.15)',
+                                        border: '1px solid rgba(255, 255, 255, 0.3)',
+                                        color: 'white',
+                                        fontWeight: 600,
+                                        borderRadius: '12px',
+                                        backdropFilter: 'blur(10px)',
+                                        padding: '12px 20px',
+                                        height: 'auto',
+                                        fontSize: '14px'
+                                    }}
+                                >
+                                    <span style={{ 
+                                        color: '#ffffff', 
+                                        fontSize: screens.xs ? '12px' : '14px',
+                                    }}>
+                                        {currentTime.format('dddd, MMMM D, YYYY · h:mm:ss A')}
+                                    </span>
+                                </Button>
+                               
+                              
+                            </Space>
                         </Col>
                     </Row>
                 </Card>
