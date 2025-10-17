@@ -10,6 +10,31 @@ import 'react-loading-skeleton/dist/skeleton.css';
 import Modal from 'react-bootstrap/Modal';
 import Badge from 'react-bootstrap/Badge';
 
+// Error Boundary Component
+const ErrorBoundary = ({ children }) => {
+    const [hasError, setHasError] = useState(false);
+
+    useEffect(() => {
+        const handleError = (error) => {
+            console.error('Error caught by boundary:', error);
+            setHasError(true);
+        };
+
+        window.addEventListener('error', handleError);
+        return () => window.removeEventListener('error', handleError);
+    }, []);
+
+    if (hasError) {
+        return (
+            <div className="alert alert-danger">
+                Something went wrong. Please refresh the page.
+            </div>
+        );
+    }
+
+    return children;
+};
+
 const SponsorsTable = () => {
     const [sponsors, setSponsors] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -52,7 +77,7 @@ const SponsorsTable = () => {
     const [imageSizeError, setImageSizeError] = useState('');
     const [submitting, setSubmitting] = useState(false);
 
-    const authData = JSON.parse(localStorage.getItem("authData"));
+    const authData = JSON.parse(localStorage.getItem("authData") || "{}");
     const userRole = authData?.role || '';
     const userPermissions = authData?.permissions || [];
     const eventId = authData?.eventId || '';
@@ -206,7 +231,9 @@ const SponsorsTable = () => {
         if (!file) return;
 
         if (!file.type.match('image.*')) {
-            toast.error('Please select an image file');
+            if (toast && toast.error) {
+                toast.error('Please select an image file');
+            }
             return;
         }
 
@@ -230,9 +257,11 @@ const SponsorsTable = () => {
     const fetchSponsors = useCallback(async () => {
         try {
             setLoading(true);
-            const authData = JSON.parse(localStorage.getItem("authData"));
+            const authData = JSON.parse(localStorage.getItem("authData") || "{}");
             if (!authData?.token) {
-                toast.error("Authentication token not found");
+                if (toast && toast.error) {
+                    toast.error("Authentication token not found");
+                }
                 return;
             }
 
@@ -245,8 +274,17 @@ const SponsorsTable = () => {
             });
 
             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || errorData.message || 'Failed to fetch sponsors');
+                const errorText = await response.text();
+                let errorMessage = 'Failed to fetch sponsors';
+                
+                try {
+                    const errorData = JSON.parse(errorText);
+                    errorMessage = errorData.error || errorData.message || errorMessage;
+                } catch {
+                    errorMessage = errorText || errorMessage;
+                }
+                
+                throw new Error(errorMessage);
             }
 
             const data = await response.json();
@@ -256,15 +294,27 @@ const SponsorsTable = () => {
                 throw new Error(data.error || data.message || 'Failed to fetch sponsors');
             }
         } catch (err) {
-            toast.error(err.message);
+            console.error('Fetch sponsors error:', err);
+            if (toast && toast.error) {
+                toast.error(err.message);
+            }
         } finally {
             setLoading(false);
         }
     }, []);
 
     const getStatusBadge = (status) => {
+        if (!status) {
+            return (
+                <Badge bg="secondary" className="text-capitalize">
+                    Unknown
+                </Badge>
+            );
+        }
+
         const statusConfig = {
             'PENDING': { variant: 'warning', label: 'Pending' },
+            'PENDING_APPROVAL': { variant: 'warning', label: 'Pending Approval' },
             'APPROVED': { variant: 'success', label: 'Approved' },
             'REJECTED': { variant: 'danger', label: 'Rejected' }
         };
@@ -296,12 +346,12 @@ const SponsorsTable = () => {
 
     const validateForm = (formData, setErrors) => {
         const errors = {};
-        if (!formData.fullName.trim()) errors.fullName = 'Full name is required';
-        if (!formData.businessEmail.trim()) errors.businessEmail = 'Business email is required';
+        if (!formData.fullName?.trim()) errors.fullName = 'Full name is required';
+        if (!formData.businessEmail?.trim()) errors.businessEmail = 'Business email is required';
         else if (!/\S+@\S+\.\S+/.test(formData.businessEmail)) errors.businessEmail = 'Email is invalid';
-        if (!formData.companyName.trim()) errors.companyName = 'Company name is required';
-        if (!formData.contactNumber.trim()) errors.contactNumber = 'Contact number is required';
-        if (!formData.pitchDescription.trim()) errors.pitchDescription = 'Pitch description is required';
+        if (!formData.companyName?.trim()) errors.companyName = 'Company name is required';
+        if (!formData.contactNumber?.trim()) errors.contactNumber = 'Contact number is required';
+        if (!formData.pitchDescription?.trim()) errors.pitchDescription = 'Pitch description is required';
         
         setErrors(errors);
         return Object.keys(errors).length === 0;
@@ -312,7 +362,9 @@ const SponsorsTable = () => {
         if (!validateForm(newSponsor, setFormErrors)) return;
         
         if (!eventId) {
-            toast.error('Event ID not found. Please make sure you are associated with an event.');
+            if (toast && toast.error) {
+                toast.error('Event ID not found. Please make sure you are associated with an event.');
+            }
             return;
         }
 
@@ -323,7 +375,7 @@ const SponsorsTable = () => {
 
         try {
             setSubmitting(true);
-            const authData = JSON.parse(localStorage.getItem("authData"));
+            const authData = JSON.parse(localStorage.getItem("authData") || "{}");
 
             const formData = new FormData();
             formData.append('fullName', newSponsor.fullName);
@@ -346,13 +398,26 @@ const SponsorsTable = () => {
                 body: formData
             });
 
-            const data = await response.json();
             if (!response.ok) {
-                const errorMsg = data.error || data.message || 'Failed to create sponsor';
-                throw new Error(errorMsg);
+                const errorText = await response.text();
+                let errorMessage = 'Failed to create sponsor';
+                
+                try {
+                    const errorData = JSON.parse(errorText);
+                    errorMessage = errorData.error || errorData.message || errorMessage;
+                } catch {
+                    errorMessage = errorText || errorMessage;
+                }
+                
+                throw new Error(errorMessage);
             }
 
-            toast.success('Sponsor created successfully');
+            const data = await response.json();
+            
+            if (toast && toast.success) {
+                toast.success('Sponsor created successfully');
+            }
+            
             await fetchSponsors();
             setIsModalOpen(false);
             setNewSponsor({
@@ -367,7 +432,10 @@ const SponsorsTable = () => {
             setImagePreview('');
             setImageSizeError('');
         } catch (err) {
-            toast.error(err.message);
+            console.error('Create sponsor error:', err);
+            if (toast && toast.error) {
+                toast.error(err.message);
+            }
         } finally {
             setSubmitting(false);
         }
@@ -384,7 +452,7 @@ const SponsorsTable = () => {
 
         try {
             setSubmitting(true);
-            const authData = JSON.parse(localStorage.getItem("authData"));
+            const authData = JSON.parse(localStorage.getItem("authData") || "{}");
 
             const formData = new FormData();
             formData.append('fullName', editSponsor.fullName);
@@ -406,39 +474,57 @@ const SponsorsTable = () => {
                 body: formData
             });
 
-            const data = await response.json();
             if (!response.ok) {
-                const errorMsg = data.error || data.message || 'Failed to update sponsor';
-                throw new Error(errorMsg);
+                const errorText = await response.text();
+                let errorMessage = 'Failed to update sponsor';
+                
+                try {
+                    const errorData = JSON.parse(errorText);
+                    errorMessage = errorData.error || errorData.message || errorMessage;
+                } catch {
+                    errorMessage = errorText || errorMessage;
+                }
+                
+                throw new Error(errorMessage);
             }
 
-            toast.success('Sponsor updated successfully');
+            const data = await response.json();
+            
+            if (toast && toast.success) {
+                toast.success('Sponsor updated successfully');
+            }
+            
             await fetchSponsors();
             setIsEditModalOpen(false);
             setSelectedFile(null);
             setImagePreview('');
             setImageSizeError('');
         } catch (err) {
-            toast.error(err.message);
+            console.error('Update sponsor error:', err);
+            if (toast && toast.error) {
+                toast.error(err.message);
+            }
         } finally {
             setSubmitting(false);
         }
     };
 
     const handleViewSponsor = (sponsor) => {
+        if (!sponsor) return;
         setSelectedSponsor(sponsor);
         setIsViewModalOpen(true);
     };
 
     const handleEditSponsor = (sponsor) => {
+        if (!sponsor) return;
         setEditSponsor({
-            id: sponsor.id,
-            fullName: sponsor.fullName,
-            businessEmail: sponsor.businessEmail,
-            companyName: sponsor.companyName,
+            id: sponsor.id || '',
+            fullName: sponsor.fullName || '',
+            businessEmail: sponsor.businessEmail || '',
+            companyName: sponsor.companyName || '',
             companyWebsite: sponsor.companyWebsite || '',
-            contactNumber: sponsor.contactNumber,
-            pitchDescription: sponsor.pitchDescription
+            contactNumber: sponsor.contactNumber || '',
+            pitchDescription: sponsor.pitchDescription || ''
         });
         setSelectedFile(null);
         setImagePreview('');
@@ -447,14 +533,22 @@ const SponsorsTable = () => {
     };
 
     const handleDeleteClick = (sponsor) => {
+        if (!sponsor) return;
         setSponsorToDelete(sponsor);
         setIsDeleteModalOpen(true);
     };
 
     const handleDeleteSponsor = async () => {
+        if (!sponsorToDelete?.id) {
+            if (toast && toast.error) {
+                toast.error("Sponsor information is missing");
+            }
+            return;
+        }
+
         try {
             setDeleting(true);
-            const authData = JSON.parse(localStorage.getItem("authData"));
+            const authData = JSON.parse(localStorage.getItem("authData") || "{}");
             const response = await fetch(`${BASE_URL}/api/sponsors/${sponsorToDelete.id}`, {
                 method: 'DELETE',
                 headers: {
@@ -463,23 +557,43 @@ const SponsorsTable = () => {
                 }
             });
 
-            const data = await response.json();
             if (!response.ok) {
-                const errorMsg = data.error || data.message || 'Failed to delete sponsor';
-                throw new Error(errorMsg);
+                const errorText = await response.text();
+                let errorMessage = 'Failed to delete sponsor';
+                
+                try {
+                    const errorData = JSON.parse(errorText);
+                    errorMessage = errorData.error || errorData.message || errorMessage;
+                } catch {
+                    errorMessage = errorText || errorMessage;
+                }
+                
+                throw new Error(errorMessage);
             }
 
-            toast.success('Sponsor deleted successfully');
+            const data = await response.json();
+            
+            if (toast && toast.success) {
+                toast.success('Sponsor deleted successfully');
+            }
+            
             await fetchSponsors();
             setIsDeleteModalOpen(false);
         } catch (err) {
-            toast.error(err.message);
+            console.error('Delete sponsor error:', err);
+            if (toast && toast.error) {
+                toast.error(err.message);
+            }
         } finally {
             setDeleting(false);
         }
     };
 
     const handleStatusUpdateClick = (sponsor, status) => {
+        if (!sponsor) return;
+        
+        console.log('Status update clicked:', { sponsor: sponsor.companyName, status });
+        
         setSponsorToUpdateStatus(sponsor);
         setNewStatus(status);
         setRejectionReason('');
@@ -487,24 +601,49 @@ const SponsorsTable = () => {
         if (status === 'REJECTED') {
             setIsStatusModalOpen(true);
         } else {
+            // Directly call handleUpdateStatus for APPROVED
             handleUpdateStatus(status);
         }
     };
 
     const handleUpdateStatus = async (status = null) => {
         const finalStatus = status || newStatus;
+        
+        console.log('Updating status to:', finalStatus, 'for sponsor:', sponsorToUpdateStatus?.companyName);
+        
+        // Validate required data
+        if (!sponsorToUpdateStatus?.id) {
+            if (toast && toast.error) {
+                toast.error("Sponsor information is missing");
+            }
+            return;
+        }
+
         try {
             setUpdatingStatus(true);
-            const authData = JSON.parse(localStorage.getItem("authData"));
+            const authData = JSON.parse(localStorage.getItem("authData") || "{}");
             
+            if (!authData?.token) {
+                if (toast && toast.error) {
+                    toast.error("Authentication token not found");
+                }
+                return;
+            }
+
             const requestBody = {
                 status: finalStatus
             };
             
             // Add rejection reason if status is REJECTED
-            if (finalStatus === 'REJECTED' && rejectionReason.trim()) {
+            if (finalStatus === 'REJECTED' && rejectionReason?.trim()) {
                 requestBody.rejectionReason = rejectionReason.trim();
             }
+
+            console.log('Sending status update request:', {
+                url: `${BASE_URL}/api/sponsors/${sponsorToUpdateStatus.id}/status`,
+                method: 'PATCH',
+                body: requestBody
+            });
 
             const response = await fetch(`${BASE_URL}/api/sponsors/${sponsorToUpdateStatus.id}/status`, {
                 method: 'PATCH',
@@ -515,13 +654,29 @@ const SponsorsTable = () => {
                 body: JSON.stringify(requestBody)
             });
 
-            const data = await response.json();
+            // Check if response is ok before parsing JSON
             if (!response.ok) {
-                const errorMsg = data.error || data.message || 'Failed to update sponsor status';
-                throw new Error(errorMsg);
+                const errorText = await response.text();
+                let errorMessage = 'Failed to update sponsor status';
+                
+                try {
+                    const errorData = JSON.parse(errorText);
+                    errorMessage = errorData.error || errorData.message || errorMessage;
+                } catch {
+                    errorMessage = errorText || errorMessage;
+                }
+                
+                throw new Error(errorMessage);
             }
 
-            toast.success(`Sponsor ${finalStatus.toLowerCase()} successfully`);
+            const data = await response.json();
+            console.log('Status update response:', data);
+            
+            // Check if toast exists before calling it
+            if (toast && toast.success) {
+                toast.success(`Sponsor ${finalStatus.toLowerCase()} successfully`);
+            }
+            
             await fetchSponsors();
             setIsStatusModalOpen(false);
             setIsViewModalOpen(false);
@@ -529,7 +684,11 @@ const SponsorsTable = () => {
             setNewStatus('');
             setRejectionReason('');
         } catch (err) {
-            toast.error(err.message);
+            console.error('Status update error:', err);
+            // Check if toast exists before calling it
+            if (toast && toast.error) {
+                toast.error(err.message || 'Failed to update sponsor status');
+            }
         } finally {
             setUpdatingStatus(false);
         }
@@ -541,7 +700,12 @@ const SponsorsTable = () => {
     };
 
     const StatusActions = ({ sponsor }) => {
-        if (!canUpdateStatus || sponsor.status !== 'PENDING') return null;
+        if (!sponsor || !canUpdateStatus) return null;
+
+        // Show buttons for both PENDING and PENDING_APPROVAL statuses
+        const showActions = sponsor.status === 'PENDING' || sponsor.status === 'PENDING_APPROVAL';
+        
+        if (!showActions) return null;
 
         return (
             <div className="d-flex gap-2 mt-3">
@@ -571,79 +735,101 @@ const SponsorsTable = () => {
         {
             accessorKey: 'companyLogoUrl',
             header: 'Logo',
-            cell: (info) => (
-                <img
-                    src={getLogoUrl(info.getValue())}
-                    alt="Company Logo"
-                    style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px' }}
-                    onError={(e) => {
-                        e.target.src = '/images/avatar/undefined.png';
-                    }}
-                />
-            )
+            cell: (info) => {
+                const logoUrl = info.getValue();
+                return (
+                    <img
+                        src={getLogoUrl(logoUrl)}
+                        alt="Company Logo"
+                        style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px' }}
+                        onError={(e) => {
+                            e.target.src = '/images/avatar/undefined.png';
+                        }}
+                    />
+                );
+            }
         },
         {
             accessorKey: 'fullName',
             header: 'Full Name',
-            cell: (info) => info.getValue()
+            cell: (info) => info.getValue() || '-'
         },
         {
             accessorKey: 'companyName',
             header: 'Company',
-            cell: (info) => info.getValue()
+            cell: (info) => info.getValue() || '-'
         },
         {
             accessorKey: 'businessEmail',
             header: 'Email',
-            cell: (info) => (
-                <a href={`mailto:${info.getValue()}`} className="text-decoration-none">
-                    {info.getValue()}
-                </a>
-            )
+            cell: (info) => {
+                const email = info.getValue();
+                if (!email) return '-';
+                return (
+                    <a href={`mailto:${email}`} className="text-decoration-none">
+                        {email}
+                    </a>
+                );
+            }
         },
         {
             accessorKey: 'contactNumber',
             header: 'Contact',
-            cell: (info) => (
-                <a href={`tel:${info.getValue()}`} className="text-decoration-none">
-                    {info.getValue()}
-                </a>
-            )
+            cell: (info) => {
+                const contact = info.getValue();
+                if (!contact) return '-';
+                return (
+                    <a href={`tel:${contact}`} className="text-decoration-none">
+                        {contact}
+                    </a>
+                );
+            }
         },
         {
             accessorKey: 'status',
             header: 'Status',
-            cell: (info) => (
-                <div className="d-flex align-items-center gap-2">
-                    {getStatusBadge(info.getValue())}
-                    {canUpdateStatus && info.row.original.status === 'PENDING' && (
-                        <div className="d-flex gap-1">
-                            <button
-                                className="btn btn-success btn-sm p-1"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleStatusUpdateClick(info.row.original, 'APPROVED');
-                                }}
-                                title="Approve"
-                                style={{ width: '24px', height: '24px' }}
-                            >
-                                <FiCheck size={12} />
-                            </button>
-                            <button
-                                className="btn btn-danger btn-sm p-1"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleStatusUpdateClick(info.row.original, 'REJECTED');
-                                }}
-                                title="Reject"
-                                style={{ width: '24px', height: '24px' }}
-                            >
-                                <FiX size={12} />
-                            </button>
-                        </div>
-                    )}
-                </div>
-            )
+            cell: (info) => {
+                const status = info.getValue();
+                const sponsor = info.row.original;
+                
+                // Handle null or undefined status
+                if (!status) return null;
+                
+                return (
+                    <div className="d-flex align-items-center gap-2">
+                        {getStatusBadge(status)}
+                        {/* Show Accept/Reject buttons for both PENDING and PENDING_APPROVAL statuses */}
+                        {canUpdateStatus && (status === 'PENDING' || status === 'PENDING_APPROVAL') && (
+                            <div className="d-flex gap-1">
+                                <button
+                                    className="btn btn-success btn-sm p-1"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        console.log('Approve clicked for:', sponsor.companyName);
+                                        handleStatusUpdateClick(sponsor, 'APPROVED');
+                                    }}
+                                    title="Approve"
+                                    style={{ width: '24px', height: '24px' }}
+                                >
+                                    <FiCheck size={12} />
+                                </button>
+                                <button
+                                    className="btn btn-danger btn-sm p-1"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        console.log('Reject clicked for:', sponsor.companyName);
+                                        handleStatusUpdateClick(sponsor, 'REJECTED');
+                                    }}
+                                    title="Reject"
+                                    style={{ width: '24px', height: '24px' }}
+                                >
+                                    <FiX size={12} />
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                );
+            }
         },
         {
             accessorKey: 'eventName',
@@ -653,34 +839,39 @@ const SponsorsTable = () => {
         {
             accessorKey: 'actions',
             header: "Actions",
-            cell: ({ row }) => (
-                <div className="hstack gap-2 justify-content-end">
-                    {canRead && (
-                        <button
-                            className="avatar-text avatar-md"
-                            onClick={() => handleViewSponsor(row.original)}
-                        >
-                            <FiEye />
-                        </button>
-                    )}
-                    {canUpdate && (
-                        <button
-                            className="avatar-text avatar-md"
-                            onClick={() => handleEditSponsor(row.original)}
-                        >
-                            <FiEdit />
-                        </button>
-                    )}
-                    {canDelete && (
-                        <button
-                            className="avatar-text avatar-md"
-                            onClick={() => handleDeleteClick(row.original)}
-                        >
-                            <FiTrash />
-                        </button>
-                    )}
-                </div>
-            ),
+            cell: ({ row }) => {
+                const sponsor = row.original;
+                if (!sponsor) return null;
+                
+                return (
+                    <div className="hstack gap-2 justify-content-end">
+                        {canRead && (
+                            <button
+                                className="avatar-text avatar-md"
+                                onClick={() => handleViewSponsor(sponsor)}
+                            >
+                                <FiEye />
+                            </button>
+                        )}
+                        {canUpdate && (
+                            <button
+                                className="avatar-text avatar-md"
+                                onClick={() => handleEditSponsor(sponsor)}
+                            >
+                                <FiEdit />
+                            </button>
+                        )}
+                        {canDelete && (
+                            <button
+                                className="avatar-text avatar-md"
+                                onClick={() => handleDeleteClick(sponsor)}
+                            >
+                                <FiTrash />
+                            </button>
+                        )}
+                    </div>
+                );
+            },
             meta: { headerClassName: 'text-end' }
         },
     ], [canRead, canUpdate, canDelete, canUpdateStatus]);
@@ -690,7 +881,7 @@ const SponsorsTable = () => {
     }, [fetchSponsors]);
 
     return (
-        <>
+        <ErrorBoundary>
             <ToastContainer
                 position="bottom-center"
                 autoClose={5000}
@@ -1118,7 +1309,29 @@ const SponsorsTable = () => {
                                                 </a>
                                             </div>
                                         )}
-                                        <StatusActions sponsor={selectedSponsor} />
+                                        {/* Show Accept/Reject buttons for both PENDING and PENDING_APPROVAL statuses */}
+                                        {canUpdateStatus && (selectedSponsor.status === 'PENDING' || selectedSponsor.status === 'PENDING_APPROVAL') && (
+                                            <div className="d-flex gap-2 mt-3">
+                                                <Button
+                                                    variant="contained"
+                                                    size="small"
+                                                    startIcon={<FiCheck />}
+                                                    onClick={() => handleStatusUpdateClick(selectedSponsor, 'APPROVED')}
+                                                    style={{ backgroundColor: '#28a745', color: 'white' }}
+                                                >
+                                                    Approve
+                                                </Button>
+                                                <Button
+                                                    variant="contained"
+                                                    size="small"
+                                                    startIcon={<FiX />}
+                                                    onClick={() => handleStatusUpdateClick(selectedSponsor, 'REJECTED')}
+                                                    style={{ backgroundColor: '#dc3545', color: 'white' }}
+                                                >
+                                                    Reject
+                                                </Button>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                                 
@@ -1240,7 +1453,7 @@ const SponsorsTable = () => {
                     </Button>
                 </Modal.Footer>
             </Modal>
-        </>
+        </ErrorBoundary>
     );
 };
 
