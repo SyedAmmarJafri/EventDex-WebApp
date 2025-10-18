@@ -99,55 +99,14 @@ export const menuList = [
     path: "#",
     icon: "analytics",
     dropdownMenu: [
+     
       {
         id: 1,
-        name: "Sales Analytics",
-        path: "/analytics/sales",
-        icon: "reports",
-        subdropdownMenu: false,
-      },
-      {
-        id: 2,
-        name: "Product Analytics",
-        path: "/analytics/product",
-        icon: "reports",
-        subdropdownMenu: false,
-      },
-      {
-        id: 3,
-        name: "Customer Analytics",
-        path: "/analytics/customer",
-        icon: "reports",
-        subdropdownMenu: false,
-      },
-      {
-        id: 4,
-        name: "Financial Analytics",
-        path: "/analytics/financial",
-        icon: "reports",
-        subdropdownMenu: false,
-      },
-      {
-        id: 5,
-        name: "Team Analytics",
-        path: "/analytics/team",
-        icon: "reports",
-        subdropdownMenu: false,
-      },
-      {
-        id: 6,
-        name: "Comparison Analytics",
-        path: "/analytics/comparison",
-        icon: "reports",
-        subdropdownMenu: false,
-      },
-      {
-        id: 7,
         name: "Reports",
         path: "/reports",
         icon: "reports",
         subdropdownMenu: false,
-      },
+      }
     ],
   },
   {

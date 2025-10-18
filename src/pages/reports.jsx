@@ -8,65 +8,169 @@ import {
   message,
   Spin,
   Typography,
-  Space,
-  DatePicker
+  Space
 } from 'antd';
-import { DownloadOutlined, FilePdfOutlined, FileExcelOutlined } from '@ant-design/icons';
+import { 
+  DownloadOutlined, 
+  FilePdfOutlined
+} from '@ant-design/icons';
 import axios from 'axios';
 import { BASE_URL } from '/src/constants.js';
-import dayjs from 'dayjs';
 
 const { Option } = Select;
-const { RangePicker } = DatePicker;
 const { Title, Text } = Typography;
 
 const ReportsTeam = () => {
   const [loading, setLoading] = useState(false);
-  const [csvLoading, setCsvLoading] = useState(false);
-  const [reportType, setReportType] = useState('financial');
-  const [period, setPeriod] = useState('today');
-  const [dateRange, setDateRange] = useState(null);
+  const [reportType, setReportType] = useState('event-analytics');
   const [pdfUrl, setPdfUrl] = useState(null);
-  const [iframeHeight, setIframeHeight] = useState(600);
+  const [events, setEvents] = useState([]);
+  const [subdomains, setSubdomains] = useState([]);
+  const [selectedEvent, setSelectedEvent] = useState(null);
+  const [selectedSubdomain, setSelectedSubdomain] = useState(null);
+  const [showPdfPage, setShowPdfPage] = useState(false);
+
+  // Get authentication token
+  const getAuthToken = () => {
+    const authData = localStorage.getItem('authData');
+    if (authData) {
+      try {
+        const parsed = JSON.parse(authData);
+        return parsed.token;
+      } catch (error) {
+        console.error('Error parsing auth data:', error);
+        return null;
+      }
+    }
+    return null;
+  };
 
   useEffect(() => {
-    const handleResize = () => {
-      // Adjust height based on window size
-      const newHeight = window.innerWidth < 768 ? 400 : 600;
-      setIframeHeight(newHeight);
-    };
-
-    // Set initial height
-    handleResize();
-
-    // Add event listener for window resize
-    window.addEventListener('resize', handleResize);
-
-    // Cleanup
-    return () => window.removeEventListener('resize', handleResize);
+    fetchEvents();
   }, []);
+
+  const fetchEvents = async () => {
+    try {
+      const token = getAuthToken();
+      if (!token) {
+        message.error('Authentication token not found');
+        return;
+      }
+
+      const response = await axios.get(`${BASE_URL}/api/events`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      if (response.data && response.data.success) {
+        setEvents(response.data.data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching events:', error);
+      message.error('Failed to fetch events');
+    }
+  };
+
+  const fetchSubdomains = async (eventId) => {
+    try {
+      const token = getAuthToken();
+      if (!token) {
+        message.error('Authentication token not found');
+        return;
+      }
+
+      // First fetch parent domains for the event
+      const parentDomainsResponse = await axios.get(`${BASE_URL}/api/events/${eventId}/domains`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      if (parentDomainsResponse.data && parentDomainsResponse.data.success) {
+        const parentDomains = parentDomainsResponse.data.data || [];
+        
+        // Then fetch all subdomains and filter by parent domains
+        const subdomainsResponse = await axios.get(`${BASE_URL}/api/subdomains`, {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        });
+
+        if (subdomainsResponse.data && subdomainsResponse.data.success) {
+          const allSubdomains = subdomainsResponse.data.data || [];
+          
+          // Filter subdomains that belong to the current event's parent domains
+          const eventParentDomainIds = parentDomains.map(domain => domain.id);
+          const eventSubdomains = allSubdomains.filter(subdomain =>
+            eventParentDomainIds.includes(subdomain.parentDomainId)
+          );
+          
+          setSubdomains(eventSubdomains);
+        } else {
+          setSubdomains([]);
+        }
+      } else {
+        setSubdomains([]);
+      }
+    } catch (error) {
+      console.error('Error fetching subdomains:', error);
+      message.error('Failed to fetch subdomains');
+      setSubdomains([]);
+    }
+  };
 
   const generateReport = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('authData') ? JSON.parse(localStorage.getItem('authData')).token : null;
+      const token = getAuthToken();
 
       if (!token) {
         message.error('Authentication token not found');
         return;
       }
 
-      let params = { reportType };
+      let endpoint = '';
+      let filename = '';
 
-      if (period === 'custom' && dateRange) {
-        params.startDate = dayjs(dateRange[0]).format('YYYY-MM-DD');
-        params.endDate = dayjs(dateRange[1]).format('YYYY-MM-DD');
-      } else {
-        params.period = period;
+      switch (reportType) {
+        case 'event-analytics':
+          if (!selectedEvent) {
+            message.error('Please select an event');
+            setLoading(false);
+            return;
+          }
+          endpoint = `${BASE_URL}/api/analytics/event/${selectedEvent}/report/pdf`;
+          filename = `Event_Analytics_${selectedEvent}.pdf`;
+          break;
+
+        case 'comprehensive-report':
+          if (!selectedEvent) {
+            message.error('Please select an event');
+            setLoading(false);
+            return;
+          }
+          endpoint = `${BASE_URL}/api/analytics/event/${selectedEvent}/report/comprehensive/pdf`;
+          filename = `Comprehensive_Report_${selectedEvent}.pdf`;
+          break;
+
+        case 'subdomain-participants':
+          if (!selectedSubdomain) {
+            message.error('Please select a subdomain');
+            setLoading(false);
+            return;
+          }
+          endpoint = `${BASE_URL}/api/analytics/subdomain/${selectedSubdomain}/participants/pdf`;
+          filename = `Participants_${selectedSubdomain}.pdf`;
+          break;
+
+        default:
+          message.error('Invalid report type');
+          setLoading(false);
+          return;
       }
 
-      const response = await axios.get(`${BASE_URL}/api/client-admin/analytics/export/pdf`, {
-        params,
+      const response = await axios.get(endpoint, {
         headers: {
           Authorization: `Bearer ${token}`
         },
@@ -76,6 +180,7 @@ const ReportsTeam = () => {
       const blob = new Blob([response.data], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
       setPdfUrl(url);
+      setShowPdfPage(true);
 
     } catch (error) {
       console.error('Error generating PDF report:', error);
@@ -85,64 +190,108 @@ const ReportsTeam = () => {
     }
   };
 
-  const downloadCSV = async () => {
-    try {
-      setCsvLoading(true);
-      const token = localStorage.getItem('authData') ? JSON.parse(localStorage.getItem('authData')).token : null;
-
-      if (!token) {
-        message.error('Authentication token not found');
-        return;
-      }
-
-      let params = { reportType };
-
-      if (period === 'custom' && dateRange) {
-        params.startDate = dayjs(dateRange[0]).format('YYYY-MM-DD');
-        params.endDate = dayjs(dateRange[1]).format('YYYY-MM-DD');
-      } else {
-        params.period = period;
-      }
-
-      const response = await axios.get(`${BASE_URL}/api/client-admin/analytics/export/csv`, {
-        params,
-        headers: {
-          Authorization: `Bearer ${token}`
-        },
-        responseType: 'blob'
-      });
-
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `${reportType}_report_${period === 'custom' ? 'custom_range' : period}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      link.parentNode.removeChild(link);
-    } catch (error) {
-      console.error('Error downloading CSV:', error);
-      message.error('Failed to download CSV file');
-    } finally {
-      setCsvLoading(false);
+  const handleEventChange = (eventId) => {
+    setSelectedEvent(eventId);
+    setSelectedSubdomain(null);
+    setPdfUrl(null);
+    setShowPdfPage(false);
+    if (eventId) {
+      fetchSubdomains(eventId);
+    } else {
+      setSubdomains([]);
     }
+  };
+
+  const handleSubdomainChange = (subdomainId) => {
+    setSelectedSubdomain(subdomainId);
+    setPdfUrl(null);
+    setShowPdfPage(false);
   };
 
   const handleReportTypeChange = (value) => {
     setReportType(value);
     setPdfUrl(null);
+    setSelectedSubdomain(null);
+    setShowPdfPage(false);
   };
 
-  const handlePeriodChange = (value) => {
-    setPeriod(value);
-    setPdfUrl(null);
+  const goBackToReport = () => {
+    setShowPdfPage(false);
   };
 
-  const handleDateRangeChange = (dates) => {
-    setDateRange(dates);
-    setPdfUrl(null);
+  const isGenerateDisabled = () => {
+    switch (reportType) {
+      case 'event-analytics':
+      case 'comprehensive-report':
+        return !selectedEvent;
+      case 'subdomain-participants':
+        return !selectedSubdomain;
+      default:
+        return true;
+    }
   };
 
-  return (
+  // PDF Display Page Component
+  const PdfDisplayPage = () => (
+    <div style={{
+      maxWidth: '1400px',
+      margin: '0 auto',
+      padding: '24px',
+      backgroundColor: '#fff'
+    }}>
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '24px',
+        paddingBottom: '16px',
+        borderBottom: '1px solid #f0f0f0'
+      }}>
+        <Title level={3} style={{ margin: 0, fontWeight: 600, color: '#111827' }}>
+          PDF Report - {reportType.replace('-', ' ').toUpperCase()}
+        </Title>
+        <Space>
+          <Button
+            type="default"
+            onClick={goBackToReport}
+            style={{ marginRight: '8px' }}
+          >
+            Back to Report
+          </Button>
+          <Button
+            type="primary"
+            icon={<DownloadOutlined />}
+            href={pdfUrl}
+            target="_blank"
+            download={`${reportType}_report.pdf`}
+          >
+            Download PDF
+          </Button>
+        </Space>
+      </div>
+
+      <div style={{
+        width: '100%',
+        height: 'calc(100vh - 200px)',
+        border: '1px solid #f0f0f0',
+        borderRadius: '8px',
+        overflow: 'hidden'
+      }}>
+        <iframe
+          src={pdfUrl}
+          style={{
+            width: '100%',
+            height: '100%',
+            border: 'none',
+          }}
+          title="Analytics Report"
+        />
+      </div>
+    </div>
+  );
+
+  // Main Report Generator Component
+  const ReportGenerator = () => (
     <div style={{
       maxWidth: '1400px',
       margin: '0 auto',
@@ -154,14 +303,14 @@ const ReportsTeam = () => {
         fontWeight: 600,
         color: '#111827'
       }}>
-        Analytics Reports
+        Event Analytics Reports
       </Title>
 
       <Row gutter={[24, 24]}>
         <Col xs={24}>
           <Card
             className="card bg-white text-light"
-            title={<Text strong style={{ fontSize: '16px' }} className="text-dark">Generate Report</Text>}
+            title={<Text strong style={{ fontSize: '16px' }} className="text-dark">Generate PDF Report</Text>}
             bordered={false}
             style={{
               borderRadius: '12px',
@@ -184,16 +333,6 @@ const ReportsTeam = () => {
                       fontSize: '0.9rem',
                       lineHeight: '1.5',
                       minHeight: '2.875rem',
-                      ':hover': {
-                        borderColor: '#007acc',
-                        backgroundColor: 'rgba(0, 146, 255, 0.08)'
-                      },
-                      ':focus': {
-                        borderColor: '#0092ff',
-                        boxShadow: '0 0 0 0.25rem rgba(0, 146, 255, 0.2)',
-                        outline: 'none',
-                        backgroundColor: 'rgba(0, 146, 255, 0.05)'
-                      }
                     }}
                     dropdownStyle={{
                       backgroundColor: '#fff',
@@ -203,90 +342,17 @@ const ReportsTeam = () => {
                     }}
                     value={reportType}
                     onChange={handleReportTypeChange}
-                    suffixIcon={
-                      <svg
-                        width="16"
-                        height="16"
-                        viewBox="0 0 16 16"
-                        fill="#0092ff"
-                        style={{ marginRight: '8px' }}
-                      >
-                        <path d="M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z" />
-                      </svg>
-                    }
                   >
-                    <Option
-                      value="financial"
-                      style={{
-                        color: '#000000ff',
-                        fontSize: '0.9rem',
-                        padding: '0.5rem 1rem',
-                        ':hover': {
-                          backgroundColor: 'rgba(0, 146, 255, 0.08)'
-                        }
-                      }}
-                    >
-                      Financial
-                    </Option>
-                    <Option
-                      value="dashboard"
-                      style={{
-                        color: '#000000ff',
-                        fontSize: '0.9rem',
-                        padding: '0.5rem 1rem',
-                        ':hover': {
-                          backgroundColor: 'rgba(0, 146, 255, 0.08)'
-                        }
-                      }}
-                    >
-                      Dashboard
-                    </Option>
-                    <Option
-                      value="products"
-                      style={{
-                        color: '#000000ff',
-                        fontSize: '0.9rem',
-                        padding: '0.5rem 1rem',
-                        ':hover': {
-                          backgroundColor: 'rgba(0, 146, 255, 0.08)'
-                        }
-                      }}
-                    >
-                      Products
-                    </Option>
-                    <Option
-                      value="sales"
-                      style={{
-                        color: '#000000ff',
-                        fontSize: '0.9rem',
-                        padding: '0.5rem 1rem',
-                        ':hover': {
-                          backgroundColor: 'rgba(0, 146, 255, 0.08)'
-                        }
-                      }}
-                    >
-                      Sales
-                    </Option>
-                    <Option
-                      value="customers"
-                      style={{
-                        color: '#000000ff',
-                        fontSize: '0.9rem',
-                        padding: '0.5rem 1rem',
-                        ':hover': {
-                          backgroundColor: 'rgba(0, 146, 255, 0.08)'
-                        }
-                      }}
-                    >
-                      Customers
-                    </Option>
+                    <Option value="event-analytics">Event Analytics Report</Option>
+                    <Option value="comprehensive-report">Comprehensive Event Report</Option>
+                    <Option value="subdomain-participants">Subdomain Participant List</Option>
                   </Select>
                 </div>
               </Col>
 
               <Col xs={24} md={8}>
                 <div style={{ marginBottom: '16px' }}>
-                  <Text strong style={{ display: 'block', marginBottom: '8px' }} className="text-dark">Period</Text>
+                  <Text strong style={{ display: 'block', marginBottom: '8px' }} className="text-dark">Select Event</Text>
                   <Select
                     style={{
                       width: '100%',
@@ -297,188 +363,88 @@ const ReportsTeam = () => {
                       cursor: 'pointer',
                       fontSize: '0.9rem',
                       lineHeight: '1.5',
-                      minHeight: '2.875rem',
-                      ':hover': {
-                        borderColor: '#007acc',
-                        backgroundColor: 'rgba(0, 146, 255, 0.08)'
-                      },
-                      ':focus': {
-                        borderColor: '#0092ff',
-                        boxShadow: '0 0 0 2px rgba(0, 146, 255, 0.2)',
-                        outline: 'none'
-                      }
+                      minHeight: '2.875rem'
                     }}
-                    dropdownStyle={{
-                      backgroundColor: '#fff',
-                      border: '1px solid #0092ff',
-                      borderRadius: '8px',
-                      boxShadow: '0 4px 12px rgba(0, 146, 255, 0.15)',
-                      padding: '8px 0'
-                    }}
-                    value={period}
-                    onChange={handlePeriodChange}
-                    suffixIcon={
-                      <svg
-                        width="16"
-                        height="16"
-                        viewBox="0 0 16 16"
-                        fill="#0092ff"
-                        style={{ marginRight: '8px' }}
-                      >
-                        <path d="M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z" />
-                      </svg>
+                    value={selectedEvent}
+                    onChange={handleEventChange}
+                    placeholder="Select an event"
+                    showSearch
+                    optionFilterProp="children"
+                    filterOption={(input, option) =>
+                      option.children.toLowerCase().includes(input.toLowerCase())
                     }
                   >
-                    <Option
-                      value="today"
-                      style={{
-                        color: '#000000ff',
-                        fontSize: '0.9rem',
-                        padding: '8px 16px',
-                        ':hover': {
-                          backgroundColor: 'rgba(0, 146, 255, 0.08)'
-                        }
-                      }}
-                    >
-                      Today
-                    </Option>
-                    <Option
-                      value="yesterday"
-                      style={{
-                        color: '#000000ff',
-                        fontSize: '0.9rem',
-                        padding: '8px 16px',
-                        ':hover': {
-                          backgroundColor: 'rgba(0, 146, 255, 0.08)'
-                        }
-                      }}
-                    >
-                      Yesterday
-                    </Option>
-                    <Option
-                      value="last7days"
-                      style={{
-                        color: '#000000ff',
-                        fontSize: '0.9rem',
-                        padding: '8px 16px',
-                        ':hover': {
-                          backgroundColor: 'rgba(0, 146, 255, 0.08)'
-                        }
-                      }}
-                    >
-                      Last 7 Days
-                    </Option>
-                    <Option
-                      value="last30days"
-                      style={{
-                        color: '#000000ff',
-                        fontSize: '0.9rem',
-                        padding: '8px 16px',
-                        ':hover': {
-                          backgroundColor: 'rgba(0, 146, 255, 0.08)'
-                        }
-                      }}
-                    >
-                      Last 30 Days
-                    </Option>
-                    <Option
-                      value="custom"
-                      style={{
-                        color: '#000000ff',
-                        fontSize: '0.9rem',
-                        padding: '8px 16px',
-                        ':hover': {
-                          backgroundColor: 'rgba(0, 146, 255, 0.08)'
-                        }
-                      }}
-                    >
-                      Custom Range
-                    </Option>
+                    {events.map(event => (
+                      <Option key={event.id} value={event.id}>
+                        {event.title}
+                      </Option>
+                    ))}
                   </Select>
                 </div>
               </Col>
 
-              {period === 'custom' && (
+              {(reportType === 'subdomain-participants' || reportType === 'event-analytics') && (
                 <Col xs={24} md={8}>
                   <div style={{ marginBottom: '16px' }}>
-                    <Text strong style={{ display: 'block', marginBottom: '8px' }} className="text-dark">Date Range</Text>
-                    <RangePicker
+                    <Text strong style={{ display: 'block', marginBottom: '8px' }} className="text-dark">
+                      {reportType === 'subdomain-participants' ? 'Select Subdomain' : 'Select Subdomain'}
+                    </Text>
+                    <Select
                       style={{
                         width: '100%',
+                        color: '#0092ff',
                         border: '1px solid #0092ff',
                         borderRadius: '6px',
                         backgroundColor: 'rgba(0, 146, 255, 0.05)',
+                        cursor: 'pointer',
+                        fontSize: '0.9rem',
                         lineHeight: '1.5',
-                        minHeight: '2.875rem',
+                        minHeight: '2.875rem'
                       }}
-                      inputStyle={{
-                        color: '#006bb3',
-                        fontSize: '0.9rem'
-                      }}
-                      popupStyle={{
-                        border: '1px solid #0092ff',
-                        borderRadius: '8px',
-                        boxShadow: '0 4px 12px rgba(0, 146, 255, 0.15)'
-                      }}
-                      onChange={handleDateRangeChange}
-                      disabledDate={(current) => current && current > dayjs().endOf('day')}
-                    />
+                      value={selectedSubdomain}
+                      onChange={handleSubdomainChange}
+                      placeholder="Select a subdomain"
+                      disabled={!selectedEvent}
+                    >
+                      {subdomains.map(subdomain => (
+                        <Option key={subdomain.id} value={subdomain.id}>
+                          {subdomain.name} ({subdomain.parentDomainName || subdomain.parentDomain})
+                        </Option>
+                      ))}
+                    </Select>
                   </div>
                 </Col>
               )}
             </Row>
 
-            <Space
+            <div
               style={{
                 marginTop: '24px',
                 width: '100%',
-                justifyContent: 'flex-end',
-                flexWrap: 'wrap',
-                gap: '16px'
+                display: 'flex',
+                justifyContent: 'flex-end'
               }}
             >
-              <Button
-                type="primary"
-                icon={<FileExcelOutlined />}
-                onClick={downloadCSV}
-                loading={csvLoading}
-                size="large"
-                disabled={period === 'custom' && !dateRange}
-                style={{
-                  fontWeight: '500',
-                  background: '#00a46dff',
-                  border: 'none',
-                  boxShadow: '0 1px 3px rgba(16, 185, 129, 0.3)',
-                  padding: '0 16px',
-                  height: '40px',
-                  width: '100%',
-                  maxWidth: '200px'
-                }}
-              >
-                <span className="responsive-text">Download CSV</span>
-              </Button>
-
               <Button
                 type="primary"
                 icon={<FilePdfOutlined />}
                 onClick={generateReport}
                 loading={loading}
                 size="large"
-                disabled={period === 'custom' && !dateRange}
+                disabled={isGenerateDisabled()}
                 style={{
                   fontWeight: '500',
                   background: '#0092ff',
                   border: 'none',
                   boxShadow: '0 1px 3px rgba(16, 148, 185, 0.3)',
-                  padding: '0 16px',
+                  padding: '0 24px',
                   height: '40px',
-                  width: '100%',
-                  maxWidth: '200px'
+                  minWidth: '200px'
                 }}
               >
-                <span className="responsive-text">Generate PDF</span>
+                Generate PDF Report
               </Button>
-            </Space>
+            </div>
 
             {loading && (
               <div style={{
@@ -488,81 +454,14 @@ const ReportsTeam = () => {
                 <Spin size="large" tip="Generating PDF report..." />
               </div>
             )}
-
-            {csvLoading && (
-              <div style={{
-                textAlign: 'center',
-                padding: '40px 0',
-              }}>
-                <Spin size="large" tip="Preparing CSV download..." />
-              </div>
-            )}
-
-            {pdfUrl && !loading && (
-              <div style={{
-                marginTop: '24px',
-                borderRadius: '8px',
-                overflow: 'hidden'
-              }}>
-                <div style={{
-                  width: '100%',
-                  overflow: 'auto',
-                  border: '1px solid #f0f0f0',
-                  borderRadius: '8px'
-                }}>
-                  <iframe
-                    src={pdfUrl}
-                    style={{
-                      width: '100%',
-                      height: `1200px`,
-                      border: 'none',
-                    }}
-                    title="Analytics Report"
-                  />
-                </div>
-                <div style={{
-                  textAlign: 'right',
-                  marginTop: '16px',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center'
-                }}>
-                  <Text className="text-dark" style={{ fontSize: '12px' }}>
-                    Scroll horizontally to view full document
-                  </Text>
-                  <Button
-                    type="link"
-                    href={pdfUrl}
-                    target="_blank"
-                    download={`${reportType}_report_${period === 'custom' ? 'custom_range' : period}.pdf`}
-                    style={{ fontWeight: 500 }}
-                  >
-                    <DownloadOutlined /> Download PDF
-                  </Button>
-                </div>
-              </div>
-            )}
           </Card>
         </Col>
       </Row>
-
-      <style>{`
-        @media (max-width: 768px) {
-          .responsive-text {
-            display: none;
-          }
-          .ant-btn .anticon {
-            margin-right: 0 !important;
-          }
-        }
-        @media (max-width: 576px) {
-          .pdf-container {
-            height: 400px;
-          }
-        }
-      `}</style>
     </div>
   );
+
+  // Render either PDF page or report generator
+  return showPdfPage && pdfUrl ? <PdfDisplayPage /> : <ReportGenerator />;
 };
 
 export default ReportsTeam;
