@@ -830,14 +830,6 @@ const RegistrationTable = () => {
                         </div>
                     )}
                 </Modal.Body>
-                <Modal.Footer>
-                    <Button 
-                        variant="outlined" 
-                        onClick={() => setIsViewModalOpen(false)}
-                    >
-                        Close
-                    </Button>
-                </Modal.Footer>
             </Modal>
 
             <style>

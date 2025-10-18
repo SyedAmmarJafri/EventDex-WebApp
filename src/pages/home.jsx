@@ -508,13 +508,6 @@ const Dashboard = () => {
                         }}>
                             Home Dashboard
                         </Title>
-                        <Text style={{
-                            color: '#64748b',
-                            fontSize: screens.xs ? '14px' : '16px',
-                            fontWeight: 500
-                        }}>
-                            Welcome back, {userName}! Real-time insights into your event registrations.
-                        </Text>
                     </Space>
 
                     {hasAnalyticsPermission && (
